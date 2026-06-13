@@ -1877,6 +1877,18 @@ function renderLogin() {
 function shell(content, options = {}) {
   const account = currentAccount();
   const isCoach = account.role === "coach";
+  const activeNavigationView = activeView === "editor" ? "dashboard" : activeView;
+  const navButton = (view, glyph, label) => `
+    <button
+      class="nav-btn ${activeNavigationView === view ? "active" : ""}"
+      type="button"
+      data-view="${view}"
+      ${activeNavigationView === view ? 'aria-current="page"' : ""}
+    >
+      <span class="nav-glyph" aria-hidden="true">${glyph}</span>
+      <span class="nav-label">${label}</span>
+    </button>
+  `;
   const pageTitle = options.title || (isCoach ? "Coach workspace" : "My worksheets");
   const pageSubtitle =
     options.subtitle ||
@@ -1890,38 +1902,20 @@ function shell(content, options = {}) {
           <img src="assets/fit-logo-exact-transparent.png" alt="FIT" />
         </div>
         <nav class="side-nav" aria-label="Primary navigation">
-          <button class="nav-btn ${activeView === "dashboard" ? "active" : ""}" type="button" data-view="dashboard">
-            <span class="nav-glyph" aria-hidden="true">${isCoach ? "◎" : "▤"}</span>
-            ${isCoach ? "Received forms" : "My forms"}
-          </button>
+          ${navButton("dashboard", isCoach ? "◎" : "▤", isCoach ? "Forms & Reviews" : "My forms")}
           ${
             isCoach
               ? ""
               : `<button class="nav-btn" type="button" data-new-form>
                   <span class="nav-glyph" aria-hidden="true">＋</span>
-                  New form
+                  <span class="nav-label">New form</span>
                 </button>`
           }
-          <button class="nav-btn ${activeView === "coach-connection" ? "active" : ""}" type="button" data-view="coach-connection">
-            <span class="nav-glyph" aria-hidden="true">${isCoach ? "?" : "↗"}</span>
-            ${isCoach ? "Mentee requests" : "My coach"}
-          </button>
-          <button class="nav-btn ${activeView === "profile" ? "active" : ""}" type="button" data-view="profile">
-            <span class="nav-glyph" aria-hidden="true">◉</span>
-            Financial profile
-          </button>
-          <button class="nav-btn ${activeView === "sessions" ? "active" : ""}" type="button" data-view="sessions">
-            <span class="nav-glyph" aria-hidden="true">✦</span>
-            Session reviews
-          </button>
-          <button class="nav-btn ${activeView === "about" ? "active" : ""}" type="button" data-view="about">
-            <span class="nav-glyph" aria-hidden="true">i</span>
-            About FIT
-          </button>
-          <button class="nav-btn ${activeView === "settings" ? "active" : ""}" type="button" data-view="settings">
-            <span class="nav-glyph" aria-hidden="true">⚙</span>
-            Settings
-          </button>
+          ${navButton("coach-connection", isCoach ? "↗" : "↗", isCoach ? "Mentee Management" : "My coach")}
+          ${navButton("profile", "◉", isCoach ? "My Financial Profile" : "Financial profile")}
+          ${navButton("sessions", "✦", isCoach ? "Mentee Session Reviews" : "Session reviews")}
+          ${navButton("about", "i", "About FIT")}
+          ${navButton("settings", "⚙", "Settings")}
         </nav>
         <div class="sidebar-account">
           <div class="account-block">
