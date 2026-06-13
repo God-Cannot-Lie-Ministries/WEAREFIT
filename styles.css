@@ -1137,6 +1137,33 @@ textarea:disabled {
   font-size: 12px;
 }
 
+.savings-pending-note {
+  margin: -4px 0 10px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.coach-savings-breakdown {
+  display: grid;
+  gap: 4px;
+  margin: -2px 0 12px;
+  border-left: 2px solid var(--gold-line);
+  padding-left: 9px;
+}
+
+.coach-savings-breakdown span {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.coach-savings-breakdown strong {
+  color: var(--navy);
+}
+
 .badge {
   display: inline-flex;
   align-items: center;

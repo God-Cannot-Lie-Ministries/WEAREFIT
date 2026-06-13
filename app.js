@@ -396,6 +396,13 @@ function normalizeStateModels(state) {
   Object.values(state.accounts || {}).forEach((account) => {
     ensureAccountModel(account);
     reconcileReportedWithdrawals(state, account);
+    if (account.savingsInvestmentAccounts.some((item) => item.type === "savings")) {
+      account.carryForward ||= {};
+      account.carryForward.savings = {
+        ...(account.carryForward.savings || {}),
+        current: String(profileSavingsTotal(account)),
+      };
+    }
   });
   Object.values(state.forms || {}).forEach((form) => {
     if (form.assignedPerson === "both") {
@@ -1253,6 +1260,16 @@ function profileSavingsTotal(account) {
   return (account.savingsInvestmentAccounts || [])
     .filter((item) => item.type === "savings")
     .reduce((sum, item) => sum + (Number(item.balance) || 0), 0);
+}
+
+function reportedSavingsTotal(account) {
+  if (!account) return 0;
+  const savingsAccounts = (account.savingsInvestmentAccounts || []).filter(
+    (item) => item.type === "savings",
+  );
+  if (savingsAccounts.length) return currencyValue(profileSavingsTotal(account));
+  const latest = memberForms(account.email)[0];
+  return currencyValue(account.carryForward?.savings?.current ?? (latest ? calculate(latest).savingsAfter : 0));
 }
 
 function profileInvestmentTotal(account) {
@@ -2285,7 +2302,7 @@ function profileRelationship(account) {
 }
 
 function coachProfileCard(member) {
-  const currentSavings = profileSavingsTotal(member);
+  const currentSavings = reportedSavingsTotal(member);
   const totalDebt = profileDebtTotal(member);
   return `
     <article class="panel coach-profile">
@@ -2337,6 +2354,7 @@ function showMenteeProfileModal(email) {
           ${profileFact("Card accounts", String(member.financialInventory.creditCards.length))}
           ${profileFact("Student loans", String(member.financialInventory.studentLoans.length))}
           ${profileFact("Mortgage balance", money(member.financialInventory.mortgage.currentBalance))}
+          ${profileFact("Current savings", money(reportedSavingsTotal(member)))}
           ${profileFact("Tracked investment assets", money(profileInvestmentTotal(member)))}
         </div>
         ${assetHistoryChart(member.savingsInvestmentAccounts)}
@@ -3141,12 +3159,25 @@ function menteeSavingsCard(member) {
   const latest = memberForms(member.email)[0];
   const calc = latest ? calculate(latest) : null;
   const goal = Number(member.carryForward?.savings?.goal || calc?.savingsGoal || 0);
-  const current = Number(member.carryForward?.savings?.current || calc?.savingsAfter || 0);
+  const current = reportedSavingsTotal(member);
+  const pendingContribution =
+    latest?.status === "draft" || latest?.status === "submitted"
+      ? currencyValue(latest?.data?.savings?.contribution)
+      : 0;
+  const savingsAccounts = (member.savingsInvestmentAccounts || []).filter(
+    (account) => account.type === "savings",
+  );
   const progress = goal ? Math.min(100, (current / goal) * 100) : 0;
   return `
     <article class="form-card">
       <div class="form-card-top"><div class="person-row">${avatarMarkup(member)}<div><h3>${escapeHtml(member.name)}</h3><p>${escapeHtml(member.email)} · ${escapeHtml(profileRelationship(member))}</p>${activityBadge(member)}</div></div><span class="badge green">Mentee</span></div>
       <div class="savings-mini-stats"><strong>${money(current)}</strong><span>of ${money(goal)} saved</span></div>
+      ${
+        savingsAccounts.length
+          ? `<div class="coach-savings-breakdown">${savingsAccounts.map((account) => `<span>${escapeHtml(account.name || "Savings account")} <strong>${money(account.balance)}</strong></span>`).join("")}</div>`
+          : ""
+      }
+      ${pendingContribution ? `<p class="savings-pending-note">${money(pendingContribution)} planned in the latest worksheet, not yet included above.</p>` : ""}
       ${progressBar(progress, `${money(Math.max(0, goal - current))} left`)}
     </article>
   `;
