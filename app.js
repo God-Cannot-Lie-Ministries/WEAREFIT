@@ -24,6 +24,8 @@ let inactivityLogoutInProgress = false;
 let calculatorDragState = null;
 let calculatorInteractionUntil = 0;
 const INACTIVITY_LIMIT_MS = 15 * 60 * 1000;
+const MILESTONE_RESET_VERSION = "2026-06-13-withdrawal-repair";
+const MILESTONE_RESET_CUTOFF = new Date("2026-06-13T16:00:00Z").getTime();
 const urlParameters = new URLSearchParams(window.location.search);
 const inviteCoachFromUrl = urlParameters.get("coachInvite");
 const passwordResetFromUrl = urlParameters.get("passwordReset") === "1";
@@ -268,6 +270,7 @@ function ensureAccountModel(account) {
   });
   account.savingsInvestmentAccounts ||= [];
   account.savingsInvestmentAccounts.forEach((assetAccount) => {
+    assetAccount.id ||= uid("asset-account");
     assetAccount.type ||= "savings";
     assetAccount.updatedAt ||= todayValue();
     assetAccount.notes ||= "";
@@ -299,9 +302,101 @@ function ensureAccountModel(account) {
   mortgage.currentBalance ||= "";
 }
 
+function reconcileReportedWithdrawals(state, account) {
+  const accountWithdrawals = (state.withdrawals || [])
+    .filter((withdrawal) => withdrawal.memberEmail === account.email)
+    .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+  accountWithdrawals.forEach((withdrawal) => {
+    withdrawal.amount = currencyValue(withdrawal.amount);
+    withdrawal.reason = String(withdrawal.reason || "").trim() || "Reason not provided";
+    const savingsAccount = account.savingsInvestmentAccounts.find(
+      (item) =>
+        item.type === "savings" &&
+        (item.id === withdrawal.assetAccountId ||
+          (!withdrawal.assetAccountId &&
+            withdrawal.savingsAccountName &&
+            String(item.name || "").trim().toLowerCase() ===
+              String(withdrawal.savingsAccountName).trim().toLowerCase())),
+    );
+    if (!savingsAccount) return;
+    withdrawal.assetAccountId = savingsAccount.id;
+    withdrawal.savingsAccountName = savingsAccount.name || "Savings account";
+    const hasPreviousBalance = Number.isFinite(Number(withdrawal.previousBalance));
+    const previousBalance = hasPreviousBalance ? currencyValue(withdrawal.previousBalance) : null;
+    const reportedNewBalance = hasPreviousBalance
+      ? currencyValue(Math.max(0, previousBalance - withdrawal.amount))
+      : currencyValue(withdrawal.newBalance ?? withdrawal.updatedSavings);
+    if (hasPreviousBalance) withdrawal.previousBalance = previousBalance;
+    withdrawal.newBalance = reportedNewBalance;
+    const currentBalance = currencyValue(savingsAccount.balance);
+    if (!withdrawal.profileApplied && hasPreviousBalance && currentBalance === previousBalance) {
+      savingsAccount.balance = String(reportedNewBalance);
+      savingsAccount.updatedAt = String(withdrawal.createdAt || todayValue()).slice(0, 10);
+    }
+    if (currencyValue(savingsAccount.balance) === reportedNewBalance) {
+      withdrawal.profileApplied = true;
+      if (!savingsAccount.history.some((entry) => entry.withdrawalId === withdrawal.id)) {
+        savingsAccount.history.push({
+          id: uid("balance"),
+          withdrawalId: withdrawal.id,
+          balance: String(reportedNewBalance),
+          date: String(withdrawal.createdAt || todayValue()).slice(0, 10),
+          recordedAt: withdrawal.createdAt || new Date().toISOString(),
+        });
+      }
+    }
+  });
+}
+
 function normalizeStateModels(state) {
+  state.withdrawals ||= [];
+  state.withdrawals = state.withdrawals.filter((withdrawal, index, withdrawals) => {
+    const signature = [
+      withdrawal.memberEmail,
+      withdrawal.assetAccountId || withdrawal.savingsAccountName,
+      withdrawal.formId || "",
+      currencyValue(withdrawal.amount),
+      String(withdrawal.reason || "").trim().toLowerCase(),
+    ].join("|");
+    return !withdrawals.slice(0, index).some((other) => {
+      const otherSignature = [
+        other.memberEmail,
+        other.assetAccountId || other.savingsAccountName,
+        other.formId || "",
+        currencyValue(other.amount),
+        String(other.reason || "").trim().toLowerCase(),
+      ].join("|");
+      return (
+        signature === otherSignature &&
+        Math.abs(new Date(withdrawal.createdAt || 0) - new Date(other.createdAt || 0)) < 10000
+      );
+    });
+  });
   state.notifications ||= [];
-  Object.values(state.accounts || {}).forEach(ensureAccountModel);
+  const validWithdrawalIds = new Set(state.withdrawals.map((withdrawal) => withdrawal.id));
+  state.notifications = state.notifications.filter(
+    (notification) => !notification.withdrawalId || validWithdrawalIds.has(notification.withdrawalId),
+  );
+  state.dismissedMilestoneKeys ||= [];
+  const resetMilestones = state.notifications.filter(
+    (notification) =>
+      notification.milestoneKey &&
+      (!notification.createdAt || new Date(notification.createdAt).getTime() <= MILESTONE_RESET_CUTOFF),
+  );
+  if (resetMilestones.length || state.milestoneResetVersion !== MILESTONE_RESET_VERSION) {
+    state.dismissedMilestoneKeys = [
+      ...new Set([
+        ...state.dismissedMilestoneKeys,
+        ...resetMilestones.map((notification) => notification.milestoneKey),
+      ]),
+    ];
+    state.notifications = state.notifications.filter((notification) => !resetMilestones.includes(notification));
+    state.milestoneResetVersion = MILESTONE_RESET_VERSION;
+  }
+  Object.values(state.accounts || {}).forEach((account) => {
+    ensureAccountModel(account);
+    reconcileReportedWithdrawals(state, account);
+  });
   Object.values(state.forms || {}).forEach((form) => {
     if (form.assignedPerson === "both") {
       form.assignedName = formAssigneeName(state.accounts?.[form.ownerEmail], "both") || form.assignedName;
@@ -331,6 +426,13 @@ function normalizeStateModels(state) {
     );
     form.data.variableSpending ||= [];
     form.data.savings ||= { goal: "", current: "", contribution: "" };
+    const owner = state.accounts?.[form.ownerEmail];
+    if (
+      form.status === "draft" &&
+      owner?.savingsInvestmentAccounts?.some((item) => item.type === "savings")
+    ) {
+      form.data.savings.current = String(profileSavingsTotal(owner));
+    }
     form.data.overview ||= { checkDate: "", thisCheck: "", additionalIncome: "" };
     form.data.notes ||= "";
   });
@@ -1438,6 +1540,8 @@ function visibleNotifications(account) {
 
 function addMilestoneNotifications(member, milestoneKey, title, message, type) {
   appState.notifications ||= [];
+  appState.dismissedMilestoneKeys ||= [];
+  if (appState.dismissedMilestoneKeys.includes(milestoneKey)) return false;
   if (
     appState.notifications.some(
       (notification) =>
@@ -3050,11 +3154,15 @@ function menteeSavingsCard(member) {
 
 function withdrawalCard(withdrawal) {
   const member = appState.accounts[withdrawal.memberEmail];
+  const newBalance = currencyValue(withdrawal.newBalance ?? withdrawal.updatedSavings);
+  const previousBalance = Number.isFinite(Number(withdrawal.previousBalance))
+    ? currencyValue(withdrawal.previousBalance)
+    : currencyValue(newBalance + currencyValue(withdrawal.amount));
   return `
     <article class="withdrawal-card">
       <div>
         <strong>${escapeHtml(member?.name || withdrawal.memberEmail)}</strong>
-        <span>${updatedLabel(withdrawal.createdAt)} · ${escapeHtml(withdrawal.savingsAccountName || "Savings")} · ${money(withdrawal.previousBalance ?? withdrawal.updatedSavings + withdrawal.amount)} → ${money(withdrawal.newBalance ?? withdrawal.updatedSavings)}</span>
+        <span>${updatedLabel(withdrawal.createdAt)} · ${escapeHtml(withdrawal.savingsAccountName || "Savings")} · ${money(previousBalance)} → ${money(newBalance)}</span>
         <p>${escapeHtml(withdrawal.reason)}</p>
       </div>
       <strong class="withdrawal-amount">-${money(withdrawal.amount)}</strong>
@@ -3076,7 +3184,10 @@ function notificationCenter(account, notifications = visibleNotifications(accoun
           <article class="milestone-notification ${notification.readAt ? "" : "unread"}">
             <span class="milestone-icon" aria-hidden="true">${notification.type === "card_paid" ? "✓" : "★"}</span>
             <div><strong>${escapeHtml(notification.title)}</strong><p>${escapeHtml(notification.message)}</p><small>${updatedLabel(notification.createdAt)}</small></div>
-            ${notification.readAt ? `<span class="badge green">Seen</span>` : `<button class="btn btn-secondary btn-small" type="button" data-read-notification="${notification.id}">Mark seen</button>`}
+            <div class="milestone-actions">
+              ${notification.readAt ? `<span class="badge green">Seen</span>` : `<button class="btn btn-secondary btn-small" type="button" data-read-notification="${notification.id}">Mark seen</button>`}
+              <button class="icon-btn danger milestone-delete" type="button" title="Delete notification" aria-label="Delete notification" data-delete-notification="${notification.id}">×</button>
+            </div>
           </article>
         `).join("")}
       </div>
@@ -4069,6 +4180,76 @@ function saveAssetHistoryEntry(account, index) {
   });
 }
 
+function recordSavingsWithdrawal(member, savingsAccount, amount, reason, formId = null) {
+  const normalizedAmount = currencyValue(amount);
+  const normalizedReason = String(reason).trim();
+  const duplicate = appState.withdrawals.find(
+    (withdrawal) =>
+      withdrawal.memberEmail === member.email &&
+      withdrawal.assetAccountId === savingsAccount.id &&
+      currencyValue(withdrawal.amount) === normalizedAmount &&
+      String(withdrawal.reason || "").trim() === normalizedReason &&
+      Date.now() - new Date(withdrawal.createdAt || 0).getTime() < 10000,
+  );
+  if (duplicate) return duplicate;
+  const previousBalance = currencyValue(savingsAccount.balance);
+  const newBalance = currencyValue(Math.max(0, previousBalance - normalizedAmount));
+  const createdAt = new Date().toISOString();
+  const withdrawal = {
+    id: uid("withdrawal"),
+    formId,
+    memberEmail: member.email,
+    coachEmail: member.coachEmail || null,
+    assetAccountId: savingsAccount.id,
+    savingsAccountName: savingsAccount.name || "Savings account",
+    previousBalance,
+    newBalance,
+    amount: normalizedAmount,
+    reason: normalizedReason,
+    createdAt,
+    profileApplied: true,
+  };
+  savingsAccount.balance = String(newBalance);
+  savingsAccount.updatedAt = todayValue();
+  savingsAccount.history.push({
+    id: uid("balance"),
+    withdrawalId: withdrawal.id,
+    balance: String(newBalance),
+    date: todayValue(),
+    recordedAt: createdAt,
+  });
+  withdrawal.updatedSavings = profileSavingsTotal(member);
+  appState.withdrawals.push(withdrawal);
+  addWithdrawalNotifications(member, withdrawal);
+  member.carryForward ||= {};
+  member.carryForward.savings = {
+    ...(member.carryForward.savings || {}),
+    current: String(withdrawal.updatedSavings),
+  };
+  syncDraftFormsWithFinancialProfile(member);
+  return withdrawal;
+}
+
+function addWithdrawalNotifications(member, withdrawal) {
+  appState.notifications ||= [];
+  if (appState.notifications.some((notification) => notification.withdrawalId === withdrawal.id)) return;
+  const recipients = [member.email];
+  if (member.coachEmail && member.coachRequestStatus === "approved") recipients.push(member.coachEmail);
+  recipients.forEach((recipientEmail) => {
+    appState.notifications.push({
+      id: uid("notification"),
+      withdrawalId: withdrawal.id,
+      memberEmail: member.email,
+      recipientEmail,
+      type: "savings_withdrawal",
+      title: "Savings withdrawal recorded",
+      message: `${withdrawal.savingsAccountName}: ${money(previousBalance)} to ${money(newBalance)}. Reason: ${normalizedReason}`,
+      createdAt,
+      readAt: null,
+    });
+  });
+}
+
 function createForm(assignedPerson = "account_holder") {
   const account = currentAccount();
   if (!account || account.role !== "user") return;
@@ -4244,6 +4425,10 @@ function printWorksheetSummary(formId) {
 function showWithdrawalModal(formId) {
   const form = appState.forms[formId];
   if (!form) return;
+  const member = appState.accounts[form.ownerEmail];
+  const savingsAccounts = (member?.savingsInvestmentAccounts || []).filter(
+    (account) => account.type === "savings",
+  );
   const calc = calculate(form);
   const modal = document.createElement("div");
   modal.className = "modal-backdrop";
@@ -4258,6 +4443,11 @@ function showWithdrawalModal(formId) {
       <div class="modal-body">
         <p>Available savings: <strong>${money(calc.savingsAfter)}</strong>. Your designated coach will receive the reason and updated savings amount.</p>
         <form id="withdrawal-form" class="form-stack">
+          ${
+            savingsAccounts.length
+              ? `<div class="field"><label for="withdrawal-account">Savings account</label><select id="withdrawal-account" class="input" name="assetAccountId" required><option value="">Select savings account</option>${savingsAccounts.map((account) => `<option value="${escapeHtml(account.id)}">${escapeHtml(account.name || "Savings account")} · ${money(account.balance)}</option>`).join("")}</select></div>`
+              : `<p class="quiet-message">This withdrawal will update worksheet savings only because no savings account exists in the Financial Profile.</p>`
+          }
           ${moneyField("Withdrawal amount", "modal.withdrawal", "", false).replace('data-path="modal.withdrawal"', 'name="amount"')}
           <div class="field">
             <label for="withdrawal-reason">Reason for withdrawal</label>
@@ -4562,6 +4752,28 @@ document.addEventListener("click", async (event) => {
     notification.readAt = new Date().toISOString();
     saveState();
     renderDashboard();
+    return;
+  }
+
+  const deleteNotification = event.target.closest("[data-delete-notification]");
+  if (deleteNotification) {
+    const account = currentAccount();
+    const notificationIndex = (appState.notifications || []).findIndex(
+      (item) =>
+        item.id === deleteNotification.dataset.deleteNotification &&
+        normalizeEmail(item.recipientEmail) === normalizeEmail(account.email),
+    );
+    if (notificationIndex < 0) return;
+    const [notification] = appState.notifications.splice(notificationIndex, 1);
+    if (notification.milestoneKey) {
+      appState.dismissedMilestoneKeys ||= [];
+      if (!appState.dismissedMilestoneKeys.includes(notification.milestoneKey)) {
+        appState.dismissedMilestoneKeys.push(notification.milestoneKey);
+      }
+    }
+    saveState();
+    renderDashboard();
+    showToast("Notification deleted.");
     return;
   }
 
@@ -5446,35 +5658,43 @@ document.addEventListener("submit", async (event) => {
     const data = new FormData(event.target);
     const amount = Number(data.get("amount")) || 0;
     const reason = data.get("reason").trim();
+    const member = currentAccount();
+    const savingsAccounts = member.savingsInvestmentAccounts.filter((account) => account.type === "savings");
+    const savingsAccount = savingsAccounts.find((account) => account.id === data.get("assetAccountId"));
     const calc = calculate(form);
-    if (amount <= 0 || amount > calc.savingsAfter) {
+    const availableBalance = savingsAccount ? Number(savingsAccount.balance) || 0 : calc.savingsAfter;
+    if (!reason || amount <= 0 || amount > availableBalance || (savingsAccounts.length && !savingsAccount)) {
       showToast("Enter a withdrawal amount within the available savings balance.");
       return;
     }
-    const updatedSavings = Math.max(0, calc.savingsAfter - amount);
-    form.data.savings.current = String(updatedSavings);
+    const withdrawal = savingsAccount
+      ? recordSavingsWithdrawal(member, savingsAccount, amount, reason, form.id)
+      : {
+          id: uid("withdrawal"),
+          formId: form.id,
+          memberEmail: member.email,
+          coachEmail: member.coachEmail || null,
+          amount: currencyValue(amount),
+          reason,
+          savingsAccountName: "Worksheet savings",
+          previousBalance: calc.savingsAfter,
+          newBalance: currencyValue(calc.savingsAfter - amount),
+          updatedSavings: currencyValue(calc.savingsAfter - amount),
+          createdAt: new Date().toISOString(),
+          profileApplied: false,
+        };
+    if (!savingsAccount) appState.withdrawals.push(withdrawal);
+    if (!savingsAccount) addWithdrawalNotifications(member, withdrawal);
+    form.data.savings.current = String(withdrawal.updatedSavings);
     form.data.savings.contribution = "";
     form.updatedAt = new Date().toISOString();
-    const member = currentAccount();
     member.carryForward ||= {};
     member.carryForward.savings = {
       goal: form.data.savings.goal,
-      current: String(updatedSavings),
+      current: String(withdrawal.updatedSavings),
     };
-    appState.withdrawals.push({
-      id: uid("withdrawal"),
-      formId: form.id,
-      memberEmail: member.email,
-      coachEmail: member.coachEmail,
-      amount,
-      reason,
-      savingsAccountName: "Worksheet savings",
-      previousBalance: calc.savingsAfter,
-      newBalance: updatedSavings,
-      updatedSavings,
-      createdAt: new Date().toISOString(),
-    });
     saveState();
+    await productionBackend.saveNow?.(appState);
     modal.remove();
     renderEditor();
     showToast(member.coachEmail ? "Savings withdrawal recorded and sent to your coach" : "Savings withdrawal recorded");
@@ -5494,12 +5714,9 @@ document.addEventListener("submit", async (event) => {
       showToast("Enter a valid withdrawal amount and reason.");
       return;
     }
-    const newBalance = previousBalance - amount;
-    savingsAccount.balance = String(newBalance);
-    savingsAccount.updatedAt = todayValue();
-    saveAssetHistoryEntry(member, modal.dataset.assetIndex);
-    appState.withdrawals.push({ id: uid("withdrawal"), memberEmail: member.email, coachEmail: member.coachEmail || null, savingsAccountName: savingsAccount.name || "Savings account", previousBalance, newBalance, amount, reason, updatedSavings: profileSavingsTotal(member), createdAt: new Date().toISOString() });
+    recordSavingsWithdrawal(member, savingsAccount, amount, reason);
     saveState();
+    await productionBackend.saveNow?.(appState);
     modal.remove();
     renderProfile();
     showToast(member.coachEmail ? "Withdrawal saved and shared with your coach." : "Withdrawal saved.");

@@ -719,6 +719,19 @@ textarea:disabled {
   font-size: 9px;
 }
 
+.milestone-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.milestone-delete {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+}
+
 .quiet-message {
   margin: 0;
   border: 1px dashed #bac4d2;
@@ -2233,6 +2246,15 @@ select {
 
   .milestone-notification .btn {
     width: 100%;
+  }
+
+  .milestone-actions {
+    width: 100%;
+  }
+
+  .milestone-actions .milestone-delete {
+    width: 34px;
+    min-width: 34px;
   }
 
   .profile-facts div {

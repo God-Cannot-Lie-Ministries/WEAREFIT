@@ -67,6 +67,8 @@
       withdrawals: state.withdrawals.filter((item) => item.memberEmail === ownerEmail),
       sessions: state.sessions.filter((item) => item.memberEmail === ownerEmail),
       notifications: (state.notifications || []).filter((item) => item.memberEmail === ownerEmail),
+      dismissedMilestoneKeys: state.dismissedMilestoneKeys || [],
+      milestoneResetVersion: state.milestoneResetVersion || null,
       dateAutofillDisabled: true,
       sessionEmail: null,
     };
@@ -81,6 +83,8 @@
       withdrawals: [],
       sessions: [],
       notifications: [],
+      dismissedMilestoneKeys: [],
+      milestoneResetVersion: null,
       dateAutofillDisabled: true,
       sessionEmail,
     };
@@ -88,6 +92,10 @@
       const state = row.state || {};
       Object.assign(merged.accounts, state.accounts || {});
       Object.assign(merged.forms, state.forms || {});
+      if (state.milestoneResetVersion) merged.milestoneResetVersion = state.milestoneResetVersion;
+      merged.dismissedMilestoneKeys = [
+        ...new Set([...(merged.dismissedMilestoneKeys || []), ...(state.dismissedMilestoneKeys || [])]),
+      ];
       ["coachRequests", "coachInvites", "withdrawals", "sessions", "notifications"].forEach((key) => {
         const seen = new Set(merged[key].map((item) => item.id));
         (state[key] || []).forEach((item) => {
