@@ -2138,9 +2138,9 @@ function assetAccountsSection(account) {
     <section class="panel profile-inventory asset-section">
       <div class="panel-heading"><div><h3>Savings and investment tracking</h3><p>Manually record balances and build a history of progress over time.</p></div><button class="btn btn-secondary btn-small" type="button" data-add-asset-account><span aria-hidden="true">＋</span> Add account</button></div>
       <div class="asset-summary-strip">
-        ${profileFact("Savings accounts", `${savings.length} · ${money(savings.reduce((sum, item) => sum + (Number(item.balance) || 0), 0))}`)}
-        ${profileFact("Investment accounts", `${investments.length} · ${money(investments.reduce((sum, item) => sum + (Number(item.balance) || 0), 0))}`)}
-        ${profileFact("Savings + investments", money(account.savingsInvestmentAccounts.reduce((sum, item) => sum + (Number(item.balance) || 0), 0)))}
+        ${profileFact("Total savings", money(savings.reduce((sum, item) => sum + (Number(item.balance) || 0), 0)))}
+        ${profileFact("Total investments", money(investments.reduce((sum, item) => sum + (Number(item.balance) || 0), 0)))}
+        ${profileFact("Combined total", money(account.savingsInvestmentAccounts.reduce((sum, item) => sum + (Number(item.balance) || 0), 0)))}
       </div>
       <div class="asset-chart-wrap">${assetHistoryChart(account.savingsInvestmentAccounts)}</div>
       <div class="profile-inventory-list">
