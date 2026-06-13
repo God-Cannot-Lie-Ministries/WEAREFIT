@@ -3251,6 +3251,25 @@ html[data-theme="dark"] .sidebar-brand img {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--gold) 20%, transparent);
 }
 
+.individual-assignment-choice > span {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 5px;
+  padding: 16px 12px;
+  text-align: center;
+}
+
+.individual-assignment-choice .avatar {
+  grid-row: auto;
+  grid-column: 1;
+  margin-inline: auto;
+}
+
+.individual-assignment-choice strong,
+.individual-assignment-choice small {
+  grid-column: 1;
+}
+
 .form-origin {
   margin-top: 12px;
 }
@@ -4010,6 +4029,20 @@ html[data-theme="dark"] .onboarding-banner strong {
   overflow-wrap: anywhere;
 }
 
+.assignment-choice.individual-assignment-choice > span {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  text-align: center;
+}
+
+.assignment-choice.individual-assignment-choice .avatar,
+.assignment-choice.individual-assignment-choice strong,
+.assignment-choice.individual-assignment-choice small {
+  grid-row: auto;
+  grid-column: 1;
+  margin-inline: auto;
+}
+
 @media (max-width: 840px) {
   .debt-entry-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4196,6 +4229,8 @@ html[data-theme="dark"] .onboarding-banner strong {
 }
 
 .draggable-calculator {
+  --calculator-key-gap: 6px;
+  --calculator-key-size: 42px;
   container-type: size;
   display: flex;
   flex-direction: column;
@@ -4221,8 +4256,6 @@ html[data-theme="dark"] .onboarding-banner strong {
 }
 
 .draggable-calculator .calculator-keypad {
-  --calculator-key-size: clamp(30px, min(18cqw, 11cqh), 62px);
-  --calculator-key-gap: clamp(5px, min(2.5cqw, 1.6cqh), 10px);
   grid-template-columns: repeat(4, var(--calculator-key-size));
   width: fit-content;
   max-width: 100%;
@@ -4241,6 +4274,7 @@ html[data-theme="dark"] .onboarding-banner strong {
   padding: 0;
   font-size: clamp(13px, min(7cqw, 5cqh), 21px);
   transition:
+    width 0.12s ease,
     height 0.12s ease,
     font-size 0.12s ease,
     filter 0.12s ease;

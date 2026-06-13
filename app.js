@@ -18,11 +18,13 @@ let pendingVerificationEmail = null;
 let toastTimer = null;
 let pendingPaystubUpload = null;
 let formAutosaveTimer = null;
+let lastLocalSaveAt = 0;
 let lastUserActivityAt = Date.now();
 let lastPresenceUpdateAt = 0;
 let inactivityLogoutInProgress = false;
 let calculatorDragState = null;
 let calculatorInteractionUntil = 0;
+let calculatorResizeObserver = null;
 const INACTIVITY_LIMIT_MS = 15 * 60 * 1000;
 const MILESTONE_RESET_VERSION = "2026-06-13-withdrawal-repair";
 const MILESTONE_RESET_CUTOFF = new Date("2026-06-13T16:00:00Z").getTime();
@@ -1062,6 +1064,7 @@ function nowForSeed() {
 }
 
 function saveState() {
+  lastLocalSaveAt = Date.now();
   if (productionBackend.enabled) {
     localStorage.removeItem(STORAGE_KEY);
     productionBackend.queuePersist?.(appState);
@@ -1902,20 +1905,20 @@ function shell(content, options = {}) {
           <img src="assets/fit-logo-exact-transparent.png" alt="FIT" />
         </div>
         <nav class="side-nav" aria-label="Primary navigation">
-          ${navButton("dashboard", isCoach ? "◎" : "▤", isCoach ? "Forms & Reviews" : "My forms")}
+          ${navButton("dashboard", isCoach ? "◎" : "▤", isCoach ? "Forms & Reviews" : "Worksheets & Planning")}
           ${
             isCoach
               ? ""
               : `<button class="nav-btn" type="button" data-new-form>
                   <span class="nav-glyph" aria-hidden="true">＋</span>
-                  <span class="nav-label">New form</span>
+                  <span class="nav-label">Create Worksheet</span>
                 </button>`
           }
-          ${navButton("coach-connection", isCoach ? "↗" : "↗", isCoach ? "Mentee Management" : "My coach")}
-          ${navButton("profile", "◉", isCoach ? "My Financial Profile" : "Financial profile")}
-          ${navButton("sessions", "✦", isCoach ? "Mentee Session Reviews" : "Session reviews")}
-          ${navButton("about", "i", "About FIT")}
-          ${navButton("settings", "⚙", "Settings")}
+          ${navButton("coach-connection", "↗", isCoach ? "Mentee Management" : "Coach Connection")}
+          ${navButton("profile", "◉", "My Financial Profile")}
+          ${navButton("sessions", "✦", isCoach ? "Mentee Session Reviews" : "Session History")}
+          ${navButton("about", "i", "About F.I.T.")}
+          ${navButton("settings", "⚙", isCoach ? "Settings" : "Account Settings")}
         </nav>
         <div class="sidebar-account">
           <div class="account-block">
@@ -3324,6 +3327,7 @@ function renderEditor() {
       : `Autosaved · Last updated ${updatedLabel(form.updatedAt)}`,
     actions,
   });
+  observeCalculatorSize(app.querySelector("[data-draggable-calculator]"));
 }
 
 function overviewPanel(form, calc, readOnly) {
@@ -3784,6 +3788,29 @@ function applyCalculatorKey(form, key) {
   }
   form.data.calculatorDraft = draft.slice(0, 32);
   return false;
+}
+
+function updateCalculatorKeyScale(calculator) {
+  if (!calculator) return;
+  const keySize = Math.max(
+    30,
+    Math.min(82, (calculator.clientWidth - 60) / 4, (calculator.clientHeight - 110) / 5),
+  );
+  const keyGap = Math.max(5, Math.min(11, keySize * 0.14));
+  calculator.style.setProperty("--calculator-key-size", `${keySize.toFixed(2)}px`);
+  calculator.style.setProperty("--calculator-key-gap", `${keyGap.toFixed(2)}px`);
+}
+
+function observeCalculatorSize(calculator) {
+  calculatorResizeObserver?.disconnect();
+  calculatorResizeObserver = null;
+  if (!calculator) return;
+  updateCalculatorKeyScale(calculator);
+  if (!("ResizeObserver" in window)) return;
+  calculatorResizeObserver = new ResizeObserver(() => {
+    requestAnimationFrame(() => updateCalculatorKeyScale(calculator));
+  });
+  calculatorResizeObserver.observe(calculator);
 }
 
 function beginCalculatorDrag(event) {
@@ -4313,8 +4340,8 @@ function showNewFormModal() {
       <div class="modal-header"><div><p class="document-label">New worksheet</p><h3 id="assignment-title">Who will complete this form?</h3></div><button class="icon-btn" type="button" aria-label="Close" data-close-modal>×</button></div>
       <div class="modal-body">
         <form id="new-form-assignment-form" class="form-stack">
-          <label class="assignment-choice"><input type="radio" name="assignedPerson" value="account_holder" checked><span>${avatarMarkup(account)}<strong>${escapeHtml(account.name)}</strong><small>Account holder</small></span></label>
-          <label class="assignment-choice"><input type="radio" name="assignedPerson" value="spouse"><span>${spouseAvatarMarkup(account)}<strong>${escapeHtml(account.profile.spouseName)}</strong><small>Spouse</small></span></label>
+          <label class="assignment-choice individual-assignment-choice"><input type="radio" name="assignedPerson" value="account_holder" checked><span>${avatarMarkup(account)}<strong>${escapeHtml(account.name)}</strong><small>Account holder</small></span></label>
+          <label class="assignment-choice individual-assignment-choice"><input type="radio" name="assignedPerson" value="spouse"><span>${spouseAvatarMarkup(account)}<strong>${escapeHtml(account.profile.spouseName)}</strong><small>Spouse</small></span></label>
           <label class="assignment-choice"><input type="radio" name="assignedPerson" value="both"><span>${formAssigneeAvatar(account, "both")}<strong>${escapeHtml(formAssigneeName(account, "both"))}</strong><small>Complete together</small></span></label>
           <button class="btn btn-primary" type="submit">Create assigned worksheet</button>
         </form>
@@ -5988,6 +6015,11 @@ async function refreshPortalFromBackend() {
     portalRefreshInProgress ||
     profilePhotoUpdateInProgress ||
     Date.now() < calculatorInteractionUntil ||
+    document.visibilityState !== "visible" ||
+    document.querySelector(".modal-backdrop") ||
+    calculatorDragState ||
+    Date.now() - lastLocalSaveAt < 1500 ||
+    document.activeElement?.matches("input, textarea, select") ||
     !currentAccount()
   ) return;
   portalRefreshInProgress = true;
@@ -6048,8 +6080,8 @@ setInterval(() => {
   validateCurrentAccount();
 }, 15 * 1000);
 setInterval(() => {
-  if (!document.activeElement?.matches("input, textarea, select")) refreshPortalFromBackend();
-}, 5 * 1000);
+  refreshPortalFromBackend();
+}, 20 * 1000);
 ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "pointerdown"].forEach((eventName) => {
   document.addEventListener(eventName, recordUserActivity, { passive: true });
 });

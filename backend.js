@@ -306,7 +306,7 @@
   function queuePersist(state) {
     if (!client) return;
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => persist(state).catch(console.error), 500);
+    saveTimer = setTimeout(() => persist(state).catch(console.error), 800);
   }
 
   async function signUp({ name, email, password, role }) {
