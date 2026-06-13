@@ -25,6 +25,7 @@ let inactivityLogoutInProgress = false;
 let calculatorDragState = null;
 let calculatorInteractionUntil = 0;
 let calculatorResizeObserver = null;
+let pageLoadingTimer = null;
 const INACTIVITY_LIMIT_MS = 15 * 60 * 1000;
 const MILESTONE_RESET_VERSION = "2026-06-13-withdrawal-repair";
 const MILESTONE_RESET_CUTOFF = new Date("2026-06-13T16:00:00Z").getTime();
@@ -2147,13 +2148,13 @@ function assetAccountsSection(account) {
       </div>
       <div class="asset-chart-wrap">${assetHistoryChart(account.savingsInvestmentAccounts)}</div>
       <div class="profile-inventory-list">
-        ${account.savingsInvestmentAccounts.length ? account.savingsInvestmentAccounts.map(assetAccountCard).join("") : emptyInline("No savings or investment accounts added", "Add an account to begin tracking balances and history.")}
+        ${account.savingsInvestmentAccounts.length ? account.savingsInvestmentAccounts.map((assetAccount, index) => assetAccountCard(assetAccount, index, account.role !== "coach")).join("") : emptyInline("No savings or investment accounts added", "Add an account to begin tracking balances and history.")}
       </div>
     </section>
   `;
 }
 
-function assetAccountCard(assetAccount, index) {
+function assetAccountCard(assetAccount, index, canRecordWithdrawal) {
   const typeLabel = assetAccount.type === "investment" ? "Investment" : "Savings";
   return `
     <article class="profile-inventory-card asset-account-card">
@@ -2168,7 +2169,7 @@ function assetAccountCard(assetAccount, index) {
         <div class="field"><label>Optional notes</label><input class="input" data-asset-path="${index}.notes" value="${escapeHtml(assetAccount.notes)}" placeholder="Purpose or goal"></div>
       </div>
       <div class="entry-footer"><span class="badge ${assetAccount.type === "investment" ? "" : "green"}">${typeLabel}</span><span>${assetAccount.history.length} historical update${assetAccount.history.length === 1 ? "" : "s"}</span></div>
-      ${assetAccount.type === "savings" ? `<button class="btn btn-secondary btn-small" type="button" data-withdraw-profile-savings="${index}">Record withdrawal</button>` : ""}
+      ${assetAccount.type === "savings" && canRecordWithdrawal ? `<button class="btn btn-secondary btn-small" type="button" data-withdraw-profile-savings="${index}">Record withdrawal</button>` : ""}
       <button class="icon-btn danger profile-remove" type="button" aria-label="Remove tracked account" title="Remove tracked account" data-remove-asset-account="${index}">×</button>
     </article>
   `;
@@ -3792,11 +3793,17 @@ function applyCalculatorKey(form, key) {
 
 function updateCalculatorKeyScale(calculator) {
   if (!calculator) return;
+  const compactHeight = calculator.clientHeight < 390;
+  const horizontalReserve = compactHeight ? 24 : 28;
+  const verticalReserve = compactHeight ? 145 : 155;
+  const gapRatio = 0.13;
+  const widthBound = (calculator.clientWidth - horizontalReserve) / (4 + (3 * gapRatio));
+  const heightBound = (calculator.clientHeight - verticalReserve) / (5 + (4 * gapRatio));
   const keySize = Math.max(
-    30,
-    Math.min(82, (calculator.clientWidth - 60) / 4, (calculator.clientHeight - 110) / 5),
+    27,
+    Math.min(82, widthBound, heightBound),
   );
-  const keyGap = Math.max(5, Math.min(11, keySize * 0.14));
+  const keyGap = Math.max(4, Math.min(10, keySize * gapRatio));
   calculator.style.setProperty("--calculator-key-size", `${keySize.toFixed(2)}px`);
   calculator.style.setProperty("--calculator-key-gap", `${keyGap.toFixed(2)}px`);
 }
@@ -4620,6 +4627,27 @@ function showToast(message) {
   toastTimer = setTimeout(() => toast.classList.remove("show"), 2600);
 }
 
+function showPageLoading(message = "Updating your F.I.T. workspace...") {
+  clearTimeout(pageLoadingTimer);
+  let loader = document.getElementById("page-loader");
+  if (!loader) {
+    loader = document.createElement("div");
+    loader.id = "page-loader";
+    loader.className = "page-loader";
+    loader.setAttribute("role", "status");
+    loader.setAttribute("aria-live", "polite");
+    loader.innerHTML = `<span class="page-loader-spinner" aria-hidden="true"></span><strong></strong>`;
+    document.body.appendChild(loader);
+  }
+  loader.querySelector("strong").textContent = message;
+  loader.classList.add("show");
+  document.body.setAttribute("aria-busy", "true");
+  pageLoadingTimer = setTimeout(() => {
+    loader.classList.remove("show");
+    document.body.removeAttribute("aria-busy");
+  }, 700);
+}
+
 function verificationCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
@@ -4761,6 +4789,36 @@ async function createAccount(name, email, password, role) {
   loginMode = "verify";
   renderLogin();
 }
+
+document.addEventListener("click", (event) => {
+  const completedAction = event.target.closest(
+    [
+      "[data-save-form]",
+      "[data-delete-form]",
+      "[data-add-row]",
+      "[data-remove-row]",
+      "[data-add-profile-item]",
+      "[data-remove-profile-item]",
+      "[data-add-asset-account]",
+      "[data-remove-asset-account]",
+      "[data-asset-type]",
+      "[data-confirm-remove-mentee]",
+      "[data-coach-request-action]",
+      "[data-invite-action]",
+      "[data-delete-coach-invite]",
+      "[data-delete-notification]",
+      "[data-delete-session]",
+      "[data-approve-form]",
+    ].join(","),
+  );
+  if (completedAction) showPageLoading();
+}, true);
+
+document.addEventListener("submit", (event) => {
+  if (!event.target.closest("#login-form, #signup-form, #verification-form")) {
+    showPageLoading();
+  }
+}, true);
 
 document.addEventListener("click", async (event) => {
   const changePhotoButton = event.target.closest("[data-change-photo]");

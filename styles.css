@@ -2072,6 +2072,48 @@ select {
   transform: translateY(0);
 }
 
+.page-loader {
+  position: fixed;
+  z-index: 120;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  visibility: hidden;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  color: var(--navy);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease, visibility 0.16s ease;
+}
+
+.page-loader.show {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.page-loader strong {
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.page-loader-spinner {
+  width: 34px;
+  height: 34px;
+  border: 3px solid color-mix(in srgb, var(--gold) 28%, transparent);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: page-loader-spin 0.7s linear infinite;
+}
+
+@keyframes page-loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (max-width: 1100px) {
   .metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3915,7 +3957,7 @@ html[data-theme="dark"] .onboarding-banner strong {
   border-radius: 18px;
   background: #171719;
   color: #ffffff;
-  padding: 14px;
+  padding: 10px;
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.36);
   touch-action: none;
 }
@@ -3929,9 +3971,9 @@ html[data-theme="dark"] .onboarding-banner strong {
 }
 
 .draggable-calculator .calculator-heading {
-  margin: -14px -14px 8px;
+  margin: -10px -10px 6px;
   border-bottom: 1px solid #3f3f42;
-  padding: 12px 14px 10px;
+  padding: 9px 10px 8px;
   cursor: grab;
   touch-action: none;
 }
@@ -4250,8 +4292,8 @@ html[data-theme="dark"] .onboarding-banner strong {
 }
 
 .draggable-calculator .calculator-display {
-  min-height: 48px;
-  padding-block: 5px 8px;
+  min-height: 42px;
+  padding: 3px 2px 6px;
   font-size: clamp(24px, 10cqw, 42px);
 }
 
@@ -4289,8 +4331,10 @@ html[data-theme="dark"] .onboarding-banner strong {
 }
 
 .draggable-calculator .calculator-history {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 1 1 34px;
+  min-height: 28px;
+  margin-top: 8px;
+  padding-top: 6px;
   overflow-y: auto;
 }
 
