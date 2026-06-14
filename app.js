@@ -1950,7 +1950,7 @@ function renderProfile() {
         member.coachRequestStatus === "approved",
     );
     const content = `
-      <div class="content">
+      <div class="content financial-profile-view">
         <div class="page-heading"><div><p class="eyebrow">Coach financial profile</p><h2>My F.I.T. financial profile</h2><p>Your private finances are separate from every mentee profile.</p></div><button class="btn btn-primary" type="button" data-save-financial-profile>Save profile data</button></div>
         <section class="profile-overview">
           <div class="profile-photo-row">${profilePhotoPanel(account, true)}</div>
@@ -1983,7 +1983,7 @@ function renderProfile() {
   const totalDebt = profileDebtTotal(account);
   const assetTotal = profileInvestmentTotal(account);
   const content = `
-    <div class="content">
+    <div class="content financial-profile-view">
       <div class="page-heading"><div><p class="eyebrow">Your financial foundation</p><h2>My F.I.T. financial profile</h2><p>Profile data becomes the starting point for every new worksheet.</p></div><button class="btn btn-primary" type="button" data-save-financial-profile>Save profile data</button></div>
       <section class="profile-overview">
         <div class="profile-photo-row">
