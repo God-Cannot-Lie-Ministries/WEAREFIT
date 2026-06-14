@@ -5357,3 +5357,37 @@ html[data-theme="dark"] .data-table th {
     padding: 11px 13px;
   }
 }
+
+.housing-format-display {
+  display: flex;
+  max-width: 360px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  border: 1px solid var(--gold-line);
+  border-radius: 7px;
+  background: var(--surface-soft);
+  padding: 11px 13px;
+}
+
+.housing-format-display span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.housing-format-display strong {
+  color: var(--navy);
+  font-size: 15px;
+}
+
+html[data-theme="dark"] .housing-format-display strong {
+  color: var(--gold);
+}
+
+.settings-housing-choice {
+  max-width: 420px;
+  margin: 0;
+}

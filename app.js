@@ -2461,16 +2461,18 @@ function creditCardProfileCard(card, index) {
 
 function mortgageProfileSection(account) {
   const mortgage = account.financialInventory.mortgage;
+  const housingType = account.financialInventory.housingPaymentType === "rent" ? "rent" : "mortgage";
+  const housingLabel = housingType === "rent" ? "Rent" : "Mortgage";
   const total = Number(mortgage.totalAmount) || 0;
   const current = Number(mortgage.currentBalance) || 0;
   const progress = total ? Math.min(100, Math.max(0, ((total - current) / total) * 100)) : 0;
   return `
     <section class="panel profile-inventory">
-      <div class="panel-heading"><div><h3>Housing profile</h3><p>Select rent or mortgage once. New and open worksheets will follow this saved choice automatically.</p></div></div>
+      <div class="panel-heading"><div><h3>Housing profile</h3><p>Your saved housing format automatically controls new and open worksheets.</p></div></div>
       <div class="panel-body">
-        <div class="asset-type-choice"><button class="type-choice ${account.financialInventory.housingPaymentType === "mortgage" ? "active" : ""}" type="button" data-profile-housing-type="mortgage">Mortgage</button><button class="type-choice ${account.financialInventory.housingPaymentType === "rent" ? "active" : ""}" type="button" data-profile-housing-type="rent">Rent</button></div>
-        ${account.financialInventory.housingPaymentType === "rent" ? `<p class="quiet-message">Rent is saved. Mortgage details are preserved but hidden and excluded from worksheets.</p>` : ""}
-        <div class="${account.financialInventory.housingPaymentType === "rent" ? "hidden" : ""}">
+        <div class="housing-format-display"><span>Housing format</span><strong>${housingLabel}</strong></div>
+        ${housingType === "rent" ? `<p class="quiet-message">Mortgage details are preserved but hidden and excluded from worksheets.</p>` : ""}
+        <div class="${housingType === "rent" ? "hidden" : ""}">
         <div class="profile-inventory-grid">
           ${moneyField("Total mortgage amount", "financialInventory.mortgage.totalAmount", mortgage.totalAmount, false)}
           ${percentField("Mortgage interest rate", "financialInventory.mortgage.interestRate", mortgage.interestRate, false)}
@@ -2792,6 +2794,15 @@ function renderSettings() {
         <div class="panel-body theme-grid">
           <button class="theme-choice ${account.preferences.theme === "light" ? "active" : ""}" type="button" data-theme-choice="light"><span class="theme-preview light-preview"></span><strong>Light mode</strong><small>Bright, clear, and focused</small></button>
           <button class="theme-choice ${account.preferences.theme === "dark" ? "active" : ""}" type="button" data-theme-choice="dark"><span class="theme-preview dark-preview"></span><strong>Dark mode</strong><small>Navy surfaces with gold borders</small></button>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-heading"><div><h3>Housing format</h3><p>This choice controls the housing details and calculations shown in your Financial Profile and worksheets.</p></div></div>
+        <div class="panel-body">
+          <div class="asset-type-choice settings-housing-choice" role="group" aria-label="Housing format">
+            <button class="type-choice ${account.financialInventory.housingPaymentType === "mortgage" ? "active" : ""}" type="button" data-settings-housing-type="mortgage">Mortgage</button>
+            <button class="type-choice ${account.financialInventory.housingPaymentType === "rent" ? "active" : ""}" type="button" data-settings-housing-type="rent">Rent</button>
+          </div>
         </div>
       </section>
       <section class="panel danger-zone">
@@ -5188,12 +5199,13 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
-  const profileHousingType = event.target.closest("[data-profile-housing-type]");
-  if (profileHousingType) {
+  const settingsHousingType = event.target.closest("[data-settings-housing-type]");
+  if (settingsHousingType) {
     const account = currentAccount();
-    account.financialInventory.housingPaymentType = profileHousingType.dataset.profileHousingType;
+    account.financialInventory.housingPaymentType = settingsHousingType.dataset.settingsHousingType;
     saveFinancialProfileMutation(account);
-    renderProfile();
+    renderSettings();
+    showToast(`${settingsHousingType.textContent.trim()} housing format saved.`);
     return;
   }
 
