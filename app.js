@@ -2788,24 +2788,25 @@ function renderSettings() {
   const content = `
     <div class="content settings-page">
       <div class="page-heading"><div><p class="eyebrow">Interface settings</p><h2>Make F.I.T. feel right for you</h2><p>Choose the appearance that works best for you.</p></div></div>
-      <div class="settings-preference-grid">
-        <section class="panel settings-preference-panel">
-          <div class="panel-heading"><div><h3>Appearance</h3><p>Your theme choice is saved to this account.</p></div></div>
-          <div class="panel-body theme-grid">
-            <button class="theme-choice ${account.preferences.theme === "light" ? "active" : ""}" type="button" data-theme-choice="light"><span class="theme-preview light-preview"></span><strong>Light mode</strong><small>Bright, clear, and focused</small></button>
-            <button class="theme-choice ${account.preferences.theme === "dark" ? "active" : ""}" type="button" data-theme-choice="dark"><span class="theme-preview dark-preview"></span><strong>Dark mode</strong><small>Navy surfaces with gold borders</small></button>
+      <section class="panel settings-control-panel">
+        <div class="panel-heading"><div><h3>Preferences</h3><p>Manage how your account looks and handles housing information.</p></div></div>
+        <div class="settings-control-list">
+          <div class="settings-control-row">
+            <div><strong>Appearance</strong><span>Your theme choice is saved to this account.</span></div>
+            <div class="settings-segmented-control theme-grid" role="group" aria-label="Appearance">
+              <button class="theme-choice ${account.preferences.theme === "light" ? "active" : ""}" type="button" data-theme-choice="light"><strong>Light</strong></button>
+              <button class="theme-choice ${account.preferences.theme === "dark" ? "active" : ""}" type="button" data-theme-choice="dark"><strong>Dark</strong></button>
+            </div>
           </div>
-        </section>
-        <section class="panel settings-preference-panel">
-          <div class="panel-heading"><div><h3>Housing</h3><p>Choose the format used throughout your profile and worksheets.</p></div></div>
-          <div class="panel-body settings-housing-body">
-            <div class="asset-type-choice settings-housing-choice" role="group" aria-label="Housing format">
+          <div class="settings-control-row">
+            <div><strong>Housing</strong><span>Controls the housing details used in your profile and worksheets.</span></div>
+            <div class="asset-type-choice settings-housing-choice settings-segmented-control" role="group" aria-label="Housing format">
               <button class="type-choice ${account.financialInventory.housingPaymentType === "mortgage" ? "active" : ""}" type="button" data-settings-housing-type="mortgage">Mortgage</button>
               <button class="type-choice ${account.financialInventory.housingPaymentType === "rent" ? "active" : ""}" type="button" data-settings-housing-type="rent">Rent</button>
             </div>
           </div>
-        </section>
-      </div>
+        </div>
+      </section>
       <section class="panel danger-zone">
         <div class="panel-heading"><div><h3>Delete account</h3><p>Permanently remove your account and saved information.</p></div></div>
         <div class="panel-body danger-zone-body"><p>For your protection, we will email a confirmation link to <strong>${escapeHtml(account.email)}</strong>. Nothing is deleted until you open that link.${productionBackend.config?.accountDeletionEnabled ? "" : " This option is not available yet."}</p><button class="btn btn-danger" type="button" data-request-account-deletion ${productionBackend.config?.accountDeletionEnabled ? "" : "disabled"}>Start account deletion</button></div>
