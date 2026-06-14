@@ -15,6 +15,7 @@ let activeFormId = null;
 let loginRole = "user";
 let loginMode = "signin";
 let pendingVerificationEmail = null;
+let confirmationResendNeeded = false;
 let toastTimer = null;
 let pendingPaystubUpload = null;
 let formAutosaveTimer = null;
@@ -91,6 +92,11 @@ function authErrorMessage(error, action = "continue") {
     return "The email provider could not deliver this message yet. Check the address, then try again in a few minutes.";
   }
   return message || `Unable to ${action}. Please try again.`;
+}
+
+function emailConfirmationRequired(error) {
+  const details = `${error?.code || ""} ${error?.message || ""}`.replaceAll("_", " ");
+  return /email.*not confirmed|not.*confirmed/i.test(details);
 }
 
 function uid(prefix = "id") {
@@ -1821,7 +1827,11 @@ function renderLogin() {
             <p>Click the confirmation link sent to <strong>${escapeHtml(pendingVerificationEmail)}</strong>, then proceed to login. Delivery can take a few minutes; check spam or junk folders too.</p>
             <div class="form-stack">
               <button class="btn btn-primary" type="button" data-login-mode="signin">Proceed to login</button>
-              ${productionBackend.enabled ? `<button class="btn btn-secondary" type="button" data-resend-verification>Resend confirmation email</button>` : ""}
+              ${
+                productionBackend.enabled && confirmationResendNeeded
+                  ? `<button class="btn btn-secondary" type="button" data-resend-verification>Resend confirmation email</button>`
+                  : ""
+              }
             </div>
           </div>
         </section>
@@ -1872,7 +1882,7 @@ function renderLogin() {
             </div>
             <button class="btn btn-primary" type="submit">${isSignup ? "Create account" : `Sign in as ${loginRole === "coach" ? "coach" : "member"}`} <span aria-hidden="true">→</span></button>
             <button class="btn btn-secondary" type="button" data-login-mode="${isSignup ? "signin" : "signup"}">${isSignup ? "Already have an account? Sign in" : "New user? Create an account"}</button>
-            ${isSignup || !productionBackend.enabled ? "" : `<button class="btn btn-secondary" type="button" data-login-mode="forgot">Forgot password?</button><button class="btn btn-secondary" type="button" data-open-verification>Resend confirmation email</button>`}
+            ${isSignup || !productionBackend.enabled ? "" : `<button class="btn btn-secondary" type="button" data-login-mode="forgot">Forgot password?</button>`}
           </form>
           ${productionBackend.enabled ? "" : `<div class="login-demo">or open a preview</div><div class="demo-buttons"><button class="btn btn-secondary" type="button" data-demo="alex@fitdemo.com">Member preview · demo123</button><button class="btn btn-secondary" type="button" data-demo="coach@fitdemo.com">Coach preview · demo123</button></div>`}
         </div>
@@ -4737,6 +4747,7 @@ async function beginVerification(email) {
     try {
       await productionBackend.resendVerification(normalizedEmail);
       pendingVerificationEmail = normalizedEmail;
+      confirmationResendNeeded = false;
       loginMode = "verify";
       renderLogin();
       showToast("Confirmation link sent. Check your email.");
@@ -4779,6 +4790,12 @@ async function signIn(email, password, role) {
       activeFormId = null;
       render();
     } catch (error) {
+      if (emailConfirmationRequired(error)) {
+        pendingVerificationEmail = normalizedEmail;
+        confirmationResendNeeded = true;
+        loginMode = "verify";
+        renderLogin();
+      }
       showToast(authErrorMessage(error, "sign in"));
     }
     return;
@@ -4818,6 +4835,7 @@ async function createAccount(name, email, password, role) {
     try {
       await productionBackend.signUp({ name: name.trim(), email: normalizedEmail, password, role });
       pendingVerificationEmail = normalizedEmail;
+      confirmationResendNeeded = false;
       loginMode = "verify";
       renderLogin();
       showToast("Click the confirmation link in your email, then sign in.");
@@ -4861,6 +4879,7 @@ async function createAccount(name, email, password, role) {
   };
   saveState();
   pendingVerificationEmail = normalizedEmail;
+  confirmationResendNeeded = false;
   loginMode = "verify";
   renderLogin();
 }
@@ -5000,7 +5019,10 @@ document.addEventListener("click", async (event) => {
   const loginModeButton = event.target.closest("[data-login-mode]");
   if (loginModeButton) {
     loginMode = loginModeButton.dataset.loginMode;
-    if (loginMode !== "verify") pendingVerificationEmail = null;
+    if (loginMode !== "verify") {
+      pendingVerificationEmail = null;
+      confirmationResendNeeded = false;
+    }
     renderLogin();
     return;
   }
@@ -5009,12 +5031,6 @@ document.addEventListener("click", async (event) => {
   if (roleButton) {
     loginRole = roleButton.dataset.loginRole;
     renderLogin();
-    return;
-  }
-
-  if (event.target.closest("[data-open-verification]")) {
-    const email = document.querySelector('#login-form input[name="email"]')?.value || "";
-    beginVerification(email);
     return;
   }
 
