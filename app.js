@@ -3687,24 +3687,20 @@ function calculatorPanel(form, readOnly) {
   const compactViewport = window.innerWidth <= 620;
   const viewportWidth = Math.max(220, window.innerWidth - 24);
   const minWidth = Math.min(compactViewport ? 184 : 190, viewportWidth);
-  const maxWidth = Math.max(minWidth, Math.min(compactViewport ? 360 : 430, viewportWidth));
+  const calculatorAspectRatio = 11 / 16;
+  const heightLimitedWidth = Math.max(minWidth, (window.innerHeight - 24) * calculatorAspectRatio);
+  const maxWidth = Math.max(minWidth, Math.min(compactViewport ? 360 : 430, viewportWidth, heightLimitedWidth));
   const defaultWidth = Math.min(compactViewport ? 268 : 292, maxWidth);
   const savedWidth = Number(savedSize.width);
   const calculatorWidth = savedWidth ? Math.min(Math.max(minWidth, savedWidth), maxWidth) : defaultWidth;
-  const viewportHeight = Math.max(360, window.innerHeight - 24);
-  const minHeight = Math.min(compactViewport ? 286 : 300, viewportHeight);
-  const maxHeight = Math.max(minHeight, viewportHeight);
-  const savedHeight = Number(savedSize.height);
-  const calculatorHeight = savedHeight
-    ? Math.min(Math.max(minHeight, savedHeight), maxHeight)
-    : Math.min(compactViewport ? 500 : 540, maxHeight);
+  const calculatorHeight = calculatorWidth / calculatorAspectRatio;
   const safeLeft = position
     ? Math.min(Math.max(8, Number(position.left) || 8), Math.max(8, window.innerWidth - calculatorWidth - 8))
     : 0;
   const safeTop = position
     ? Math.min(Math.max(8, Number(position.top) || 8), Math.max(8, window.innerHeight - calculatorHeight - 8))
     : 0;
-  const sizeStyle = `width:${calculatorWidth}px;${savedHeight ? `height:${calculatorHeight}px;` : ""}`;
+  const sizeStyle = `width:${calculatorWidth}px;height:auto;aspect-ratio:11 / 16;`;
   const positionStyle = `${sizeStyle}${position ? `left:${safeLeft}px;top:${safeTop}px;right:auto;bottom:auto;` : ""}`;
   return `<aside class="calculator-widget draggable-calculator ${form.data.calculatorMinimized ? "minimized" : ""} ${form.data.calculatorHistoryOpen ? "history-open" : ""}" data-draggable-calculator="${form.id}" style="${positionStyle}">
     <div class="calculator-heading" data-calculator-drag-handle>
@@ -3826,9 +3822,9 @@ function updateCalculatorKeyScale(calculator) {
   const heightBound = (calculator.clientHeight - verticalReserve) / (5 + (4 * gapRatio));
   const keySize = Math.max(
     27,
-    Math.min(82, widthBound, heightBound),
+    Math.min(104, widthBound, heightBound),
   );
-  const keyGap = Math.max(4, Math.min(10, keySize * gapRatio));
+  const keyGap = Math.max(4, Math.min(14, keySize * gapRatio));
   calculator.style.setProperty("--calculator-key-size", `${keySize.toFixed(2)}px`);
   calculator.style.setProperty("--calculator-key-gap", `${keyGap.toFixed(2)}px`);
 }

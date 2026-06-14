@@ -5276,8 +5276,11 @@ html[data-theme="dark"] .data-table th {
 
 /* Final compact calculator spacing */
 .draggable-calculator:not(.minimized) {
-  min-height: 286px;
+  aspect-ratio: 11 / 16;
+  height: auto !important;
+  min-height: 0;
   padding: 6px 7px 8px;
+  resize: horizontal;
 }
 
 .draggable-calculator:not(.minimized) .calculator-heading {
@@ -5296,12 +5299,10 @@ html[data-theme="dark"] .data-table th {
   align-content: center;
 }
 
-.draggable-calculator:not(.minimized) .calculator-history {
-  inset: 40px 6px 6px;
+.draggable-calculator:not(.minimized) .calculator-key {
+  font-size: clamp(13px, min(7cqw, 5cqh), 30px);
 }
 
-@media (min-width: 621px) {
-  .draggable-calculator:not(.minimized) {
-    min-height: 300px;
-  }
+.draggable-calculator:not(.minimized) .calculator-history {
+  inset: 40px 6px 6px;
 }
