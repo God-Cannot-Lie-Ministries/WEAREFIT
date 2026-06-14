@@ -4478,3 +4478,582 @@ html[data-theme="dark"] .onboarding-banner strong {
     grid-template-columns: 1fr;
   }
 }
+
+/* Sleek professional interface refresh */
+:root {
+  --canvas: #eef2f6;
+  --surface-soft: #f6f8fb;
+  --line: #d7dee8;
+  --shadow: 0 8px 24px rgba(10, 31, 65, 0.08);
+  --premium-shadow: 0 14px 34px rgba(10, 31, 65, 0.1);
+}
+
+body {
+  line-height: 1.45;
+}
+
+.app-shell {
+  grid-template-columns: 236px minmax(0, 1fr);
+}
+
+.sidebar {
+  width: 236px;
+  background: #071b3b;
+  box-shadow: 8px 0 28px rgba(7, 26, 58, 0.1);
+}
+
+.sidebar-brand {
+  min-height: 116px;
+  justify-content: center;
+  padding: 12px 18px;
+}
+
+.sidebar-brand img {
+  width: 168px;
+  max-height: 92px;
+}
+
+.side-nav {
+  gap: 3px;
+  padding: 14px 10px;
+}
+
+.nav-btn {
+  min-height: 44px;
+  gap: 10px;
+  border-radius: 6px;
+  color: #cbd5e5;
+  padding: 10px 11px;
+  font-size: 13px;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+.nav-btn.active {
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+
+.nav-glyph {
+  width: 20px;
+  height: 20px;
+  font-size: 14px;
+}
+
+.sidebar-account {
+  padding: 10px;
+}
+
+.account-block {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 9px;
+}
+
+.main {
+  grid-column: 2;
+}
+
+.topbar {
+  min-height: 78px;
+  padding: 13px 26px;
+  border-bottom-color: rgba(13, 40, 89, 0.12);
+  box-shadow: 0 4px 18px rgba(7, 26, 58, 0.05);
+}
+
+.topbar h1 {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.topbar p:not(.fit-kicker) {
+  margin-top: 2px;
+}
+
+.fit-kicker {
+  margin-bottom: 2px !important;
+}
+
+.content {
+  padding: 24px 26px 34px;
+}
+
+.page-heading {
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.page-heading h2 {
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.page-heading p {
+  margin-top: 3px;
+  font-size: 13px;
+}
+
+.btn {
+  min-height: 38px;
+  border-radius: 6px;
+  padding: 8px 13px;
+  font-size: 13px;
+  font-weight: 780;
+  box-shadow: none;
+}
+
+.btn:hover {
+  transform: none;
+}
+
+.btn-primary,
+.btn-gold {
+  box-shadow: 0 4px 12px rgba(13, 40, 89, 0.12);
+}
+
+.btn-secondary {
+  border-color: #c7d0dc;
+  background: color-mix(in srgb, var(--surface) 96%, var(--canvas));
+}
+
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  flex-basis: 32px;
+  border-radius: 6px;
+  font-size: 16px;
+}
+
+.field {
+  gap: 5px;
+}
+
+.field label,
+.field-label {
+  color: #445064;
+  font-size: 11px;
+  font-weight: 780;
+  text-transform: none;
+}
+
+.field input,
+.field textarea,
+.field select,
+.input,
+.table-input {
+  border-color: #cbd4df;
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.field input,
+.field textarea,
+.field select,
+.input {
+  min-height: 40px;
+  padding: 8px 10px;
+}
+
+.field input:focus,
+.field textarea:focus,
+.field select:focus,
+.input:focus,
+.table-input:focus {
+  border-color: #6d83a3;
+  box-shadow: 0 0 0 3px rgba(13, 40, 89, 0.08);
+}
+
+.metric-grid {
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.metric {
+  border-top-width: 2px;
+  border-radius: 7px;
+  padding: 14px 15px;
+  box-shadow: 0 5px 16px rgba(7, 26, 58, 0.05);
+}
+
+.metric span {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.metric strong {
+  margin-top: 4px;
+  font-size: 22px;
+}
+
+.form-grid,
+.inbox-grid {
+  gap: 12px;
+}
+
+.form-card,
+.panel,
+.summary-panel,
+.profile-inventory-card,
+.debt-entry,
+.session-review-card,
+.connection-panel {
+  border-radius: 8px;
+  box-shadow: 0 5px 18px rgba(7, 26, 58, 0.055);
+}
+
+.form-card {
+  padding: 15px;
+}
+
+.form-card:hover,
+.panel:hover {
+  border-color: #bac6d6;
+  box-shadow: 0 8px 24px rgba(7, 26, 58, 0.08);
+}
+
+.panel-heading {
+  min-height: 50px;
+  gap: 12px;
+  padding: 10px 13px;
+}
+
+.panel-heading h3 {
+  font-size: 15px;
+  font-weight: 820;
+}
+
+.panel-heading p {
+  margin-top: 2px;
+  font-size: 10px;
+}
+
+.panel-body {
+  padding: 14px;
+}
+
+.editor-layout {
+  gap: 16px;
+}
+
+.editor-main {
+  gap: 14px;
+}
+
+.editor-aside {
+  top: 92px;
+  gap: 10px;
+}
+
+.computed-field {
+  min-height: 58px;
+  border-radius: 6px;
+  background: var(--surface-soft);
+  padding: 8px 10px;
+}
+
+.computed-field span {
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+
+.computed-field strong {
+  margin-top: 3px;
+  font-size: 16px;
+}
+
+.subpanel {
+  border-radius: 7px;
+}
+
+.subpanel-heading {
+  min-height: 42px;
+  background: #11376a;
+  padding: 7px 9px 7px 12px;
+}
+
+.subpanel-heading h4 {
+  font-size: 13px;
+}
+
+.data-table th {
+  background: #f1ead8;
+  padding: 8px;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+
+.data-table td {
+  padding: 5px;
+}
+
+.table-input {
+  min-height: 34px;
+  padding: 5px 6px;
+}
+
+.table-total {
+  padding: 9px 11px;
+  font-size: 12px;
+}
+
+.profile-inventory-list {
+  gap: 10px;
+}
+
+.profile-inventory-card,
+.debt-entry {
+  padding: 12px;
+}
+
+.profile-inventory-grid,
+.debt-entry-grid,
+.overview-grid,
+.tracker-grid,
+.savings-grid {
+  gap: 10px;
+}
+
+.badge {
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 9px;
+  letter-spacing: 0.02em;
+}
+
+.community-footer {
+  margin-top: 22px;
+}
+
+.login-brand {
+  padding: 42px;
+}
+
+.login-panel {
+  padding: 38px;
+}
+
+.login-box {
+  width: min(440px, 100%);
+}
+
+.login-box h2 {
+  font-size: 29px;
+}
+
+.role-switch {
+  border-radius: 7px;
+}
+
+.theme-grid {
+  max-width: 760px;
+  gap: 10px;
+}
+
+.theme-choice {
+  gap: 5px;
+  border-radius: 7px;
+  padding: 9px;
+}
+
+.theme-preview {
+  height: 78px;
+}
+
+.theme-choice strong {
+  font-size: 13px;
+}
+
+.theme-choice small {
+  font-size: 10px;
+}
+
+.draggable-calculator {
+  border-radius: 14px;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.32);
+}
+
+.draggable-calculator.minimized {
+  width: min(236px, calc(100vw - 24px)) !important;
+  min-width: 0;
+  min-height: 46px;
+  height: 46px !important;
+  max-width: calc(100vw - 24px);
+  border-color: rgba(239, 195, 83, 0.78);
+  border-radius: 12px;
+  background: #171719;
+  padding: 0;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+}
+
+.draggable-calculator.minimized .calculator-heading {
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  border: 0;
+  border-radius: 11px;
+  padding: 8px 8px 8px 11px;
+  background: #202023;
+}
+
+.draggable-calculator.minimized .calculator-heading > div:first-child {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.draggable-calculator.minimized .calculator-heading > div:first-child::before {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: #efc353;
+  box-shadow: 0 0 0 3px rgba(239, 195, 83, 0.12);
+  content: "";
+}
+
+.draggable-calculator.minimized .calculator-heading h3 {
+  overflow: hidden;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.draggable-calculator.minimized .calculator-heading p {
+  display: none;
+}
+
+.draggable-calculator.minimized .calculator-tools {
+  gap: 5px;
+}
+
+.draggable-calculator.minimized .calculator-minimize {
+  width: 27px;
+  height: 27px;
+  border-color: rgba(239, 195, 83, 0.48);
+  background: rgba(239, 195, 83, 0.12);
+  color: #efc353;
+  font-size: 15px;
+}
+
+.draggable-calculator.minimized .calculator-drag-grip {
+  color: #aeb3bc;
+  font-size: 18px;
+}
+
+html[data-theme="dark"] {
+  --line: rgba(239, 195, 83, 0.38);
+  --surface-raised: #0d2750;
+  --surface-soft: #091e40;
+}
+
+html[data-theme="dark"] .topbar {
+  border-bottom-color: rgba(239, 195, 83, 0.3);
+}
+
+html[data-theme="dark"] .field label,
+html[data-theme="dark"] .field-label {
+  color: #cbd5e5;
+}
+
+html[data-theme="dark"] .data-table th {
+  background: #302a1d;
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    display: block;
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+    width: 100%;
+    box-shadow: none;
+  }
+
+  .sidebar-brand {
+    min-height: 84px;
+    align-items: center;
+    padding: 8px 12px;
+  }
+
+  .sidebar-brand img {
+    width: 150px;
+    max-height: 72px;
+  }
+
+  .side-nav {
+    display: flex;
+    overflow-x: auto;
+    padding: 7px 8px;
+  }
+
+  .nav-btn {
+    min-width: max-content;
+  }
+
+  .sidebar-account {
+    display: none;
+  }
+
+  .main {
+    grid-column: auto;
+  }
+
+  .content {
+    padding: 20px 18px 30px;
+  }
+}
+
+@media (max-width: 620px) {
+  .topbar {
+    min-height: 72px;
+    padding: 11px 12px;
+  }
+
+  .content {
+    padding: 16px 12px 26px;
+  }
+
+  .page-heading {
+    align-items: stretch;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .page-heading h2 {
+    font-size: 21px;
+  }
+
+  .metric-grid {
+    gap: 8px;
+  }
+
+  .metric {
+    padding: 11px 12px;
+  }
+
+  .theme-preview {
+    height: 56px;
+  }
+
+  .panel-heading {
+    align-items: flex-start;
+  }
+
+  .panel-body,
+  .profile-inventory-card,
+  .debt-entry {
+    padding: 11px;
+  }
+
+  .draggable-calculator.minimized {
+    right: 10px;
+    bottom: 10px;
+    width: min(220px, calc(100vw - 20px)) !important;
+  }
+}
