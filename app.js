@@ -2927,7 +2927,7 @@ function sessionReviewCard(session, viewer) {
         ${sessionDetail("Action steps before next session", session.actionSteps || "Continue following the approved worksheet.")}
         ${sessionListDetail("Bills to Pay This Check", session.billsToPayThisCheck || session.billsPaid)}
         ${sessionListDetail("Future Bills / Waiting for Next Check", session.futureBills || session.billsLeft)}
-        ${sessionListDetail("Funds routed to debts and cards", session.allocations)}
+        ${sessionListDetail("Extra payments", session.allocations)}
         ${sessionListDetail("Savings withdrawals", session.savingsWithdrawals)}
         ${sessionDetail("Member notes", session.memberNotes || "N/A")}
       </div>
@@ -3022,7 +3022,7 @@ function createSessionReview(form, coach, coachNotes, actionSteps) {
   const normalizedCoachNotes = coachNotes || "N/A";
   const normalizedActionSteps = actionSteps || "N/A";
   const memberNotes = form.data.notes || "N/A";
-  const aiSummary = `${form.assignedName || member.name} completed a F.I.T. paycheck-planning session with ${coach.name}. Total income for this check was ${money(calc.totalIncome)}, including ${money(calc.additionalIncome)} in additional income. The rounded tithe was ${titheMoney(calc.tithe)}, planned before bills and debt/card routing. Bills to Pay This Check: ${paid.length ? paid.join("; ") : "none"}. Future Bills / Waiting for Next Check: ${left.length ? left.join("; ") : "none"}. Funds routed to debts and cards total ${money(calc.allocationTotal)}, leaving ${money(calc.available)} available. ${savingsWithdrawals.length ? `Savings withdrawals recorded: ${savingsWithdrawals.join("; ")}.` : "No savings withdrawals were recorded for this form."} Coach notes: ${normalizedCoachNotes}. Member notes: ${memberNotes}.`;
+  const aiSummary = `${form.assignedName || member.name} completed a F.I.T. paycheck-planning session with ${coach.name}. Total income for this check was ${money(calc.totalIncome)}, including ${money(calc.additionalIncome)} in additional income. The rounded tithe was ${titheMoney(calc.tithe)}, planned before bills and extra payments. Bills to Pay This Check: ${paid.length ? paid.join("; ") : "none"}. Future Bills / Waiting for Next Check: ${left.length ? left.join("; ") : "none"}. Extra payments total ${money(calc.allocationTotal)}, leaving ${money(calc.available)} available. ${savingsWithdrawals.length ? `Savings withdrawals recorded: ${savingsWithdrawals.join("; ")}.` : "No savings withdrawals were recorded for this form."} Coach notes: ${normalizedCoachNotes}. Member notes: ${memberNotes}.`;
   return {
     id: uid("session"),
     formId: form.id,
@@ -3386,7 +3386,7 @@ function renderEditor() {
               <a href="#savings">Savings</a>
               <a href="#debt">Debt</a>
               <a href="#student-loans">Student loans</a>
-              <a href="#allocations">Route funds to debts and cards</a>
+              <a href="#allocations">Extra payments</a>
               <a href="#spending">Budgeting</a>
               <a href="#notes">Notes</a>
             </nav>
@@ -3443,10 +3443,6 @@ function billsPanel(form, calc, readOnly, isCoachReview) {
 
 function billGroup(form, key, label, readOnly, isCoachReview) {
   const rows = form.data.bills[key];
-  const suggestions = (appState.accounts[form.ownerEmail]?.financialInventory?.recurringBills || []).filter(
-    (bill) => bill.category === key && bill.name,
-  );
-  const listId = `recurring-${key}`;
   const subtotal = rows.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
   return `
     <section class="subpanel">
@@ -3460,7 +3456,7 @@ function billGroup(form, key, label, readOnly, isCoachReview) {
           <tbody>
             ${rows.map((row, index) => `
               <tr>
-                <td><div class="bill-selector-wrap"><input class="table-input" list="${listId}" data-bill-suggestion="${key}.${index}" data-path="bills.${key}.${index}.name" value="${escapeHtml(row.name)}" placeholder="Choose or enter bill" ${readOnly ? "disabled" : ""}>${readOnly ? "" : `<button class="bill-selector-button" type="button" data-open-bill-selector aria-label="Open saved bill selector" title="Open saved bill selector">⌄</button>`}</div></td>
+                <td><div class="bill-selector-wrap"><input class="table-input" data-bill-suggestion="${key}.${index}" data-path="bills.${key}.${index}.name" value="${escapeHtml(row.name)}" placeholder="Choose or enter bill" ${readOnly ? "disabled" : ""}>${readOnly ? "" : `<button class="bill-selector-button" type="button" data-open-bill-selector aria-label="Choose a saved bill" title="Choose a saved bill">⌄</button>`}</div></td>
                 <td><input class="table-input" type="date" data-current-calendar data-path="bills.${key}.${index}.dueDate" value="${row.dueDate}" ${readOnly ? "disabled" : ""}></td>
                 <td><div class="money-input-wrap"><input class="table-input" type="text" inputmode="decimal" data-currency-input data-path="bills.${key}.${index}.amount" value="${moneyInputValue(row.amount)}" placeholder="0.00" ${readOnly ? "disabled" : ""}></div></td>
                 ${isCoachReview ? `<td>${billDecisionControl(`bills.${key}.${index}.coachDecision`, row.coachDecision, true)}</td>` : ""}
@@ -3471,9 +3467,6 @@ function billGroup(form, key, label, readOnly, isCoachReview) {
         </table>
       </div>
       <div class="table-total"><span>Subtotal</span><strong>${money(subtotal)}</strong></div>
-      <datalist id="${listId}">
-        ${suggestions.map((bill) => `<option value="${escapeHtml(bill.name)}">${money(bill.amount)}</option>`).join("")}
-      </datalist>
     </section>
   `;
 }
@@ -3579,7 +3572,7 @@ function variablePanel(form, calc, readOnly) {
   return `
     <section class="panel final-budget-panel ${overBudget ? "over-budget" : ""}" id="spending">
       <div class="panel-heading">
-        <div><p class="eyebrow">Final step</p><h3>Budget remaining funds</h3><p>Use only what remains after bills, contributions, and debt/card routing.</p></div>
+        <div><p class="eyebrow">Final step</p><h3>Budget remaining funds</h3><p>Use only what remains after bills, contributions, and extra payments.</p></div>
         ${readOnly ? "" : `<button class="btn btn-secondary btn-small" type="button" data-add-row="variableSpending"><span aria-hidden="true">＋</span> Add category</button>`}
       </div>
       <div class="budget-remaining-strip">
@@ -3722,8 +3715,8 @@ function allocationPanel(form, calc, readOnly) {
   return `
     <section class="panel debt-routing-panel" id="allocations">
       <div class="panel-heading">
-        <div><h3>Route extra funds to debts and cards</h3><p>Send available money to one or more debts, credit cards, or student loans.</p></div>
-        ${readOnly ? "" : `<button class="btn btn-secondary btn-small" type="button" data-add-row="allocations"><span aria-hidden="true">＋</span> Route funds</button>`}
+        <div><h3>Extra payments</h3><p>Apply available money to a debt, credit card, or student loan.</p></div>
+        ${readOnly ? "" : `<button class="btn btn-secondary btn-small" type="button" data-add-row="allocations"><span aria-hidden="true">＋</span> Add payment</button>`}
       </div>
       <div class="routing-list">
         ${
@@ -3731,14 +3724,14 @@ function allocationPanel(form, calc, readOnly) {
             ? rows.map((row, index) => `
               <article class="routing-row">
                 <div class="field"><label>Debt or card</label><button class="input selection-field-button" type="button" data-open-allocation-selector="${index}" ${readOnly ? "disabled" : ""}><span>${escapeHtml(row.account || "Choose a debt or card")}</span><i aria-hidden="true">⌄</i></button></div>
-                ${moneyField("Amount to route", `allocations.${index}.amount`, row.amount, readOnly)}
-                ${readOnly ? "" : `<button class="icon-btn danger routing-remove" type="button" aria-label="Remove routed funds" title="Remove routed funds" data-remove-row="allocations.${index}">×</button>`}
+                ${moneyField("Payment amount", `allocations.${index}.amount`, row.amount, readOnly)}
+                ${readOnly ? "" : `<button class="icon-btn danger routing-remove" type="button" aria-label="Remove extra payment" title="Remove extra payment" data-remove-row="allocations.${index}">×</button>`}
               </article>
             `).join("")
-            : emptyInline("No extra funds routed", "Use Route funds to direct available money to a debt or card.")
+            : emptyInline("No extra payments added", "Add a payment to apply available money to a debt or card.")
         }
       </div>
-      <div class="table-total"><span>Funds routed to debts and cards</span><strong data-live-allocation-total>${money(calc.allocationTotal)}</strong></div>
+      <div class="table-total"><span>Total extra payments</span><strong data-live-allocation-total>${money(calc.allocationTotal)}</strong></div>
     </section>
   `;
 }
@@ -4135,7 +4128,7 @@ function summaryPanel(calc) {
         ${summaryRow("Student loan contributions", money(calc.studentLoanContributions))}
         ${summaryRow("Mortgage contribution", money(calc.mortgageContribution))}
         ${summaryRow("Savings contribution", money(calc.savingsContribution))}
-        ${summaryRow("Routed to debts and cards", money(calc.allocationTotal), false, "allocation-total")}
+        ${summaryRow("Extra payments", money(calc.allocationTotal), false, "allocation-total")}
         ${summaryRow("Remaining before budget", money(calc.remainingBeforeBudget))}
         ${summaryRow("Budgeted from remaining funds", money(calc.variableBudget))}
         ${summaryRow("Total planned outflow", money(calc.totalPlanned))}
@@ -4264,9 +4257,10 @@ function applyRecurringBillSuggestion(input, form) {
 
 function showBillSelectorModal(form, category, rowIndex) {
   const account = appState.accounts[form.ownerEmail];
-  const suggestions = (account?.financialInventory?.recurringBills || []).filter(
-    (bill) => bill.category === category && bill.name,
-  );
+  const suggestions = (account?.financialInventory?.recurringBills || [])
+    .filter((bill) => bill.name)
+    .sort((a, b) => Number(b.category === category) - Number(a.category === category) || a.name.localeCompare(b.name));
+  const categoryLabel = Object.fromEntries(billGroups);
   const modal = document.createElement("div");
   modal.className = "modal-backdrop";
   modal.innerHTML = `
@@ -4276,12 +4270,12 @@ function showBillSelectorModal(form, category, rowIndex) {
         <div class="selector-option-list">
           ${
             suggestions.length
-              ? suggestions.map((bill, suggestionIndex) => `
-                <button class="selector-option" type="button" data-select-bill="${category}.${rowIndex}.${suggestionIndex}">
-                  <span><strong>${escapeHtml(bill.name)}</strong><small>${bill.scheduleEnabled ? `${dueDayLabel(bill.dueDay)} · ${money(bill.amount)}` : "No monthly schedule saved"}</small></span>
+              ? suggestions.map((bill) => `
+                <button class="selector-option" type="button" data-select-bill-target="${category}.${rowIndex}" data-select-bill-id="${escapeHtml(bill.id)}">
+                  <span><strong>${escapeHtml(bill.name)}</strong><small>${escapeHtml(categoryLabel[bill.category] || "Other Bills")} · ${bill.scheduleEnabled ? `${dueDayLabel(bill.dueDay)} · ${money(bill.amount)}` : "No monthly schedule saved"}</small></span>
                   <i aria-hidden="true">→</i>
                 </button>`).join("")
-              : emptyInline("No saved bills in this category", "Add recurring bills in your financial profile, or type a bill name directly.")
+              : emptyInline("No saved bills yet", "Add recurring bills in your financial profile, or type a bill name directly.")
           }
         </div>
       </div>
@@ -4300,7 +4294,7 @@ function showAllocationSelectorModal(form, allocationIndex) {
   modal.className = "modal-backdrop";
   modal.innerHTML = `
     <section class="modal selector-modal" role="dialog" aria-modal="true" aria-labelledby="allocation-selector-title">
-      <div class="modal-header"><div><p class="document-label">Route funds</p><h3 id="allocation-selector-title">Choose a debt or card</h3></div><button class="icon-btn" type="button" aria-label="Close" data-close-modal>×</button></div>
+      <div class="modal-header"><div><p class="document-label">Extra payment</p><h3 id="allocation-selector-title">Choose a debt or card</h3></div><button class="icon-btn" type="button" aria-label="Close" data-close-modal>×</button></div>
       <div class="modal-body">
         <div class="selector-option-groups">
           ${groups.map(([type, label, rows]) => {
@@ -4615,7 +4609,7 @@ function printWorksheetSummary(formId) {
       <div class="fact"><span>Remaining debt</span><strong>${money(calc.totalDebt)}</strong></div>
     </div>
     <div class="two"><section class="section"><h2>Bills to Pay This Check</h2>${printList(billsPaid)}</section><section class="section"><h2>Future Bills / Waiting for Next Check</h2>${printList(billsRemaining)}</section></div>
-    <div class="two"><section class="section"><h2>Funds routed to debts and cards</h2>${printList(allocations)}</section><section class="section"><h2>Savings withdrawals</h2>${printList(savingsWithdrawals)}</section></div>
+    <div class="two"><section class="section"><h2>Extra payments</h2>${printList(allocations)}</section><section class="section"><h2>Savings withdrawals</h2>${printList(savingsWithdrawals)}</section></div>
     <h2>Savings and assets</h2><div class="grid">
       <div class="fact"><span>Worksheet savings</span><strong>${money(calc.savingsAfter)}</strong></div>
       <div class="fact"><span>Profile savings</span><strong>${money(profileSavingsTotal(member))}</strong></div>
@@ -5372,14 +5366,14 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
-  const selectedBill = event.target.closest("[data-select-bill]");
+  const selectedBill = event.target.closest("[data-select-bill-id]");
   if (selectedBill && activeFormId) {
-    const [category, rowIndex, suggestionIndex] = selectedBill.dataset.selectBill.split(".");
+    const [category, rowIndex] = selectedBill.dataset.selectBillTarget.split(".");
     const form = appState.forms[activeFormId];
     const account = appState.accounts[form.ownerEmail];
-    const suggestion = (account?.financialInventory?.recurringBills || []).filter(
-      (bill) => bill.category === category && bill.name,
-    )[Number(suggestionIndex)];
+    const suggestion = (account?.financialInventory?.recurringBills || []).find(
+      (bill) => bill.id === selectedBill.dataset.selectBillId,
+    );
     const bill = form.data.bills[category]?.[Number(rowIndex)];
     if (suggestion && bill) {
       bill.name = suggestion.name;
