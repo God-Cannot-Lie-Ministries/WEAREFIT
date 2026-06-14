@@ -2468,9 +2468,8 @@ function mortgageProfileSection(account) {
   const progress = total ? Math.min(100, Math.max(0, ((total - current) / total) * 100)) : 0;
   return `
     <section class="panel profile-inventory">
-      <div class="panel-heading"><div><h3>Housing profile</h3><p>Your saved housing format automatically controls new and open worksheets.</p></div></div>
+      <div class="panel-heading housing-profile-heading"><div><h3>${housingLabel}</h3><p>${housingType === "rent" ? "Your worksheets use rent-based housing planning." : "Track your mortgage balance and payoff progress."}</p></div></div>
       <div class="panel-body">
-        <div class="housing-format-display"><span>Housing format</span><strong>${housingLabel}</strong></div>
         ${housingType === "rent" ? `<p class="quiet-message">Mortgage details are preserved but hidden and excluded from worksheets.</p>` : ""}
         <div class="${housingType === "rent" ? "hidden" : ""}">
         <div class="profile-inventory-grid">
@@ -2789,22 +2788,24 @@ function renderSettings() {
   const content = `
     <div class="content settings-page">
       <div class="page-heading"><div><p class="eyebrow">Interface settings</p><h2>Make F.I.T. feel right for you</h2><p>Choose the appearance that works best for you.</p></div></div>
-      <section class="panel">
-        <div class="panel-heading"><div><h3>Appearance</h3><p>Your theme choice is saved to this account.</p></div></div>
-        <div class="panel-body theme-grid">
-          <button class="theme-choice ${account.preferences.theme === "light" ? "active" : ""}" type="button" data-theme-choice="light"><span class="theme-preview light-preview"></span><strong>Light mode</strong><small>Bright, clear, and focused</small></button>
-          <button class="theme-choice ${account.preferences.theme === "dark" ? "active" : ""}" type="button" data-theme-choice="dark"><span class="theme-preview dark-preview"></span><strong>Dark mode</strong><small>Navy surfaces with gold borders</small></button>
-        </div>
-      </section>
-      <section class="panel">
-        <div class="panel-heading"><div><h3>Housing format</h3><p>This choice controls the housing details and calculations shown in your Financial Profile and worksheets.</p></div></div>
-        <div class="panel-body">
-          <div class="asset-type-choice settings-housing-choice" role="group" aria-label="Housing format">
-            <button class="type-choice ${account.financialInventory.housingPaymentType === "mortgage" ? "active" : ""}" type="button" data-settings-housing-type="mortgage">Mortgage</button>
-            <button class="type-choice ${account.financialInventory.housingPaymentType === "rent" ? "active" : ""}" type="button" data-settings-housing-type="rent">Rent</button>
+      <div class="settings-preference-grid">
+        <section class="panel settings-preference-panel">
+          <div class="panel-heading"><div><h3>Appearance</h3><p>Your theme choice is saved to this account.</p></div></div>
+          <div class="panel-body theme-grid">
+            <button class="theme-choice ${account.preferences.theme === "light" ? "active" : ""}" type="button" data-theme-choice="light"><span class="theme-preview light-preview"></span><strong>Light mode</strong><small>Bright, clear, and focused</small></button>
+            <button class="theme-choice ${account.preferences.theme === "dark" ? "active" : ""}" type="button" data-theme-choice="dark"><span class="theme-preview dark-preview"></span><strong>Dark mode</strong><small>Navy surfaces with gold borders</small></button>
           </div>
-        </div>
-      </section>
+        </section>
+        <section class="panel settings-preference-panel">
+          <div class="panel-heading"><div><h3>Housing</h3><p>Choose the format used throughout your profile and worksheets.</p></div></div>
+          <div class="panel-body settings-housing-body">
+            <div class="asset-type-choice settings-housing-choice" role="group" aria-label="Housing format">
+              <button class="type-choice ${account.financialInventory.housingPaymentType === "mortgage" ? "active" : ""}" type="button" data-settings-housing-type="mortgage">Mortgage</button>
+              <button class="type-choice ${account.financialInventory.housingPaymentType === "rent" ? "active" : ""}" type="button" data-settings-housing-type="rent">Rent</button>
+            </div>
+          </div>
+        </section>
+      </div>
       <section class="panel danger-zone">
         <div class="panel-heading"><div><h3>Delete account</h3><p>Permanently remove your account and saved information.</p></div></div>
         <div class="panel-body danger-zone-body"><p>For your protection, we will email a confirmation link to <strong>${escapeHtml(account.email)}</strong>. Nothing is deleted until you open that link.${productionBackend.config?.accountDeletionEnabled ? "" : " This option is not available yet."}</p><button class="btn btn-danger" type="button" data-request-account-deletion ${productionBackend.config?.accountDeletionEnabled ? "" : "disabled"}>Start account deletion</button></div>
