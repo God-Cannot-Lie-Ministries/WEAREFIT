@@ -1099,12 +1099,14 @@ async function saveFinancialProfileNow() {
 function commitFinancialProfileInputs(account = currentAccount()) {
   if (!account) return;
   document.querySelectorAll("[data-profile-path]").forEach((input) => {
-    if (validateControlledInput(input)) setAtPath(account, input.dataset.profilePath, input.value);
+    if (validateControlledInput(input)) {
+      setAtPath(account, input.dataset.profilePath, currencyInputStorageValue(input));
+    }
   });
   document.querySelectorAll("[data-asset-path]").forEach((input) => {
     const [index, field] = input.dataset.assetPath.split(".");
     const asset = account.savingsInvestmentAccounts[Number(index)];
-    if (asset) asset[field] = input.value;
+    if (asset) asset[field] = currencyInputStorageValue(input);
   });
   account.savingsInvestmentAccounts.forEach((_, index) => saveAssetHistoryEntry(account, index));
 }
@@ -1214,7 +1216,8 @@ async function completePendingCoachInvite() {
 }
 
 function currencyValue(value) {
-  return Math.round(((Number(value) || 0) + Number.EPSILON) * 100) / 100;
+  const numericValue = typeof value === "string" ? value.replaceAll(",", "") : value;
+  return Math.round(((Number(numericValue) || 0) + Number.EPSILON) * 100) / 100;
 }
 
 function money(value) {
@@ -1236,7 +1239,25 @@ function titheMoney(value) {
 }
 
 function moneyInputValue(value) {
-  return value === "" || value === null || value === undefined ? "" : currencyValue(value).toFixed(2);
+  return value === "" || value === null || value === undefined
+    ? ""
+    : new Intl.NumberFormat("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(currencyValue(value));
+}
+
+function currencyInputStorageValue(input) {
+  if (!input?.matches?.("[data-currency-input]")) return input?.value ?? "";
+  const clean = String(input.value || "").replaceAll(",", "").trim();
+  return clean === "" || !Number.isFinite(Number(clean)) ? "" : currencyValue(clean).toFixed(2);
+}
+
+function sanitizeCurrencyInput(input) {
+  if (!input?.matches?.("[data-currency-input]")) return;
+  const clean = String(input.value || "").replace(/[^\d.]/g, "");
+  const [whole = "", ...decimalParts] = clean.split(".");
+  input.value = decimalParts.length ? `${whole}.${decimalParts.join("").slice(0, 2)}` : whole;
 }
 
 function profileSavingsTotal(account) {
@@ -2146,7 +2167,7 @@ function assetAccountCard(assetAccount, index, canRecordWithdrawal) {
       </div>
       <div class="profile-inventory-grid">
         <div class="field"><label>Account name</label><input class="input" data-asset-path="${index}.name" value="${escapeHtml(assetAccount.name)}" placeholder="${typeLabel} account"></div>
-        <div class="field"><label>Current balance</label><div class="money-input-wrap"><input class="input" type="number" min="0" step="0.01" data-asset-path="${index}.balance" value="${moneyInputValue(assetAccount.balance)}" placeholder="0.00"></div></div>
+        <div class="field"><label>Current balance</label><div class="money-input-wrap"><input class="input" type="text" inputmode="decimal" data-currency-input data-asset-path="${index}.balance" value="${moneyInputValue(assetAccount.balance)}" placeholder="0.00"></div></div>
         <div class="field"><label>Date updated</label><input class="input" type="date" data-asset-path="${index}.updatedAt" value="${assetAccount.updatedAt || todayValue()}"></div>
         <div class="field"><label>Optional notes</label><input class="input" data-asset-path="${index}.notes" value="${escapeHtml(assetAccount.notes)}" placeholder="Purpose or goal"></div>
       </div>
@@ -3393,7 +3414,7 @@ function billGroup(form, key, label, readOnly, isCoachReview) {
               <tr>
                 <td><div class="bill-selector-wrap"><input class="table-input" list="${listId}" data-bill-suggestion="${key}.${index}" data-path="bills.${key}.${index}.name" value="${escapeHtml(row.name)}" placeholder="Choose or enter bill" ${readOnly ? "disabled" : ""}>${readOnly ? "" : `<button class="bill-selector-button" type="button" data-open-bill-selector aria-label="Open saved bill selector" title="Open saved bill selector">⌄</button>`}</div></td>
                 <td><input class="table-input" type="date" data-current-calendar data-path="bills.${key}.${index}.dueDate" value="${row.dueDate}" ${readOnly ? "disabled" : ""}></td>
-                <td><div class="money-input-wrap"><input class="table-input" type="number" min="0" step="0.01" data-path="bills.${key}.${index}.amount" value="${moneyInputValue(row.amount)}" placeholder="0.00" ${readOnly ? "disabled" : ""}></div></td>
+                <td><div class="money-input-wrap"><input class="table-input" type="text" inputmode="decimal" data-currency-input data-path="bills.${key}.${index}.amount" value="${moneyInputValue(row.amount)}" placeholder="0.00" ${readOnly ? "disabled" : ""}></div></td>
                 ${isCoachReview ? `<td>${billDecisionControl(`bills.${key}.${index}.coachDecision`, row.coachDecision, true)}</td>` : ""}
                 <td>${readOnly ? "" : `<button class="icon-btn danger" type="button" title="Remove row" aria-label="Remove row" data-remove-row="bills.${key}.${index}">×</button>`}</td>
               </tr>
@@ -3525,7 +3546,7 @@ function variablePanel(form, calc, readOnly) {
             ${form.data.variableSpending.map((row, index) => `
               <tr>
                 <td><input class="table-input" data-path="variableSpending.${index}.category" value="${escapeHtml(row.category)}" placeholder="Category" ${readOnly ? "disabled" : ""}></td>
-                <td><div class="money-input-wrap"><input class="table-input" type="number" min="0" step="0.01" data-path="variableSpending.${index}.budgeted" value="${moneyInputValue(row.budgeted)}" placeholder="0.00" ${readOnly ? "disabled" : ""}></div></td>
+                <td><div class="money-input-wrap"><input class="table-input" type="text" inputmode="decimal" data-currency-input data-path="variableSpending.${index}.budgeted" value="${moneyInputValue(row.budgeted)}" placeholder="0.00" ${readOnly ? "disabled" : ""}></div></td>
                 <td>${readOnly ? "" : `<button class="icon-btn danger" type="button" title="Remove category" aria-label="Remove category" data-remove-row="variableSpending.${index}">×</button>`}</td>
               </tr>
             `).join("")}
@@ -3727,7 +3748,7 @@ function calculatorHistoryMarkup(form) {
     ? history
         .map(
           (item) =>
-            `<div><span>${escapeHtml(item.expression)}</span><strong>${escapeHtml(currencyValue(item.result).toFixed(2))}</strong></div>`,
+            `<div><span>${escapeHtml(item.expression)}</span><strong>${escapeHtml(moneyInputValue(item.result))}</strong></div>`,
         )
         .join("")
     : `<p class="calculator-empty">Recent calculations appear here.</p>`;
@@ -4083,7 +4104,7 @@ function moneyField(label, path, value, readOnly) {
     <div class="field">
       <label>${label}</label>
       <div class="money-input-wrap">
-        <input class="input" type="number" min="0" step="0.01" data-path="${path}" value="${moneyInputValue(value)}" placeholder="0.00" ${readOnly ? "disabled" : ""}>
+        <input class="input" type="text" inputmode="decimal" data-currency-input data-path="${path}" value="${moneyInputValue(value)}" placeholder="0.00" ${readOnly ? "disabled" : ""}>
       </div>
     </div>
   `;
@@ -4231,15 +4252,14 @@ function validateControlledInput(input) {
 
 function normalizeCurrencyInput(input) {
   if (
-    input?.type !== "number" ||
+    !input?.matches?.("[data-currency-input]") ||
     input.matches("[data-percent-validation]") ||
     input.value === "" ||
-    !Number.isFinite(Number(input.value))
+    !Number.isFinite(Number(String(input.value).replaceAll(",", "")))
   ) {
     return;
   }
-  const step = String(input.getAttribute("step") || "");
-  if (step === ".01" || step === "0.01") input.value = currencyValue(input.value).toFixed(2);
+  input.value = moneyInputValue(input.value);
 }
 
 function saveAssetHistoryEntry(account, index) {
@@ -5908,6 +5928,7 @@ document.addEventListener("submit", async (event) => {
 });
 
 document.addEventListener("input", (event) => {
+  sanitizeCurrencyInput(event.target);
   const assetInput = event.target.closest("[data-asset-path]");
   if (assetInput) {
     // Keep profile typing local to the input until change/blur or explicit Save.
@@ -5923,7 +5944,7 @@ document.addEventListener("input", (event) => {
   const input = event.target.closest("[data-path]");
   if (!input || !activeFormId) return;
   const form = appState.forms[activeFormId];
-  setAtPath(form.data, input.dataset.path, input.value);
+  setAtPath(form.data, input.dataset.path, currencyInputStorageValue(input));
   const billSuggestion = input.closest("[data-bill-suggestion]");
   if (billSuggestion) {
     applyRecurringBillSuggestion(input, form);
@@ -5942,13 +5963,22 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+document.addEventListener("focusin", (event) => {
+  const input = event.target.closest("[data-currency-input]");
+  if (input) input.value = input.value.replaceAll(",", "");
+});
+
+document.addEventListener("focusout", (event) => {
+  normalizeCurrencyInput(event.target);
+});
+
 document.addEventListener("change", async (event) => {
   normalizeCurrencyInput(event.target);
   const assetInput = event.target.closest("[data-asset-path]");
   if (assetInput) {
     const account = currentAccount();
     const [index, field] = assetInput.dataset.assetPath.split(".");
-    account.savingsInvestmentAccounts[Number(index)][field] = assetInput.value;
+    account.savingsInvestmentAccounts[Number(index)][field] = currencyInputStorageValue(assetInput);
     if (field === "balance" || field === "updatedAt") saveAssetHistoryEntry(account, index);
     saveFinancialProfileMutation(account);
     if (field === "balance" || field === "updatedAt") renderProfile();
@@ -5969,7 +5999,7 @@ document.addEventListener("change", async (event) => {
   if (profileInput) {
     if (!validateControlledInput(profileInput)) return;
     const account = currentAccount();
-    setAtPath(account, profileInput.dataset.profilePath, profileInput.value);
+    setAtPath(account, profileInput.dataset.profilePath, currencyInputStorageValue(profileInput));
     saveFinancialProfileMutation(account);
     return;
   }
@@ -6088,7 +6118,7 @@ document.addEventListener("change", async (event) => {
   const input = event.target.closest("[data-path]");
   if (!input || !activeFormId) return;
   const form = appState.forms[activeFormId];
-  setAtPath(form.data, input.dataset.path, input.value);
+  setAtPath(form.data, input.dataset.path, currencyInputStorageValue(input));
   const billSuggestion = input.closest("[data-bill-suggestion]");
   if (billSuggestion) {
     applyRecurringBillSuggestion(input, form);
