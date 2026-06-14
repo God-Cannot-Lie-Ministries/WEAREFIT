@@ -1584,14 +1584,20 @@ select {
   position: absolute;
   z-index: 1;
   top: 50%;
-  left: 10px;
+  left: 11px;
   color: var(--muted);
   content: "$";
+  pointer-events: none;
   transform: translateY(-50%);
 }
 
 .money-input-wrap input {
-  padding-left: 22px;
+  padding-left: 30px;
+}
+
+.editor-main .money-input-wrap input,
+.editor-main .money-input-wrap .table-input {
+  padding-left: 30px !important;
 }
 
 .percent-input-wrap {
