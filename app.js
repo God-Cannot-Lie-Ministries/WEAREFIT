@@ -3738,7 +3738,10 @@ function calculatorPanel(form, readOnly) {
   const positionStyle = `${sizeStyle}${position ? `left:${safeLeft}px;top:${safeTop}px;right:auto;bottom:auto;` : ""}`;
   return `<aside class="calculator-widget draggable-calculator ${form.data.calculatorMinimized ? "minimized" : ""} ${form.data.calculatorHistoryOpen ? "history-open" : ""}" data-draggable-calculator="${form.id}" style="${positionStyle}">
     <div class="calculator-heading" data-calculator-drag-handle>
-      <span class="calculator-drag-cue" aria-label="Drag calculator" title="Drag calculator"><span aria-hidden="true">⠿</span> Drag</span>
+      <div class="calculator-title-group">
+        <strong class="calculator-title">Calculator</strong>
+        <span class="calculator-drag-cue" aria-label="Drag calculator" title="Drag calculator"><span aria-hidden="true">⠿</span> Drag</span>
+      </div>
       <div class="calculator-tools">
         <button class="calculator-history-toggle" type="button" data-toggle-calculator-history="${form.id}" aria-label="${form.data.calculatorHistoryOpen ? "Hide recent calculations" : "Show recent calculations"}" title="${form.data.calculatorHistoryOpen ? "Hide recent calculations" : "Show recent calculations"}" aria-expanded="${form.data.calculatorHistoryOpen ? "true" : "false"}"><span aria-hidden="true">◷</span></button>
         <button class="calculator-minimize" type="button" data-toggle-calculator-minimize="${form.id}" aria-label="${form.data.calculatorMinimized ? "Restore calculator" : "Minimize calculator"}" title="${form.data.calculatorMinimized ? "Restore calculator" : "Minimize calculator"}">${form.data.calculatorMinimized ? "□" : "−"}</button>
@@ -3879,7 +3882,7 @@ function beginCalculatorDrag(event) {
   if (event.target.closest("button, input, select, textarea, a")) return;
   const handle = event.target.closest("[data-calculator-drag-handle]");
   const calculator = handle?.closest("[data-draggable-calculator]");
-  if (!calculator || event.button !== 0) return;
+  if (!calculator || calculator.classList.contains("minimized") || event.button !== 0) return;
   const rect = calculator.getBoundingClientRect();
   calculator.style.left = `${rect.left}px`;
   calculator.style.top = `${rect.top}px`;
@@ -3956,6 +3959,7 @@ function handleCalculatorPointerEnd(event) {
     endCalculatorDrag(event);
     return;
   }
+  if (event.target?.closest?.("button")) return;
   const calculator = event.target?.closest?.("[data-draggable-calculator]");
   if (calculator) saveCalculatorGeometry(calculator);
 }
@@ -4926,6 +4930,9 @@ document.addEventListener("click", async (event) => {
   if (calculatorMinimize) {
     const form = appState.forms[calculatorMinimize.dataset.toggleCalculatorMinimize];
     if (!form) return;
+    if (!form.data.calculatorMinimized) {
+      saveCalculatorGeometry(calculatorMinimize.closest("[data-draggable-calculator]"));
+    }
     form.data.calculatorMinimized = !form.data.calculatorMinimized;
     if (form.data.calculatorMinimized) form.data.calculatorHistoryOpen = false;
     saveState();

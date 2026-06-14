@@ -2457,6 +2457,20 @@ select {
   cursor: grab;
 }
 
+.calculator-title-group {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.calculator-title {
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 760;
+  letter-spacing: 0;
+}
+
 .calculator-drag-cue {
   display: inline-flex;
   min-width: 72px;
@@ -2605,11 +2619,16 @@ select {
 }
 
 .draggable-calculator.minimized {
+  right: 20px !important;
+  bottom: 20px !important;
+  left: auto !important;
+  top: auto !important;
   width: min(220px, calc(100vw - 24px)) !important;
   min-height: 46px;
   height: 46px !important;
   border-radius: 14px;
   padding: 0;
+  cursor: default;
 }
 
 .draggable-calculator.minimized .calculator-heading {
@@ -2621,8 +2640,12 @@ select {
 }
 
 .draggable-calculator.minimized .calculator-drag-cue {
-  min-width: 76px;
-  min-height: 29px;
+  display: none;
+}
+
+.draggable-calculator.minimized .calculator-title {
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .draggable-calculator.minimized .calculator-history-toggle {
@@ -2646,6 +2669,11 @@ select {
     min-width: 68px;
     min-height: 28px;
     font-size: 10px;
+  }
+
+  .draggable-calculator.minimized {
+    right: 10px !important;
+    bottom: 10px !important;
   }
 }
 
