@@ -435,6 +435,7 @@ function normalizeStateModels(state) {
     form.data.calculatorPosition ||= null;
     form.data.calculatorSize ||= null;
     form.data.calculatorMinimized ||= false;
+    form.data.calculatorHistoryOpen ||= false;
     form.data.allocations = (form.data.allocations || []).filter((item) =>
       ["debt", "credit_card", "student_loan"].includes(item.type),
     );
@@ -708,6 +709,7 @@ function blankForm(owner, carryForward = owner.carryForward || {}, assignedPerso
       calculatorPosition: null,
       calculatorSize: null,
       calculatorMinimized: false,
+      calculatorHistoryOpen: false,
       allocations: [],
       notes: "",
     },
@@ -3674,11 +3676,11 @@ function allocationPanel(form, calc, readOnly) {
 
 function calculatorPanel(form, readOnly) {
   const keys = [
-    ["AC", "utility"], ["+/-", "utility"], ["%", "utility"], ["÷", "operator"],
+    ["⌫", "utility"], ["AC", "utility"], ["%", "utility"], ["÷", "operator"],
     ["7", "number"], ["8", "number"], ["9", "number"], ["×", "operator"],
     ["4", "number"], ["5", "number"], ["6", "number"], ["−", "operator"],
     ["1", "number"], ["2", "number"], ["3", "number"], ["+", "operator"],
-    ["0", "number wide"], [".", "number"], ["=", "operator"],
+    ["+/-", "utility"], ["0", "number"], [".", "number"], ["=", "operator"],
   ];
   const position = form.data.calculatorPosition;
   const savedSize = form.data.calculatorSize || {};
@@ -3690,7 +3692,7 @@ function calculatorPanel(form, readOnly) {
   const savedWidth = Number(savedSize.width);
   const calculatorWidth = savedWidth ? Math.min(Math.max(minWidth, savedWidth), maxWidth) : defaultWidth;
   const viewportHeight = Math.max(360, window.innerHeight - 24);
-  const minHeight = Math.min(compactViewport ? 320 : 330, viewportHeight);
+  const minHeight = Math.min(compactViewport ? 286 : 300, viewportHeight);
   const maxHeight = Math.max(minHeight, viewportHeight);
   const savedHeight = Number(savedSize.height);
   const calculatorHeight = savedHeight
@@ -3704,16 +3706,22 @@ function calculatorPanel(form, readOnly) {
     : 0;
   const sizeStyle = `width:${calculatorWidth}px;${savedHeight ? `height:${calculatorHeight}px;` : ""}`;
   const positionStyle = `${sizeStyle}${position ? `left:${safeLeft}px;top:${safeTop}px;right:auto;bottom:auto;` : ""}`;
-  return `<aside class="calculator-widget draggable-calculator ${form.data.calculatorMinimized ? "minimized" : ""}" data-draggable-calculator="${form.id}" style="${positionStyle}">
+  return `<aside class="calculator-widget draggable-calculator ${form.data.calculatorMinimized ? "minimized" : ""} ${form.data.calculatorHistoryOpen ? "history-open" : ""}" data-draggable-calculator="${form.id}" style="${positionStyle}">
     <div class="calculator-heading" data-calculator-drag-handle>
-      <div><h3>Live calculator</h3><p>Drag to move · resize from the corner</p></div>
-      <div class="calculator-tools"><button class="calculator-minimize" type="button" data-toggle-calculator-minimize="${form.id}" aria-label="${form.data.calculatorMinimized ? "Restore calculator" : "Minimize calculator"}" title="${form.data.calculatorMinimized ? "Restore calculator" : "Minimize calculator"}">${form.data.calculatorMinimized ? "□" : "−"}</button><span class="calculator-drag-grip" aria-label="Drag calculator" title="Drag calculator">⠿</span></div>
+      <span class="calculator-drag-cue" aria-label="Drag calculator" title="Drag calculator"><span aria-hidden="true">⠿</span> Drag</span>
+      <div class="calculator-tools">
+        <button class="calculator-history-toggle" type="button" data-toggle-calculator-history="${form.id}" aria-label="${form.data.calculatorHistoryOpen ? "Hide recent calculations" : "Show recent calculations"}" title="${form.data.calculatorHistoryOpen ? "Hide recent calculations" : "Show recent calculations"}" aria-expanded="${form.data.calculatorHistoryOpen ? "true" : "false"}"><span aria-hidden="true">◷</span></button>
+        <button class="calculator-minimize" type="button" data-toggle-calculator-minimize="${form.id}" aria-label="${form.data.calculatorMinimized ? "Restore calculator" : "Minimize calculator"}" title="${form.data.calculatorMinimized ? "Restore calculator" : "Minimize calculator"}">${form.data.calculatorMinimized ? "□" : "−"}</button>
+      </div>
     </div>
     <output class="calculator-display" aria-live="polite">${escapeHtml(form.data.calculatorDraft || "0")}</output>
     <div class="calculator-keypad" aria-label="Calculator keypad">
       ${keys.map(([key, kind]) => `<button class="calculator-key ${kind}" type="button" data-calculator-key="${escapeHtml(key)}" data-calculator-form-id="${form.id}" ${readOnly ? "disabled" : ""}>${escapeHtml(key)}</button>`).join("")}
     </div>
-    <div class="calculator-history">${calculatorHistoryMarkup(form)}</div>
+    <section class="calculator-history" aria-label="Recent calculations">
+      <div class="calculator-history-heading"><strong>Recent calculations</strong><span>Last 10</span></div>
+      <div class="calculator-history-list">${calculatorHistoryMarkup(form)}</div>
+    </section>
   </aside>`;
 }
 
@@ -3732,7 +3740,7 @@ function calculatorHistoryMarkup(form) {
 function refreshCalculatorDisplay(calculator, form) {
   if (!calculator || !form) return;
   const display = calculator.querySelector(".calculator-display");
-  const historyPanel = calculator.querySelector(".calculator-history");
+  const historyPanel = calculator.querySelector(".calculator-history-list");
   if (display) display.textContent = form.data.calculatorDraft || "0";
   if (historyPanel) historyPanel.innerHTML = calculatorHistoryMarkup(form);
 }
@@ -3754,6 +3762,11 @@ function applyCalculatorKey(form, key) {
   const isDigit = /^\d$/.test(key);
   if (key === "AC") {
     form.data.calculatorDraft = "";
+    form.data.calculatorJustEvaluated = false;
+    return false;
+  }
+  if (key === "⌫") {
+    form.data.calculatorDraft = draft.slice(0, -1);
     form.data.calculatorJustEvaluated = false;
     return false;
   }
@@ -3806,8 +3819,8 @@ function applyCalculatorKey(form, key) {
 function updateCalculatorKeyScale(calculator) {
   if (!calculator) return;
   const compactHeight = calculator.clientHeight < 390;
-  const horizontalReserve = compactHeight ? 24 : 28;
-  const verticalReserve = compactHeight ? 145 : 155;
+  const horizontalReserve = compactHeight ? 16 : 20;
+  const verticalReserve = compactHeight ? 96 : 106;
   const gapRatio = 0.13;
   const widthBound = (calculator.clientWidth - horizontalReserve) / (4 + (3 * gapRatio));
   const heightBound = (calculator.clientHeight - verticalReserve) / (5 + (4 * gapRatio));
@@ -4885,8 +4898,23 @@ document.addEventListener("click", async (event) => {
     const form = appState.forms[calculatorMinimize.dataset.toggleCalculatorMinimize];
     if (!form) return;
     form.data.calculatorMinimized = !form.data.calculatorMinimized;
+    if (form.data.calculatorMinimized) form.data.calculatorHistoryOpen = false;
     saveState();
     renderEditor();
+    return;
+  }
+
+  const calculatorHistoryToggle = event.target.closest("[data-toggle-calculator-history]");
+  if (calculatorHistoryToggle) {
+    const form = appState.forms[calculatorHistoryToggle.dataset.toggleCalculatorHistory];
+    const calculator = calculatorHistoryToggle.closest("[data-draggable-calculator]");
+    if (!form || !calculator) return;
+    form.data.calculatorHistoryOpen = !form.data.calculatorHistoryOpen;
+    calculator.classList.toggle("history-open", form.data.calculatorHistoryOpen);
+    calculatorHistoryToggle.setAttribute("aria-expanded", form.data.calculatorHistoryOpen ? "true" : "false");
+    calculatorHistoryToggle.setAttribute("aria-label", form.data.calculatorHistoryOpen ? "Hide recent calculations" : "Show recent calculations");
+    calculatorHistoryToggle.title = form.data.calculatorHistoryOpen ? "Hide recent calculations" : "Show recent calculations";
+    saveState();
     return;
   }
 
