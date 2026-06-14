@@ -2204,6 +2204,7 @@ function assetHistoryChart(accounts) {
   const series = accounts
     .filter((account) => account.history.length)
     .map((account, index) => ({
+      id: `account-${index}`,
       name: account.name || (account.type === "investment" ? "Investment" : "Savings"),
       type: account.type,
       color: colorForAccount(account, index),
@@ -2216,52 +2217,68 @@ function assetHistoryChart(accounts) {
       }),
     }));
   series.push({
+    id: "combined",
     name: "Combined",
     type: "combined",
     color: "#d9a62e",
     values: dates.map((_, index) => series.reduce((sum, item) => sum + item.values[index], 0)),
   });
   const rawMax = Math.max(1, ...series.flatMap((item) => item.values));
-  const scaleStep = rawMax > 20000 ? 5000 : 1000;
+  const roughStep = rawMax / 4;
+  const magnitude = 10 ** Math.floor(Math.log10(roughStep || 1));
+  const normalizedStep = roughStep / magnitude;
+  const scaleStep = (normalizedStep <= 1 ? 1 : normalizedStep <= 2 ? 2 : normalizedStep <= 5 ? 5 : 10) * magnitude;
   const max = Math.max(scaleStep, Math.ceil(rawMax / scaleStep) * scaleStep);
   const width = 720;
-  const height = 300;
+  const height = 292;
   const padLeft = 72;
   const padRight = 24;
-  const padTop = 28;
+  const padTop = 22;
   const padBottom = 52;
   const plotWidth = width - padLeft - padRight;
   const plotHeight = height - padTop - padBottom;
-  const yTicks = Array.from({ length: Math.floor(max / scaleStep) + 1 }, (_, index) => index * scaleStep);
+  const yTicks = Array.from({ length: Math.round(max / scaleStep) + 1 }, (_, index) => index * scaleStep);
   const visibleDateIndexes = dates.length <= 5
     ? dates.map((_, index) => index)
     : [0, Math.floor((dates.length - 1) / 2), dates.length - 1];
-  const pointsFor = (values) =>
-    values
-      .map((value, index) => {
-        const x = padLeft + (dates.length === 1 ? plotWidth / 2 : (index / (dates.length - 1)) * plotWidth);
-        const y = padTop + plotHeight - (value / max) * plotHeight;
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      })
-      .join(" ");
+  const pointArrayFor = (values) =>
+    values.map((value, index) => {
+      const x = padLeft + (dates.length === 1 ? plotWidth / 2 : (index / (dates.length - 1)) * plotWidth);
+      const y = padTop + plotHeight - (value / max) * plotHeight;
+      return { x, y, value };
+    });
+  const pointsFor = (values) => pointArrayFor(values).map(({ x, y }) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const combined = series.at(-1);
+  const combinedChange = combined.values.at(-1) - combined.values[0];
+  const changeClass = combinedChange > 0 ? "positive" : combinedChange < 0 ? "negative" : "neutral";
+  const changeLabel = combinedChange === 0 ? "No change" : `${combinedChange > 0 ? "+" : "−"}${money(Math.abs(combinedChange))}`;
+  const combinedAreaPoints = [`${padLeft},${padTop + plotHeight}`, pointsFor(combined.values), `${width - padRight},${padTop + plotHeight}`].join(" ");
   return `
-    <div class="chart-legend">${series.map((item) => `<span><i style="background:${item.color}"></i>${escapeHtml(item.name)} · ${money(item.values.at(-1))}</span>`).join("")}</div>
+    <div class="asset-chart-header">
+      <div><span>Portfolio trend</span><strong>${money(combined.values.at(-1))}</strong></div>
+      <div class="asset-chart-change ${changeClass}"><span>${dates.length > 1 ? `${monthYearLabel(dates[0])} – ${monthYearLabel(dates.at(-1))}` : "Current snapshot"}</span><strong>${changeLabel}</strong></div>
+    </div>
+    <div class="chart-legend" aria-label="Chart series controls">${series.map((item) => `
+      <button type="button" data-chart-toggle="${item.id}" aria-pressed="true" title="Show or hide ${escapeHtml(item.name)}">
+        <i style="background:${item.color}"></i><span>${escapeHtml(item.name)}</span><strong>${money(item.values.at(-1))}</strong>
+      </button>`).join("")}
+    </div>
     <svg class="asset-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Savings and investment account history">
       ${yTicks.map((value) => {
         const y = padTop + plotHeight - (value / max) * plotHeight;
         return `<line x1="${padLeft}" y1="${y}" x2="${width - padRight}" y2="${y}" class="chart-grid-line"></line><text x="${padLeft - 10}" y="${y + 4}" text-anchor="end" class="chart-axis-label">${money(value)}</text>`;
       }).join("")}
-      ${series.map((item) => `<polyline points="${pointsFor(item.values)}" fill="none" stroke="${item.color}" stroke-width="${item.type === "combined" ? 4 : 2.75}" stroke-linecap="round" stroke-linejoin="round"></polyline>`).join("")}
-      ${series.map((item) => item.values.map((value, index) => {
-        const x = padLeft + (dates.length === 1 ? plotWidth / 2 : (index / (dates.length - 1)) * plotWidth);
-        const y = padTop + plotHeight - (value / max) * plotHeight;
-        return `<circle cx="${x}" cy="${y}" r="${item.type === "combined" ? 4.5 : 3.5}" fill="${item.color}"><title>${escapeHtml(item.name)} · ${dateLabel(dates[index])} · ${money(value)}</title></circle>`;
-      }).join("")).join("")}
+      <polygon data-chart-series="combined" class="chart-combined-area" points="${combinedAreaPoints}" fill="${combined.color}"></polygon>
+      ${series.map((item) => `
+        <g data-chart-series="${item.id}" class="chart-series ${item.type === "combined" ? "combined" : ""}">
+          <polyline points="${pointsFor(item.values)}" fill="none" stroke="${item.color}" stroke-width="${item.type === "combined" ? 4 : 2.5}" stroke-linecap="round" stroke-linejoin="round"></polyline>
+          ${pointArrayFor(item.values).map(({ x, y, value }, index) => `<circle cx="${x}" cy="${y}" r="${item.type === "combined" ? 4.5 : 3.5}" fill="${item.color}"><title>${escapeHtml(item.name)} · ${dateLabel(dates[index])} · ${money(value)}</title></circle>`).join("")}
+        </g>`).join("")}
       ${visibleDateIndexes.map((index) => {
         const x = padLeft + (dates.length === 1 ? plotWidth / 2 : (index / (dates.length - 1)) * plotWidth);
         return `<text x="${x}" y="${height - 18}" text-anchor="middle" class="chart-date">${escapeHtml(monthYearLabel(dates[index]))}</text>`;
       }).join("")}
-      <text x="${padLeft + plotWidth / 2}" y="${height - 2}" text-anchor="middle" class="chart-axis-title">Balance history by month and year</text>
+      <text x="${padLeft + plotWidth / 2}" y="${height - 2}" text-anchor="middle" class="chart-axis-title">Balance history</text>
     </svg>
   `;
 }
@@ -5222,6 +5239,19 @@ document.addEventListener("click", async (event) => {
     account.savingsInvestmentAccounts[Number(index)].type = type;
     saveFinancialProfileMutation(account);
     renderProfile();
+    return;
+  }
+
+  const chartToggle = event.target.closest("[data-chart-toggle]");
+  if (chartToggle) {
+    const chart = chartToggle.closest(".asset-chart-wrap");
+    const seriesId = chartToggle.dataset.chartToggle;
+    const shouldShow = chartToggle.getAttribute("aria-pressed") !== "true";
+    chartToggle.setAttribute("aria-pressed", String(shouldShow));
+    chartToggle.classList.toggle("muted", !shouldShow);
+    chart?.querySelectorAll(`[data-chart-series="${seriesId}"]`).forEach((seriesElement) => {
+      seriesElement.classList.toggle("hidden", !shouldShow);
+    });
     return;
   }
 
