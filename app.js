@@ -2545,6 +2545,14 @@ function dueDayOptions(selected) {
   ].join("");
 }
 
+function dueDayLabel(dueDay) {
+  if (dueDay === "last") return "Last day of each month";
+  const day = Number(dueDay);
+  if (!day) return "Monthly schedule";
+  const suffix = [11, 12, 13].includes(day) ? "th" : day % 10 === 1 ? "st" : day % 10 === 2 ? "nd" : day % 10 === 3 ? "rd" : "th";
+  return `${day}${suffix} of each month`;
+}
+
 function profilePercentField(label, path, value) {
   return `<div class="field"><label>${label}</label><div class="percent-input-wrap"><input class="input" type="number" min="0" max="100" step="0.01" data-profile-path="${path}" data-percent-validation value="${value}" placeholder="0.00"></div></div>`;
 }
@@ -3722,7 +3730,7 @@ function allocationPanel(form, calc, readOnly) {
           rows.length
             ? rows.map((row, index) => `
               <article class="routing-row">
-                <div class="field"><label>Debt or card</label><select class="input" data-allocation-target="${index}" ${readOnly ? "disabled" : ""}>${allocationTargetOptions(form, row.type, row.account)}</select></div>
+                <div class="field"><label>Debt or card</label><button class="input selection-field-button" type="button" data-open-allocation-selector="${index}" ${readOnly ? "disabled" : ""}><span>${escapeHtml(row.account || "Choose a debt or card")}</span><i aria-hidden="true">⌄</i></button></div>
                 ${moneyField("Amount to route", `allocations.${index}.amount`, row.amount, readOnly)}
                 ${readOnly ? "" : `<button class="icon-btn danger routing-remove" type="button" aria-label="Remove routed funds" title="Remove routed funds" data-remove-row="allocations.${index}">×</button>`}
               </article>
@@ -4252,6 +4260,63 @@ function applyRecurringBillSuggestion(input, form) {
     `input[data-path="bills.${category}.${index}.amount"]`,
   );
   if (amountInput) amountInput.value = bill.amount;
+}
+
+function showBillSelectorModal(form, category, rowIndex) {
+  const account = appState.accounts[form.ownerEmail];
+  const suggestions = (account?.financialInventory?.recurringBills || []).filter(
+    (bill) => bill.category === category && bill.name,
+  );
+  const modal = document.createElement("div");
+  modal.className = "modal-backdrop";
+  modal.innerHTML = `
+    <section class="modal selector-modal" role="dialog" aria-modal="true" aria-labelledby="bill-selector-title">
+      <div class="modal-header"><div><p class="document-label">Saved bills</p><h3 id="bill-selector-title">Choose a bill</h3></div><button class="icon-btn" type="button" aria-label="Close" data-close-modal>×</button></div>
+      <div class="modal-body">
+        <div class="selector-option-list">
+          ${
+            suggestions.length
+              ? suggestions.map((bill, suggestionIndex) => `
+                <button class="selector-option" type="button" data-select-bill="${category}.${rowIndex}.${suggestionIndex}">
+                  <span><strong>${escapeHtml(bill.name)}</strong><small>${bill.scheduleEnabled ? `${dueDayLabel(bill.dueDay)} · ${money(bill.amount)}` : "No monthly schedule saved"}</small></span>
+                  <i aria-hidden="true">→</i>
+                </button>`).join("")
+              : emptyInline("No saved bills in this category", "Add recurring bills in your financial profile, or type a bill name directly.")
+          }
+        </div>
+      </div>
+    </section>
+  `;
+  document.body.appendChild(modal);
+}
+
+function showAllocationSelectorModal(form, allocationIndex) {
+  const groups = [
+    ["debt", "Debts", form.data.debts || []],
+    ["credit_card", "Credit cards", form.data.creditCards || []],
+    ["student_loan", "Student loans", form.data.studentLoans || []],
+  ];
+  const modal = document.createElement("div");
+  modal.className = "modal-backdrop";
+  modal.innerHTML = `
+    <section class="modal selector-modal" role="dialog" aria-modal="true" aria-labelledby="allocation-selector-title">
+      <div class="modal-header"><div><p class="document-label">Route funds</p><h3 id="allocation-selector-title">Choose a debt or card</h3></div><button class="icon-btn" type="button" aria-label="Close" data-close-modal>×</button></div>
+      <div class="modal-body">
+        <div class="selector-option-groups">
+          ${groups.map(([type, label, rows]) => {
+            const available = rows.map((row, rowIndex) => ({ row, rowIndex })).filter(({ row }) => row.account);
+            if (!available.length) return "";
+            return `<section><h4>${label}</h4><div class="selector-option-list">${available.map(({ row, rowIndex }) => `
+              <button class="selector-option" type="button" data-select-allocation="${allocationIndex}.${type}.${rowIndex}">
+                <span><strong>${escapeHtml(row.account)}</strong><small>${money(row.totalOwed || row.totalBalance || row.paymentDue || 0)} tracked</small></span>
+                <i aria-hidden="true">→</i>
+              </button>`).join("")}</div></section>`;
+          }).join("") || emptyInline("No debts or cards available", "Add a debt, credit card, or student loan first.")}
+        </div>
+      </div>
+    </section>
+  `;
+  document.body.appendChild(modal);
 }
 
 function refreshLiveAvailable(form) {
@@ -5298,12 +5363,62 @@ document.addEventListener("click", async (event) => {
   }
 
   const billSelectorButton = event.target.closest("[data-open-bill-selector]");
-  if (billSelectorButton) {
+  if (billSelectorButton && activeFormId) {
     const input = billSelectorButton.closest(".bill-selector-wrap")?.querySelector("[data-bill-suggestion]");
     if (input) {
-      input.focus();
-      if (typeof input.showPicker === "function") input.showPicker();
-      else input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      const [category, rowIndex] = input.dataset.billSuggestion.split(".");
+      showBillSelectorModal(appState.forms[activeFormId], category, Number(rowIndex));
+    }
+    return;
+  }
+
+  const selectedBill = event.target.closest("[data-select-bill]");
+  if (selectedBill && activeFormId) {
+    const [category, rowIndex, suggestionIndex] = selectedBill.dataset.selectBill.split(".");
+    const form = appState.forms[activeFormId];
+    const account = appState.accounts[form.ownerEmail];
+    const suggestion = (account?.financialInventory?.recurringBills || []).filter(
+      (bill) => bill.category === category && bill.name,
+    )[Number(suggestionIndex)];
+    const bill = form.data.bills[category]?.[Number(rowIndex)];
+    if (suggestion && bill) {
+      bill.name = suggestion.name;
+      bill.dueDate = suggestion.scheduleEnabled ? dueDateForDay(suggestion.dueDay) : "";
+      bill.amount = suggestion.scheduleEnabled ? suggestion.amount : "";
+      form.updatedAt = new Date().toISOString();
+      saveState();
+      selectedBill.closest(".modal-backdrop")?.remove();
+      renderEditor();
+      showToast(`${suggestion.name} added to this worksheet.`);
+    }
+    return;
+  }
+
+  const allocationSelectorButton = event.target.closest("[data-open-allocation-selector]");
+  if (allocationSelectorButton && activeFormId) {
+    showAllocationSelectorModal(appState.forms[activeFormId], Number(allocationSelectorButton.dataset.openAllocationSelector));
+    return;
+  }
+
+  const selectedAllocation = event.target.closest("[data-select-allocation]");
+  if (selectedAllocation && activeFormId) {
+    const [allocationIndex, type, sourceIndex] = selectedAllocation.dataset.selectAllocation.split(".");
+    const form = appState.forms[activeFormId];
+    const sourceGroups = {
+      debt: form.data.debts || [],
+      credit_card: form.data.creditCards || [],
+      student_loan: form.data.studentLoans || [],
+    };
+    const source = sourceGroups[type]?.[Number(sourceIndex)];
+    const row = form.data.allocations?.[Number(allocationIndex)];
+    if (source?.account && row) {
+      row.type = type;
+      row.account = source.account;
+      form.updatedAt = new Date().toISOString();
+      saveState();
+      selectedAllocation.closest(".modal-backdrop")?.remove();
+      renderEditor();
+      showToast(`${source.account} selected.`);
     }
     return;
   }

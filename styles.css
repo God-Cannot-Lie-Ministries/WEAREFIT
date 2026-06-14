@@ -3718,6 +3718,108 @@ html[data-theme="dark"] .chart-legend button strong {
   font-weight: 900;
 }
 
+.selection-field-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.selection-field-button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selection-field-button i {
+  color: var(--navy);
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.selector-modal {
+  width: min(520px, 100%);
+}
+
+.selector-option-groups {
+  display: grid;
+  gap: 18px;
+}
+
+.selector-option-groups h4 {
+  margin: 0 0 7px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.selector-option-list {
+  display: grid;
+  gap: 7px;
+}
+
+.selector-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-soft);
+  color: var(--text);
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.selector-option:hover,
+.selector-option:focus-visible {
+  border-color: var(--gold);
+  background: var(--surface);
+}
+
+.selector-option span,
+.selector-option strong,
+.selector-option small {
+  display: block;
+}
+
+.selector-option span {
+  min-width: 0;
+}
+
+.selector-option strong {
+  overflow: hidden;
+  color: var(--navy);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selector-option small {
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+.selector-option i {
+  color: var(--gold);
+  font-size: 18px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+html[data-theme="dark"] .selection-field-button i,
+html[data-theme="dark"] .selector-option strong {
+  color: var(--text);
+}
+
 .quick-activity-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
