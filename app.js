@@ -3740,10 +3740,10 @@ function calculatorPanel(form, readOnly) {
     <div class="calculator-heading" data-calculator-drag-handle>
       <div class="calculator-title-group">
         <strong class="calculator-title">Calculator</strong>
-        <span class="calculator-drag-cue" aria-label="Drag calculator" title="Drag calculator"><span aria-hidden="true">⠿</span> Drag</span>
+        <span class="calculator-drag-cue" aria-label="Drag calculator" title="Drag calculator"><span aria-hidden="true">⠿</span><span class="calculator-drag-label">Drag</span></span>
       </div>
       <div class="calculator-tools">
-        <button class="calculator-history-toggle" type="button" data-toggle-calculator-history="${form.id}" aria-label="${form.data.calculatorHistoryOpen ? "Hide recent calculations" : "Show recent calculations"}" title="${form.data.calculatorHistoryOpen ? "Hide recent calculations" : "Show recent calculations"}" aria-expanded="${form.data.calculatorHistoryOpen ? "true" : "false"}"><span aria-hidden="true">◷</span></button>
+        <button class="calculator-history-toggle" type="button" data-toggle-calculator-history="${form.id}" aria-label="${form.data.calculatorHistoryOpen ? "Hide recent calculations" : "Show recent calculations"}" title="${form.data.calculatorHistoryOpen ? "Hide recent calculations" : "Show recent calculations"}" aria-expanded="${form.data.calculatorHistoryOpen ? "true" : "false"}"><span class="calculator-clock-symbol" aria-hidden="true">◴</span></button>
         <button class="calculator-minimize" type="button" data-toggle-calculator-minimize="${form.id}" aria-label="${form.data.calculatorMinimized ? "Restore calculator" : "Minimize calculator"}" title="${form.data.calculatorMinimized ? "Restore calculator" : "Minimize calculator"}">${form.data.calculatorMinimized ? "□" : "−"}</button>
       </div>
     </div>
