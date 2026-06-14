@@ -115,6 +115,7 @@ function blankCreditCard() {
     totalBalance: "",
     lastStatementBalance: "",
     paymentDue: "",
+    allowance: "",
     contribution: "",
     apr: "",
     promoType: "none",
@@ -164,6 +165,7 @@ function blankProfileCard() {
     totalBalance: "",
     lastStatementBalance: "",
     paymentDue: "",
+    allowance: "",
     apr: "",
     promoType: "none",
     purchasePromoRate: "",
@@ -191,6 +193,7 @@ function blankStudentLoan() {
   return {
     id: uid("student-loan"),
     account: "",
+    loanType: "",
     totalOwed: "",
     apr: "",
     paymentDue: "",
@@ -431,6 +434,7 @@ function normalizeStateModels(state) {
     form.data.calculatorJustEvaluated ||= false;
     form.data.calculatorPosition ||= null;
     form.data.calculatorSize ||= null;
+    form.data.calculatorMinimized ||= false;
     form.data.allocations = (form.data.allocations || []).filter((item) =>
       ["debt", "credit_card", "student_loan"].includes(item.type),
     );
@@ -529,18 +533,6 @@ function recurringBillToWorksheetBill(bill) {
   };
 }
 
-function mergeBillRows(carriedBills = [], profileBills = []) {
-  const merged = [];
-  [...carriedBills, ...profileBills.map(recurringBillToWorksheetBill)].forEach((bill) => {
-    const signature = String(bill.name || "").trim().toLowerCase();
-    if (!bill.name || merged.some((item) => String(item.name || "").trim().toLowerCase() === signature)) {
-      return;
-    }
-    merged.push({ ...blankBill(), ...clone(bill), coachDecision: "" });
-  });
-  return merged;
-}
-
 function syncWorksheetBillsWithProfile(existingBills = [], profileBills = []) {
   const profileByName = new Map(
     profileBills
@@ -548,11 +540,10 @@ function syncWorksheetBillsWithProfile(existingBills = [], profileBills = []) {
       .map((bill) => [String(bill.name).trim().toLowerCase(), recurringBillToWorksheetBill(bill)]),
   );
   const synced = existingBills
-    .filter((bill) => bill.name)
     .map((bill) => {
+      if (!bill.name) return clone(bill);
       const profileBill = profileByName.get(String(bill.name).trim().toLowerCase());
       if (!profileBill) return clone(bill);
-      profileByName.delete(String(bill.name).trim().toLowerCase());
       return {
         ...blankBill(),
         ...clone(bill),
@@ -560,7 +551,6 @@ function syncWorksheetBillsWithProfile(existingBills = [], profileBills = []) {
         coachDecision: bill.coachDecision || "",
       };
     });
-  profileByName.forEach((bill) => synced.push(bill));
   while (synced.length < 3) synced.push(blankBill());
   return synced;
 }
@@ -672,21 +662,7 @@ function blankForm(owner, carryForward = owner.carryForward || {}, assignedPerso
     data: {
       overview: { checkDate: "", thisCheck: "", additionalIncome: "" },
       bills: Object.fromEntries(
-        billGroups.map(([key]) => {
-          const profileBills = inventory.recurringBills.filter((bill) => bill.category === key);
-          const carriedRows = carryForward.bills?.[key] || [];
-          const carriedAndProfileBills = mergeBillRows(carriedRows, profileBills);
-          const rows = carriedAndProfileBills.length
-            ? carriedAndProfileBills
-            : profileBills.map(recurringBillToWorksheetBill);
-          const billRows = rows.map((bill) => ({
-            ...blankBill(),
-            ...clone(bill),
-            coachDecision: "",
-          }));
-          while (billRows.length < 3) billRows.push(blankBill());
-          return [key, billRows];
-        }),
+        billGroups.map(([key]) => [key, [blankBill(), blankBill(), blankBill()]]),
       ),
       mortgage: {
         totalAmount: inventory.mortgage?.totalAmount || carryForward.mortgage?.totalAmount || "",
@@ -731,6 +707,7 @@ function blankForm(owner, carryForward = owner.carryForward || {}, assignedPerso
       calculatorDraft: "",
       calculatorPosition: null,
       calculatorSize: null,
+      calculatorMinimized: false,
       allocations: [],
       notes: "",
     },
@@ -1570,6 +1547,9 @@ function addMilestoneNotifications(member, milestoneKey, title, message, type) {
         notification.memberEmail === member.email,
     )
   ) {
+    return false;
+  }
+  if (!window.confirm(`${title}\n\n${message}\n\nMark this milestone complete and notify the connected accounts?`)) {
     return false;
   }
   const recipients = [member.email];
@@ -2422,6 +2402,7 @@ function creditCardProfileCard(card, index) {
         ${moneyField("Total balance", `financialInventory.creditCards.${index}.totalBalance`, card.totalBalance, false)}
         ${moneyField("Last statement balance", `financialInventory.creditCards.${index}.lastStatementBalance`, card.lastStatementBalance, false)}
         ${moneyField("Payment due", `financialInventory.creditCards.${index}.paymentDue`, card.paymentDue, false)}
+        ${moneyField("Credit card allowance", `financialInventory.creditCards.${index}.allowance`, card.allowance, false)}
         ${dateField("Due date", `financialInventory.creditCards.${index}.dueDate`, card.dueDate, false)}
         ${percentField("Annual APR", `financialInventory.creditCards.${index}.apr`, card.apr, false)}
       </div>
@@ -2484,6 +2465,7 @@ function studentLoanProfileCard(loan, index) {
     <article class="profile-inventory-card">
       <div class="profile-inventory-grid">
         ${textField("Loan name", `financialInventory.studentLoans.${index}.account`, loan.account, false, "Student loan name")}
+        ${studentLoanTypeField(`financialInventory.studentLoans.${index}.loanType`, loan.loanType, false, true)}
         ${moneyField("Balance", `financialInventory.studentLoans.${index}.totalOwed`, loan.totalOwed, false)}
         ${percentField("Interest rate", `financialInventory.studentLoans.${index}.apr`, loan.apr, false)}
         ${moneyField("Payment due", `financialInventory.studentLoans.${index}.paymentDue`, loan.paymentDue, false)}
@@ -2518,6 +2500,21 @@ function profilePercentField(label, path, value) {
 
 function profileFutureDateField(label, path, value) {
   return `<div class="field"><label>${label}</label><input class="input" type="date" min="${todayValue()}" data-profile-path="${path}" data-future-date-validation value="${value || ""}"></div>`;
+}
+
+function studentLoanTypeField(path, value, readOnly, profile = false) {
+  const attribute = profile ? "data-profile-path" : "data-path";
+  return `<div class="field"><label>Student loan type</label><select class="input" ${attribute}="${path}" ${readOnly ? "disabled" : ""}>
+    ${selectOption("", "Select loan type", value)}
+    ${selectOption("federal_subsidized", "Federal Direct Subsidized", value)}
+    ${selectOption("federal_unsubsidized", "Federal Direct Unsubsidized", value)}
+    ${selectOption("federal_plus", "Federal PLUS", value)}
+    ${selectOption("federal_perkins", "Federal Perkins", value)}
+    ${selectOption("private", "Private student loan", value)}
+    ${selectOption("consolidation", "Consolidation loan", value)}
+    ${selectOption("refinanced", "Refinanced student loan", value)}
+    ${selectOption("other", "Other", value)}
+  </select></div>`;
 }
 
 function debtProfileCard(debt, index) {
@@ -2848,7 +2845,7 @@ function sessionReviewCard(session, viewer) {
     <article class="session-review-card">
       <div class="session-review-top">
         <div><p class="document-label">Completed F.I.T. session</p><h3>${dateLabel(session.sessionDate.slice(0, 10))}</h3><p>${escapeHtml(session.coachName)} with ${escapeHtml(session.memberName)}</p></div>
-        <span class="badge green">Review ready</span>
+        <div class="button-row"><button class="btn btn-secondary btn-small" type="button" data-print-form="${session.formId}">Open summary PDF</button><span class="badge green">Review ready</span></div>
       </div>
       <section class="ai-review">
         <div class="ai-review-heading"><span>✦</span><div><strong>F.I.T. AI session review</strong><small>Generated from the worksheet, bill decisions, coach notes, and action steps.</small></div></div>
@@ -2907,6 +2904,9 @@ function showSessionCompletionModal(formId) {
   const form = appState.forms[formId];
   const coach = currentAccount();
   if (!form || coach.role !== "coach" || appState.accounts[form.ownerEmail]?.coachEmail !== coach.email) return;
+  const member = appState.accounts[form.ownerEmail];
+  const memberPhone = String(member?.profile?.phone || "").trim();
+  const coachPhone = String(coach?.profile?.phone || "").trim();
   const modal = document.createElement("div");
   modal.className = "modal-backdrop";
   modal.dataset.formId = formId;
@@ -2918,6 +2918,11 @@ function showSessionCompletionModal(formId) {
         <form id="session-completion-form" class="form-stack">
           <div class="field"><label for="coach-session-notes">Add notes for your mentee (optional)</label><textarea id="coach-session-notes" class="input notes-area compact-notes" name="coachNotes" placeholder="Feedback, patterns noticed, and encouragement"></textarea></div>
           <div class="field"><label for="session-action-steps">Action steps before the next session (optional)</label><textarea id="session-action-steps" class="input notes-area compact-notes" name="actionSteps" placeholder="Specific next steps for the member"></textarea></div>
+          <fieldset class="summary-delivery-options"><legend>Text the completed F.I.T. summary</legend>
+            <label class="check-control"><input type="checkbox" name="textMember" ${memberPhone ? "checked" : "disabled"}><span>Text member${memberPhone ? ` at ${escapeHtml(memberPhone)}` : " (phone number needed)"}</span></label>
+            <label class="check-control"><input type="checkbox" name="textCoach" ${coachPhone ? "checked" : "disabled"}><span>Text coach${coachPhone ? ` at ${escapeHtml(coachPhone)}` : " (phone number needed)"}</span></label>
+            <p>The message contains a secure sign-in link to the completed summary and printable PDF.</p>
+          </fieldset>
           <button class="btn btn-gold" type="submit">Approve and complete F.I.T. session</button>
         </form>
       </div>
@@ -3106,7 +3111,7 @@ function memberFormCard(form) {
         </div>
         ${formStatusBadge(form)}
       </div>
-      <div class="form-origin"><span>${form.generatedFromProfile ? "Profile and recurring bills applied" : "Legacy worksheet"}</span></div>
+      <div class="form-origin"><span>${form.generatedFromProfile ? "Profile data ready · bills available in dropdowns" : "Legacy worksheet"}</span></div>
       <div class="card-stats">
         <div><span>This check</span><strong>${money(calc.thisCheck)}</strong></div>
         <div><span>Available</span><strong>${money(calc.available)}</strong></div>
@@ -3367,7 +3372,9 @@ function billsPanel(form, calc, readOnly, isCoachReview) {
 
 function billGroup(form, key, label, readOnly, isCoachReview) {
   const rows = form.data.bills[key];
-  const suggestions = currentAccount()?.financialInventory?.recurringBills || [];
+  const suggestions = (appState.accounts[form.ownerEmail]?.financialInventory?.recurringBills || []).filter(
+    (bill) => bill.category === key && bill.name,
+  );
   const listId = `recurring-${key}`;
   const subtotal = rows.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
   return `
@@ -3424,6 +3431,8 @@ function mortgagePanel(form, calc, readOnly) {
 }
 
 function creditCardPanel(form, calc, readOnly, isCoachReview) {
+  const totalAllowance = form.data.creditCards.reduce((sum, card) => sum + (Number(card.allowance) || 0), 0);
+  const allowanceUsed = form.data.creditCards.reduce((sum, card) => sum + (Number(card.lastStatementBalance) || 0), 0);
   return `
     <section class="panel" id="cards">
       <div class="panel-heading">
@@ -3432,6 +3441,11 @@ function creditCardPanel(form, calc, readOnly, isCoachReview) {
       </div>
       <div class="debt-card-list">
         ${form.data.creditCards.map((row, index) => creditCardCard(row, index, readOnly, isCoachReview)).join("")}
+      </div>
+      <div class="credit-allowance-summary">
+        ${computedField("Total credit card allowance", money(totalAllowance))}
+        ${computedField("Statement balances counted", money(allowanceUsed))}
+        ${computedField("Allowance remaining", money(Math.max(0, totalAllowance - allowanceUsed)))}
       </div>
       <div class="table-total"><span>This check's credit card subtotal</span><strong>${money(calc.creditCards)}</strong></div>
     </section>
@@ -3457,6 +3471,7 @@ function creditCardCard(row, index, readOnly, isCoachReview) {
         ${moneyField("Total balance", `creditCards.${index}.totalBalance`, row.totalBalance, readOnly)}
         ${moneyField("Last statement balance", `creditCards.${index}.lastStatementBalance`, row.lastStatementBalance, readOnly)}
         ${moneyField("Payment due", `creditCards.${index}.paymentDue`, row.paymentDue, readOnly)}
+        ${moneyField("Credit card allowance", `creditCards.${index}.allowance`, row.allowance, readOnly)}
         ${dateField("Due date", `creditCards.${index}.dueDate`, row.dueDate, readOnly)}
         ${moneyField("This check's contribution", `creditCards.${index}.contribution`, row.contribution, readOnly)}
         ${percentField("Annual APR", `creditCards.${index}.apr`, row.apr, readOnly)}
@@ -3601,6 +3616,7 @@ function studentLoanPanel(form, calc, readOnly) {
 function studentLoanCard(loan, index, readOnly) {
   return `<article class="debt-entry student-loan-entry"><div class="debt-entry-heading"><strong>${escapeHtml(loan.account || "New student loan")}</strong>${readOnly ? "" : `<button class="icon-btn danger" type="button" title="Remove student loan" aria-label="Remove student loan" data-remove-row="studentLoans.${index}">×</button>`}</div><div class="debt-entry-grid">
     ${textField("Loan name", `studentLoans.${index}.account`, loan.account, readOnly, "Student loan name")}
+    ${studentLoanTypeField(`studentLoans.${index}.loanType`, loan.loanType, readOnly)}
     ${moneyField("Balance", `studentLoans.${index}.totalOwed`, loan.totalOwed, readOnly)}
     ${percentField("Interest rate", `studentLoans.${index}.apr`, loan.apr, readOnly)}
     ${moneyField("Payment due", `studentLoans.${index}.paymentDue`, loan.paymentDue, readOnly)}
@@ -3657,7 +3673,6 @@ function allocationPanel(form, calc, readOnly) {
 }
 
 function calculatorPanel(form, readOnly) {
-  const history = (form.data.calculatorHistory || []).slice(-10).reverse();
   const keys = [
     ["AC", "utility"], ["+/-", "utility"], ["%", "utility"], ["÷", "operator"],
     ["7", "number"], ["8", "number"], ["9", "number"], ["×", "operator"],
@@ -3689,10 +3704,10 @@ function calculatorPanel(form, readOnly) {
     : 0;
   const sizeStyle = `width:${calculatorWidth}px;${savedHeight ? `height:${calculatorHeight}px;` : ""}`;
   const positionStyle = `${sizeStyle}${position ? `left:${safeLeft}px;top:${safeTop}px;right:auto;bottom:auto;` : ""}`;
-  return `<aside class="calculator-widget draggable-calculator" data-draggable-calculator="${form.id}" style="${positionStyle}">
+  return `<aside class="calculator-widget draggable-calculator ${form.data.calculatorMinimized ? "minimized" : ""}" data-draggable-calculator="${form.id}" style="${positionStyle}">
     <div class="calculator-heading" data-calculator-drag-handle>
       <div><h3>Live calculator</h3><p>Drag to move · resize from the corner</p></div>
-      <div class="calculator-tools"><span class="badge calculator-count">${history.length}/10</span><span class="calculator-drag-grip" aria-label="Drag calculator" title="Drag calculator">⠿</span></div>
+      <div class="calculator-tools"><button class="calculator-minimize" type="button" data-toggle-calculator-minimize="${form.id}" aria-label="${form.data.calculatorMinimized ? "Restore calculator" : "Minimize calculator"}" title="${form.data.calculatorMinimized ? "Restore calculator" : "Minimize calculator"}">${form.data.calculatorMinimized ? "□" : "−"}</button><span class="calculator-drag-grip" aria-label="Drag calculator" title="Drag calculator">⠿</span></div>
     </div>
     <output class="calculator-display" aria-live="polite">${escapeHtml(form.data.calculatorDraft || "0")}</output>
     <div class="calculator-keypad" aria-label="Calculator keypad">
@@ -3716,12 +3731,9 @@ function calculatorHistoryMarkup(form) {
 
 function refreshCalculatorDisplay(calculator, form) {
   if (!calculator || !form) return;
-  const history = (form.data.calculatorHistory || []).slice(-10);
   const display = calculator.querySelector(".calculator-display");
-  const count = calculator.querySelector(".calculator-count");
   const historyPanel = calculator.querySelector(".calculator-history");
   if (display) display.textContent = form.data.calculatorDraft || "0";
-  if (count) count.textContent = `${history.length}/10`;
   if (historyPanel) historyPanel.innerHTML = calculatorHistoryMarkup(form);
 }
 
@@ -3821,6 +3833,7 @@ function observeCalculatorSize(calculator) {
 }
 
 function beginCalculatorDrag(event) {
+  if (event.target.closest("button, input, select, textarea, a")) return;
   const handle = event.target.closest("[data-calculator-drag-handle]");
   const calculator = handle?.closest("[data-draggable-calculator]");
   if (!calculator || event.button !== 0) return;
@@ -4148,7 +4161,7 @@ function removeAtPath(object, path) {
 }
 
 function applyRecurringBillSuggestion(input, form) {
-  const account = currentAccount();
+  const account = appState.accounts[form.ownerEmail];
   const suggestion = account.financialInventory?.recurringBills.find(
     (bill) => bill.name.toLowerCase() === input.value.trim().toLowerCase(),
   );
@@ -4472,8 +4485,8 @@ function printWorksheetSummary(formId) {
     <div class="two"><section class="section"><h2>Savings accounts</h2>${printList(savingsAccounts.map((item) => `${item.name || "Savings"} - ${money(item.balance)}`))}</section><section class="section"><h2>Investment accounts</h2>${printList(investments.map((item) => `${item.name || "Investment"} - ${money(item.balance)}`))}</section></div>
     ${form.data.housingPaymentType === "mortgage" ? `<h2>Mortgage progress</h2><div class="grid"><div class="fact"><span>Total mortgage amount</span><strong>${money(form.data.mortgage.totalAmount)}</strong></div><div class="fact"><span>Interest rate</span><strong>${escapeHtml(form.data.mortgage.interestRate || "Not provided")}${form.data.mortgage.interestRate ? "%" : ""}</strong></div><div class="fact"><span>Current balance</span><strong>${money(calc.mortgageAfter)}</strong></div></div>` : `<h2>Housing</h2><p>Rent selected. Mortgage calculations are excluded from this report.</p>`}
     <section class="section"><h2>Remaining debt</h2>${printList(debts.map((debt) => `${debt.account} - ${money(debt.totalOwed)}${debt.apr ? ` at ${debt.apr}% APR` : ""}`))}</section>
-    <section class="section"><h2>Student loans</h2>${printList(studentLoans.map((loan) => `${loan.account} - ${money(loan.totalOwed)} balance; ${money(loan.paymentDue)} due${loan.dueDate ? ` on ${dateLabel(loan.dueDate)}` : ""}`))}</section>
-    <section class="section"><h2>Credit cards</h2>${printList(cards.map((card) => `${card.account} - ${money(card.totalBalance)} total balance; ${money(card.lastStatementBalance)} last statement; ${money(card.paymentDue)} due${card.dueDate ? ` on ${dateLabel(card.dueDate)}` : ""}`))}</section>
+    <section class="section"><h2>Student loans</h2>${printList(studentLoans.map((loan) => `${loan.account}${loan.loanType ? ` (${loan.loanType.replaceAll("_", " ")})` : ""} - ${money(loan.totalOwed)} balance; ${money(loan.paymentDue)} due${loan.dueDate ? ` on ${dateLabel(loan.dueDate)}` : ""}`))}</section>
+    <section class="section"><h2>Credit cards</h2>${printList(cards.map((card) => `${card.account} - ${money(card.totalBalance)} total balance; ${money(card.lastStatementBalance)} last statement; ${money(card.paymentDue)} due; ${money(card.allowance)} allowance${card.dueDate ? ` on ${dateLabel(card.dueDate)}` : ""}`))}</section>
     <section class="section"><h2>Worksheet notes</h2><div class="note">${escapeHtml(form.data.notes || "No worksheet notes.")}</div></section>
     ${latestSession ? `<section class="page-break"><h2>Coach notes</h2><div class="note">${escapeHtml(latestSession.coachNotes || "N/A")}</div><h2>F.I.T. session review</h2><div class="note">${escapeHtml(latestSession.aiSummary || "No session review.")}</div><h2>Next steps</h2><div class="note">${escapeHtml(latestSession.actionSteps || "No action steps recorded.")}</div></section>` : ""}
     <footer class="footer">F.I.T. was created by Pastor A. Griffith of God Cannot Lie Ministries.</footer>
@@ -4531,7 +4544,7 @@ function showProfileWithdrawalModal(index) {
   document.body.appendChild(modal);
 }
 
-function approveForm(formId, coachNotes = "", actionSteps = "") {
+async function approveForm(formId, coachNotes = "", actionSteps = "", textRecipients = []) {
   const coach = currentAccount();
   const form = appState.forms[formId];
   if (!form || coach.role !== "coach" || appState.accounts[form.ownerEmail]?.coachEmail !== coach.email) return;
@@ -4568,6 +4581,7 @@ function approveForm(formId, coachNotes = "", actionSteps = "") {
         ),
         lastStatementBalance: card.lastStatementBalance || "",
         paymentDue: card.paymentDue || "",
+        allowance: card.allowance || "",
         apr: card.apr,
         promoType: card.promoType || "none",
         purchasePromoRate: card.purchasePromoRate || "",
@@ -4612,12 +4626,28 @@ function approveForm(formId, coachNotes = "", actionSteps = "") {
   member.financialInventory.debts = clone(member.carryForward.debts || []);
   member.financialInventory.studentLoans = clone(member.carryForward.studentLoans || []);
   member.financialInventory.mortgage = clone(member.carryForward.mortgage || {});
-  appState.sessions.push(createSessionReview(form, coach, coachNotes, actionSteps));
+  const sessionReview = createSessionReview(form, coach, coachNotes, actionSteps);
+  appState.sessions.push(sessionReview);
   saveState();
+  await productionBackend.saveNow?.(appState);
+  let textStatus = "";
+  if (textRecipients.length && productionBackend.enabled) {
+    try {
+      const result = await productionBackend.sendSessionSummarySms?.({
+        sessionId: sessionReview.id,
+        formId: form.id,
+        recipients: textRecipients,
+      });
+      textStatus = result?.sent ? ` ${result.sent} summary text${result.sent === 1 ? "" : "s"} sent.` : "";
+    } catch (error) {
+      console.warn("Session summary text could not be delivered", error);
+      textStatus = " The session was saved, but summary text delivery could not be completed.";
+    }
+  }
   activeFormId = null;
   activeView = "dashboard";
   render();
-  showToast("Session completed. Review generated and balances carried forward.");
+  showToast(`Session completed. Review generated and balances carried forward.${textStatus}`);
 }
 
 function showToast(message) {
@@ -4847,6 +4877,16 @@ document.addEventListener("click", async (event) => {
     } catch {
       showToast("That calculation could not be completed.");
     }
+    return;
+  }
+
+  const calculatorMinimize = event.target.closest("[data-toggle-calculator-minimize]");
+  if (calculatorMinimize) {
+    const form = appState.forms[calculatorMinimize.dataset.toggleCalculatorMinimize];
+    if (!form) return;
+    form.data.calculatorMinimized = !form.data.calculatorMinimized;
+    saveState();
+    renderEditor();
     return;
   }
 
@@ -5661,6 +5701,10 @@ document.addEventListener("submit", async (event) => {
       });
     account.profileCompleted = profileIsComplete(account);
     syncDraftFormsWithFinancialProfile(account);
+    notifyProfileMilestones(account);
+    Object.values(appState.forms)
+      .filter((form) => form.ownerEmail === account.email)
+      .forEach(notifyFormMilestones);
     saveState();
     if (account.profileCompleted) {
       activeView = "dashboard";
@@ -5707,10 +5751,15 @@ document.addEventListener("submit", async (event) => {
     event.preventDefault();
     const modal = event.target.closest(".modal-backdrop");
     const data = new FormData(event.target);
-    approveForm(
+    const textRecipients = [
+      ...(data.get("textMember") ? ["member"] : []),
+      ...(data.get("textCoach") ? ["coach"] : []),
+    ];
+    await approveForm(
       modal.dataset.formId,
       data.get("coachNotes").trim(),
       data.get("actionSteps").trim(),
+      textRecipients,
     );
     modal.remove();
     return;
@@ -6021,10 +6070,8 @@ document.addEventListener("change", async (event) => {
     applyRecurringBillSuggestion(input, form);
   }
   form.updatedAt = new Date().toISOString();
-  const milestoneCreated = notifyFormMilestones(form);
   saveState();
   refreshLiveAvailable(form);
-  if (milestoneCreated) showToast("Milestone reached. You and your coach were notified.");
 });
 
 async function initializePortal() {
@@ -6034,6 +6081,7 @@ async function initializePortal() {
       const hydrated = await productionBackend.hydrate();
       if (hydrated) {
         appState = hydrated;
+        if (new URLSearchParams(window.location.search).get("sessionReview")) activeView = "sessions";
       } else if (currentAccount()) {
         localStorage.removeItem(STORAGE_KEY);
         appState = {

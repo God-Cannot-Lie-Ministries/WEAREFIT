@@ -11,3 +11,6 @@ verify_jwt = true
 
 [functions.complete-account-deletion]
 verify_jwt = false
+
+[functions.send-session-summary-sms]
+verify_jwt = true

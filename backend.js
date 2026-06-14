@@ -393,6 +393,14 @@
     return data;
   }
 
+  async function sendSessionSummarySms(payload) {
+    const { data, error } = await client.functions.invoke("send-session-summary-sms", {
+      body: payload,
+    });
+    await throwFunctionError(error, "The completed session summary text could not be sent.");
+    return data;
+  }
+
   async function subscribeToPortalChanges(onChange) {
     if (!client) return;
     if (realtimeChannel) await client.removeChannel(realtimeChannel);
@@ -489,6 +497,7 @@
     sendCoachInvite,
     connectCoach,
     removeMentee,
+    sendSessionSummarySms,
     subscribeToPortalChanges,
     requestAccountDeletion,
     completeAccountDeletion,

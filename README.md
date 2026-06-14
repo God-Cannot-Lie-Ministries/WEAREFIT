@@ -105,6 +105,17 @@ supabase secrets set EMAIL_FROM="WEAREFIT <invites@notifications.fit-training.or
 supabase secrets set APP_URL=https://fit-training.org
 ```
 
+Completed F.I.T. session summary texts use Twilio and contain a secure sign-in link to the summary and printable PDF. Configure the server-only Twilio values, then deploy the function:
+
+```bash
+supabase secrets set TWILIO_ACCOUNT_SID=YOUR_TWILIO_ACCOUNT_SID
+supabase secrets set TWILIO_AUTH_TOKEN=YOUR_TWILIO_AUTH_TOKEN
+supabase secrets set TWILIO_FROM_NUMBER=YOUR_TWILIO_PHONE_NUMBER
+supabase functions deploy send-session-summary-sms
+```
+
+Never place Twilio credentials in frontend code or repository variables.
+
 Supabase provides `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` automatically to Edge Functions. Never place the service-role key in the website or GitHub repository. Supabase's function deployment and secrets docs are here:
 
 - https://supabase.com/docs/guides/functions/deploy
