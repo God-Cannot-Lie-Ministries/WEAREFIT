@@ -4415,8 +4415,10 @@ function showNewFormModal() {
       <div class="modal-header"><div><p class="document-label">New worksheet</p><h3 id="assignment-title">Who will complete this form?</h3></div><button class="icon-btn" type="button" aria-label="Close" data-close-modal>×</button></div>
       <div class="modal-body">
         <form id="new-form-assignment-form" class="form-stack">
-          <label class="assignment-choice individual-assignment-choice"><input type="radio" name="assignedPerson" value="account_holder" checked><span>${avatarMarkup(account)}<strong>${escapeHtml(account.name)}</strong><small>Account holder</small></span></label>
-          <label class="assignment-choice individual-assignment-choice"><input type="radio" name="assignedPerson" value="spouse"><span>${spouseAvatarMarkup(account)}<strong>${escapeHtml(account.profile.spouseName)}</strong><small>Spouse</small></span></label>
+          <div class="assignment-solo-grid">
+            <label class="assignment-choice individual-assignment-choice"><input type="radio" name="assignedPerson" value="account_holder" checked><span>${avatarMarkup(account)}<strong>${escapeHtml(account.name)}</strong><small>Account holder</small><i aria-hidden="true">✓</i></span></label>
+            <label class="assignment-choice individual-assignment-choice"><input type="radio" name="assignedPerson" value="spouse"><span>${spouseAvatarMarkup(account)}<strong>${escapeHtml(account.profile.spouseName)}</strong><small>Spouse</small><i aria-hidden="true">✓</i></span></label>
+          </div>
           <label class="assignment-choice"><input type="radio" name="assignedPerson" value="both"><span>${formAssigneeAvatar(account, "both")}<strong>${escapeHtml(formAssigneeName(account, "both"))}</strong><small>Complete together</small></span></label>
           <button class="btn btn-primary" type="submit">Create assigned worksheet</button>
         </form>
