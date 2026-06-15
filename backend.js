@@ -114,22 +114,36 @@
   }
 
   async function validateActiveAccount() {
-    if (!client) return true;
+    if (!client) return { active: true, reason: "active" };
     const { data, error } = await client.auth.getUser();
-    if (!error && data.user) return true;
+    if (!error && data.user) return { active: true, reason: "active" };
     const status = Number(error?.status || 0);
     const message = String(error?.message || "");
-    if (status === 401 || status === 403 || /user not found|invalid.*jwt|jwt.*invalid|session.*missing|not authenticated/i.test(message)) {
+    if (/user not found/i.test(message)) {
       await client.auth.signOut({ scope: "local" }).catch(() => {});
-      return false;
+      return { active: false, reason: "deleted" };
+    }
+    if (status === 401 || status === 403 || /invalid.*jwt|jwt.*invalid|session.*missing|not authenticated|refresh token/i.test(message)) {
+      await client.auth.signOut({ scope: "local" }).catch(() => {});
+      return { active: false, reason: "expired" };
     }
     throw error;
   }
 
-  async function hydrate() {
-    if (!(await validateActiveAccount())) return null;
+  async function hydrate(options = {}) {
     const currentSession = await session();
-    if (!currentSession) return null;
+    if (!currentSession) {
+      if (!options.requireSession) return null;
+      const authError = new Error("Your session expired. Please log in again.");
+      authError.code = "FIT_SESSION_EXPIRED";
+      throw authError;
+    }
+    const accountStatus = await validateActiveAccount();
+    if (!accountStatus.active) {
+      const authError = new Error(accountStatus.reason === "deleted" ? "This page is no longer available." : "Your session expired. Please log in again.");
+      authError.code = accountStatus.reason === "deleted" ? "FIT_ACCOUNT_DELETED" : "FIT_SESSION_EXPIRED";
+      throw authError;
+    }
     const email = normalizeEmail(currentSession.user.email);
     const { data: rows, error } = await client
       .from("portal_states")
@@ -250,7 +264,8 @@
   }
 
   async function persist(state) {
-    if (!(await validateActiveAccount())) return;
+    const accountStatus = await validateActiveAccount();
+    if (!accountStatus.active) return;
     const currentSession = await session();
     if (!currentSession) return;
     const currentEmail = normalizeEmail(currentSession.user.email);

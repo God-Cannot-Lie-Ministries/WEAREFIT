@@ -27,6 +27,10 @@ let calculatorDragState = null;
 let calculatorInteractionUntil = 0;
 let calculatorResizeObserver = null;
 let pageLoadingTimer = null;
+let portalInitializationInProgress = false;
+let portalDataReady = !productionBackend.enabled;
+let portalLoadError = null;
+let lastTemporaryErrorNoticeAt = 0;
 const INACTIVITY_LIMIT_MS = 15 * 60 * 1000;
 const MILESTONE_RESET_VERSION = "2026-06-13-withdrawal-repair";
 const MILESTONE_RESET_CUTOFF = new Date("2026-06-13T16:00:00Z").getTime();
@@ -1713,6 +1717,82 @@ function render() {
   renderDashboard();
 }
 
+function portalStatusMessage(kind) {
+  const messages = {
+    loading: {
+      title: "Loading your page…",
+      description: "We are securely checking your session and loading your F.I.T. workspace.",
+    },
+    temporary: {
+      title: "We had trouble loading this page.",
+      description: "Your page is still available. Please try again.",
+    },
+    expired: {
+      title: "Your session expired.",
+      description: "Please log in again to continue.",
+    },
+    permission: {
+      title: "You do not have permission to view this page.",
+      description: "Return to your workspace or ask the account owner for access.",
+    },
+    unavailable: {
+      title: "This page is no longer available.",
+      description: "It may have been removed or is no longer shared with your account.",
+    },
+  };
+  return messages[kind] || messages.temporary;
+}
+
+function renderPortalStatusPage(kind, options = {}) {
+  const message = portalStatusMessage(kind);
+  const canRetry = kind === "temporary";
+  const canReturn = Boolean(currentAccount()) && kind !== "expired";
+  app.innerHTML = `
+    <main class="portal-status-page">
+      <section class="portal-status-card" role="${kind === "loading" ? "status" : "alert"}" aria-live="polite">
+        ${kind === "loading" ? `<span class="page-loader-spinner" aria-hidden="true"></span>` : `<span class="portal-status-mark" aria-hidden="true">!</span>`}
+        <p class="eyebrow">F.I.T. secure portal</p>
+        <h1>${message.title}</h1>
+        <p>${escapeHtml(options.description || message.description)}</p>
+        <div class="button-row">
+          ${canRetry ? `<button class="btn btn-primary" type="button" data-retry-page>Try again</button>` : ""}
+          ${canReturn ? `<button class="btn btn-secondary" type="button" data-view="dashboard">Return to workspace</button>` : ""}
+          ${kind === "expired" ? `<button class="btn btn-primary" type="button" data-login-mode="signin">Log in</button>` : ""}
+        </div>
+      </section>
+    </main>
+  `;
+}
+
+function clearAccountForAuthEnd(reason) {
+  clearProtectedPortalMemory();
+  activeView = "dashboard";
+  activeFormId = null;
+  pendingPaystubUpload = null;
+  loginMode = "signin";
+  document.querySelectorAll(".modal-backdrop").forEach((modal) => modal.remove());
+  renderLogin();
+  showToast(reason === "deleted" ? "This page is no longer available." : "Your session expired. Please log in again.");
+}
+
+function showPortalRetryBanner(message = "We had trouble loading this page. Your current page is still available.") {
+  let banner = document.getElementById("portal-retry-banner");
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "portal-retry-banner";
+    banner.className = "portal-retry-banner";
+    banner.setAttribute("role", "alert");
+    banner.innerHTML = `<span></span><button class="btn btn-secondary btn-small" type="button" data-retry-live-page>Try again</button>`;
+    document.body.appendChild(banner);
+  }
+  banner.querySelector("span").textContent = message;
+  banner.classList.add("show");
+}
+
+function removePortalRetryBanner() {
+  document.getElementById("portal-retry-banner")?.remove();
+}
+
 function renderLogin() {
   if (loginMode === "delete-success") {
     app.innerHTML = `
@@ -3317,8 +3397,9 @@ function renderEditor() {
   const account = currentAccount();
   const form = appState.forms[activeFormId];
   if (!form) {
-    activeView = "dashboard";
-    render();
+    renderPortalStatusPage(
+      portalInitializationInProgress || !portalDataReady ? "loading" : "unavailable",
+    );
     return;
   }
 
@@ -3329,9 +3410,7 @@ function renderEditor() {
     (account.role === "user" && form.ownerEmail === account.email) ||
     assignedCoach;
   if (!authorized) {
-    activeView = "dashboard";
-    activeFormId = null;
-    render();
+    renderPortalStatusPage("permission");
     return;
   }
 
@@ -4862,17 +4941,31 @@ async function signIn(email, password, role) {
         showToast(`This account is registered as a ${registeredRole === "coach" ? "coach" : "member"}.`);
         return;
       }
-      appState = await productionBackend.hydrate();
+      portalDataReady = false;
+      renderPortalStatusPage("loading");
+      appState = await productionBackend.hydrate({ requireSession: true });
+      portalDataReady = true;
       await completePendingCoachInvite();
       activeView = currentAccount()?.profileCompleted ? "dashboard" : "profile";
       activeFormId = null;
       render();
     } catch (error) {
+      if (error?.code === "FIT_ACCOUNT_DELETED") {
+        clearAccountForAuthEnd("deleted");
+        return;
+      }
+      if (error?.code === "FIT_SESSION_EXPIRED") {
+        clearAccountForAuthEnd("expired");
+        return;
+      }
       if (emailConfirmationRequired(error)) {
         pendingVerificationEmail = normalizedEmail;
         confirmationResendNeeded = true;
         loginMode = "verify";
         renderLogin();
+      } else if (portalDataReady === false) {
+        portalLoadError = error;
+        renderPortalStatusPage("temporary");
       }
       showToast(authErrorMessage(error, "sign in"));
     }
@@ -4993,6 +5086,18 @@ document.addEventListener("submit", (event) => {
 }, true);
 
 document.addEventListener("click", async (event) => {
+  if (event.target.closest("[data-retry-page]")) {
+    portalDataReady = false;
+    await initializePortal();
+    return;
+  }
+
+  if (event.target.closest("[data-retry-live-page]")) {
+    removePortalRetryBanner();
+    await refreshPortalFromBackend();
+    return;
+  }
+
   const changePhotoButton = event.target.closest("[data-change-photo]");
   if (changePhotoButton) {
     const selector = changePhotoButton.dataset.changePhoto === "spouse"
@@ -6306,33 +6411,43 @@ document.addEventListener("change", async (event) => {
 });
 
 async function initializePortal() {
+  if (portalInitializationInProgress) return;
+  portalInitializationInProgress = true;
+  portalLoadError = null;
+  if (productionBackend.enabled) renderPortalStatusPage("loading");
   if (productionBackend.enabled) {
     localStorage.removeItem(STORAGE_KEY);
     try {
       const hydrated = await productionBackend.hydrate();
       if (hydrated) {
         appState = hydrated;
+        portalDataReady = true;
         if (new URLSearchParams(window.location.search).get("sessionReview")) activeView = "sessions";
-      } else if (currentAccount()) {
-        localStorage.removeItem(STORAGE_KEY);
-        appState = {
-          accounts: {},
-          forms: {},
-          coachRequests: [],
-          coachInvites: [],
-          withdrawals: [],
-          sessions: [],
-          notifications: [],
-          dateAutofillDisabled: true,
-          sessionEmail: null,
-        };
+      } else {
+        clearProtectedPortalMemory();
+        portalDataReady = true;
         loginMode = "signin";
       }
     } catch (error) {
       console.error(error);
-      showToast("The secure portal could not connect. Please try again.");
+      if (error?.code === "FIT_ACCOUNT_DELETED") {
+        portalDataReady = true;
+        clearAccountForAuthEnd("deleted");
+        return;
+      }
+      if (error?.code === "FIT_SESSION_EXPIRED") {
+        portalDataReady = true;
+        clearAccountForAuthEnd("expired");
+        return;
+      }
+      portalLoadError = error;
+      renderPortalStatusPage("temporary");
+      return;
+    } finally {
+      portalInitializationInProgress = false;
     }
   }
+  portalInitializationInProgress = false;
   normalizeStateModels(appState);
   if (currentAccount()) saveState();
   if (productionBackend.enabled && currentAccount()) {
@@ -6361,15 +6476,34 @@ async function refreshPortalFromBackend() {
   ) return;
   portalRefreshInProgress = true;
   try {
-    const hydrated = await productionBackend.hydrate();
+    const hydrated = await productionBackend.hydrate({ requireSession: true });
     if (!hydrated) return;
     const currentEmail = appState.sessionEmail;
-    appState = normalizeStateModels(hydrated);
-    appState.sessionEmail = currentEmail;
+    const refreshedState = normalizeStateModels(hydrated);
+    refreshedState.sessionEmail = currentEmail;
+    if (activeView === "editor" && activeFormId && appState.forms[activeFormId] && !refreshedState.forms[activeFormId]) {
+      throw new Error("The current worksheet has not finished loading.");
+    }
+    appState = refreshedState;
+    portalDataReady = true;
+    removePortalRetryBanner();
     localStorage.removeItem(STORAGE_KEY);
     render();
   } catch (error) {
     console.warn("Could not refresh live portal data", error);
+    if (error?.code === "FIT_ACCOUNT_DELETED") {
+      clearAccountForAuthEnd("deleted");
+      return;
+    }
+    if (error?.code === "FIT_SESSION_EXPIRED") {
+      clearAccountForAuthEnd("expired");
+      return;
+    }
+    if (Date.now() - lastTemporaryErrorNoticeAt > 60 * 1000) {
+      lastTemporaryErrorNoticeAt = Date.now();
+      showToast("We had trouble refreshing this page. Your current page is still available.");
+    }
+    showPortalRetryBanner();
   } finally {
     portalRefreshInProgress = false;
   }
@@ -6380,28 +6514,19 @@ async function validateCurrentAccount() {
   if (!productionBackend.enabled || accountValidationInProgress || !currentAccount()) return;
   accountValidationInProgress = true;
   try {
-    const active = await productionBackend.validateActiveAccount();
-    if (active) return;
-    localStorage.removeItem(STORAGE_KEY);
-    appState = {
-      accounts: {},
-      forms: {},
-      coachRequests: [],
-      coachInvites: [],
-      withdrawals: [],
-      sessions: [],
-      notifications: [],
-      dateAutofillDisabled: true,
-      sessionEmail: null,
-    };
-    activeView = "dashboard";
-    activeFormId = null;
-    loginMode = "signin";
-    document.querySelectorAll(".modal-backdrop").forEach((modal) => modal.remove());
-    renderLogin();
-    showToast("This account was deleted. Sign in with an active account to continue.");
+    const status = await productionBackend.validateActiveAccount();
+    if (status.active) {
+      removePortalRetryBanner();
+      return;
+    }
+    clearAccountForAuthEnd(status.reason);
   } catch (error) {
     console.warn("Could not verify the active account", error);
+    if (Date.now() - lastTemporaryErrorNoticeAt > 60 * 1000) {
+      lastTemporaryErrorNoticeAt = Date.now();
+      showToast("We had trouble checking your session. You can keep working while we retry.");
+    }
+    showPortalRetryBanner("We had trouble checking your session. You can keep working while we retry.");
   } finally {
     accountValidationInProgress = false;
   }

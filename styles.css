@@ -2120,6 +2120,108 @@ select {
   animation: page-loader-spin 0.7s linear infinite;
 }
 
+.portal-status-page {
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  background: var(--canvas);
+  padding: 24px;
+}
+
+.portal-status-card {
+  display: grid;
+  width: min(520px, 100%);
+  justify-items: center;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--gold);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 36px;
+  color: var(--text);
+  text-align: center;
+}
+
+.portal-status-card h1,
+.portal-status-card p {
+  margin: 0;
+}
+
+.portal-status-card h1 {
+  color: var(--navy);
+  font-size: clamp(24px, 5vw, 34px);
+}
+
+.portal-status-card > p:not(.eyebrow) {
+  max-width: 420px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.portal-status-mark {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid var(--gold);
+  border-radius: 50%;
+  background: var(--gold-soft);
+  color: var(--navy);
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.portal-status-card .button-row {
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.portal-retry-banner {
+  position: fixed;
+  z-index: 125;
+  right: 16px;
+  bottom: 16px;
+  left: 16px;
+  display: flex;
+  width: min(620px, calc(100% - 32px));
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-inline: auto;
+  border: 1px solid var(--gold);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 10px 12px;
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.portal-retry-banner.show {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.portal-retry-banner span {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@media (max-width: 520px) {
+  .portal-status-card {
+    padding: 26px 18px;
+  }
+
+  .portal-retry-banner {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
 @keyframes page-loader-spin {
   to {
     transform: rotate(360deg);
