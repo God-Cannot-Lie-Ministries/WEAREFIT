@@ -7172,6 +7172,68 @@ html[data-theme="dark"] .data-table th {
   }
 }
 
+.profile-jump-nav {
+  position: sticky;
+  z-index: 18;
+  top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 20px 0 8px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--gold);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  padding: 7px;
+  box-shadow: 0 6px 18px rgba(13, 40, 89, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.profile-jump-nav span {
+  padding: 7px 10px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.profile-jump-nav a {
+  border-radius: 5px;
+  color: var(--navy);
+  padding: 7px 9px;
+  font-size: 11px;
+  font-weight: 750;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.profile-jump-nav a:hover,
+.profile-jump-nav a:focus-visible {
+  outline: none;
+  background: var(--gold-soft);
+  color: var(--navy);
+}
+
+.financial-profile-view #profile-savings,
+.financial-profile-view #profile-paystubs,
+.financial-profile-view #profile-housing,
+.financial-profile-view #profile-bills,
+.financial-profile-view #profile-cards,
+.financial-profile-view #profile-debts,
+.financial-profile-view #profile-student-loans,
+.profile-inventory-card,
+.debt-entry,
+.routing-row,
+.data-table tr {
+  scroll-margin-top: 84px;
+}
+
+@media (max-width: 768px) {
+  .profile-jump-nav {
+    display: none;
+  }
+}
+
 /* Normalize iPhone form controls instead of clipping their native oversized UI. */
 @media (max-width: 768px) {
   .financial-profile-view .profile-inventory-card,

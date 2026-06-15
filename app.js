@@ -2123,28 +2123,38 @@ function renderProfile() {
 
 function financialProfileSections(account, includePaystubs) {
   return `
+    <nav class="profile-jump-nav" aria-label="Financial profile sections">
+      <span>Jump to section</span>
+      <a href="#profile-savings">Savings & investments</a>
+      ${includePaystubs ? `<a href="#profile-paystubs">Paystubs</a>` : ""}
+      <a href="#profile-housing">Housing</a>
+      <a href="#profile-bills">Recurring bills</a>
+      <a href="#profile-cards">Cards</a>
+      <a href="#profile-debts">Debts</a>
+      <a href="#profile-student-loans">Student loans</a>
+    </nav>
     ${assetAccountsSection(account)}
     ${includePaystubs ? paystubVault(account, false) : ""}
     ${mortgageProfileSection(account)}
-    <section class="panel profile-inventory">
+    <section class="panel profile-inventory" id="profile-bills">
       <div class="panel-heading"><div><h3>Recurring bills</h3><p>Save recurring bills and optional monthly schedule details.</p></div><button class="btn btn-secondary btn-small" type="button" data-add-profile-item="recurringBills"><span aria-hidden="true">＋</span> Add recurring bill</button></div>
       <div class="profile-inventory-list">
         ${account.financialInventory.recurringBills.length ? account.financialInventory.recurringBills.map((bill, index) => recurringBillProfileCard(bill, index)).join("") : emptyInline("No recurring bills", "Add recurring bills to organize your private financial profile.")}
       </div>
     </section>
-    <section class="panel profile-inventory">
+    <section class="panel profile-inventory" id="profile-cards">
       <div class="panel-heading"><div><h3>Card accounts</h3><p>Track standard APR and separate purchase or balance-transfer promotional offers.</p></div><button class="btn btn-secondary btn-small" type="button" data-add-profile-item="creditCards"><span aria-hidden="true">＋</span> Add card account</button></div>
       <div class="profile-inventory-list">
         ${account.financialInventory.creditCards.length ? account.financialInventory.creditCards.map((card, index) => creditCardProfileCard(card, index)).join("") : emptyInline("No card accounts", "Add a card account to track balances and APR details.")}
       </div>
     </section>
-    <section class="panel profile-inventory">
+    <section class="panel profile-inventory" id="profile-debts">
       <div class="panel-heading"><div><h3>Saved debts</h3><p>Track debt balances, payments, and rates.</p></div><button class="btn btn-secondary btn-small" type="button" data-add-profile-item="debts"><span aria-hidden="true">＋</span> Add debt</button></div>
       <div class="profile-inventory-list">
         ${account.financialInventory.debts.length ? account.financialInventory.debts.map((debt, index) => debtProfileCard(debt, index)).join("") : emptyInline("No debts saved", "Add debt accounts to track balances privately.")}
       </div>
     </section>
-    <section class="panel profile-inventory">
+    <section class="panel profile-inventory" id="profile-student-loans">
       <div class="panel-heading"><div><h3>Student loans</h3><p>Track each student loan separately for payoff planning.</p></div><button class="btn btn-secondary btn-small" type="button" data-add-profile-item="studentLoans"><span aria-hidden="true">＋</span> Add student loan</button></div>
       <div class="profile-inventory-list">
         ${account.financialInventory.studentLoans.length ? account.financialInventory.studentLoans.map((loan, index) => studentLoanProfileCard(loan, index)).join("") : emptyInline("No student loans saved", "Add student loans to track payoff progress.")}
@@ -2236,7 +2246,7 @@ function assetAccountsSection(account) {
   const savings = account.savingsInvestmentAccounts.filter((item) => item.type === "savings");
   const investments = account.savingsInvestmentAccounts.filter((item) => item.type === "investment");
   return `
-    <section class="panel profile-inventory asset-section">
+    <section class="panel profile-inventory asset-section" id="profile-savings">
       <div class="panel-heading"><div><h3>Savings and investment tracking</h3><p>Manually record balances and build a history of progress over time.</p></div><button class="btn btn-secondary btn-small" type="button" data-add-asset-account><span aria-hidden="true">＋</span> Add account</button></div>
       <div class="asset-summary-strip">
         ${profileFact("Total savings", money(savings.reduce((sum, item) => sum + (Number(item.balance) || 0), 0)))}
@@ -2370,7 +2380,7 @@ function assetHistoryChart(accounts) {
 function paystubVault(account, coachView) {
   const recent = account.paystubs[0];
   return `
-    <section class="panel profile-vault">
+    <section class="panel profile-vault" id="profile-paystubs">
       <div class="panel-heading"><div><h3>Paystub archive</h3><p>Submitted paystubs are organized by date and kept out of the main view.</p></div><span class="badge green">${account.paystubs.length} archived</span></div>
       <div class="panel-body">
         <div class="vault-notice"><strong>Secure storage standard</strong><span>${productionBackend.enabled ? "Files are stored in private Supabase Storage and protected by account permissions." : "Local preview files stay in this browser. Production mode uses private Supabase Storage."}</span></div>
@@ -2578,7 +2588,7 @@ function mortgageProfileSection(account) {
   const current = Number(mortgage.currentBalance) || 0;
   const progress = total ? Math.min(100, Math.max(0, ((total - current) / total) * 100)) : 0;
   return `
-    <section class="panel profile-inventory">
+    <section class="panel profile-inventory" id="profile-housing">
       <div class="panel-heading housing-profile-heading"><div><h3>${housingLabel}</h3><p>${housingType === "rent" ? "Your worksheets use rent-based housing planning." : "Track your mortgage balance and payoff progress."}</p></div></div>
       <div class="panel-body">
         ${housingType === "rent" ? `<p class="quiet-message">Mortgage details are preserved but hidden and excluded from worksheets.</p>` : ""}
@@ -5089,6 +5099,22 @@ document.addEventListener("submit", (event) => {
   }
 }, true);
 
+function revealNewEntry(path, profile = false) {
+  const attribute = profile ? "data-profile-path" : "data-path";
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const firstField = document.querySelector(`[${attribute}^="${path}.0."]`);
+      const entry = firstField?.closest(
+        ".profile-inventory-card, .debt-entry, .routing-row, tr",
+      );
+      (entry || firstField)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (firstField?.matches("input, select, textarea")) {
+        firstField.focus({ preventScroll: true });
+      }
+    });
+  });
+}
+
 document.addEventListener("click", async (event) => {
   if (event.target.closest("[data-retry-page]")) {
     portalDataReady = false;
@@ -5300,12 +5326,13 @@ document.addEventListener("click", async (event) => {
     const account = currentAccount();
     ensureFinancialInventory(account);
     const type = addProfileItem.dataset.addProfileItem;
-    if (type === "recurringBills") account.financialInventory.recurringBills.push(blankRecurringBill());
-    if (type === "creditCards") account.financialInventory.creditCards.push(blankProfileCard());
-    if (type === "debts") account.financialInventory.debts.push(blankProfileDebt());
-    if (type === "studentLoans") account.financialInventory.studentLoans.push(blankStudentLoan());
+    if (type === "recurringBills") account.financialInventory.recurringBills.unshift(blankRecurringBill());
+    if (type === "creditCards") account.financialInventory.creditCards.unshift(blankProfileCard());
+    if (type === "debts") account.financialInventory.debts.unshift(blankProfileDebt());
+    if (type === "studentLoans") account.financialInventory.studentLoans.unshift(blankStudentLoan());
     saveState();
     renderProfile();
+    revealNewEntry(`financialInventory.${type}`, true);
     return;
   }
 
@@ -5384,9 +5411,17 @@ document.addEventListener("click", async (event) => {
 
   if (event.target.closest("[data-add-asset-account]")) {
     const account = currentAccount();
-    account.savingsInvestmentAccounts.push(blankSavingsInvestmentAccount());
+    account.savingsInvestmentAccounts.unshift(blankSavingsInvestmentAccount());
     saveState();
     renderProfile();
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const firstField = document.querySelector('[data-asset-path="0.name"]');
+        const entry = firstField?.closest(".asset-account-card");
+        (entry || firstField)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        firstField?.focus({ preventScroll: true });
+      });
+    });
     return;
   }
 
@@ -5734,15 +5769,16 @@ document.addEventListener("click", async (event) => {
     const form = appState.forms[activeFormId];
     const path = addButton.dataset.addRow;
     const target = getAtPath(form.data, path);
-    if (path.startsWith("bills.")) target.push(blankBill());
-    if (path === "creditCards") target.push(blankCreditCard());
-    if (path === "variableSpending") target.push(blankVariable());
-    if (path === "debts") target.push(blankDebt());
-    if (path === "studentLoans") target.push(blankStudentLoan());
-    if (path === "allocations") target.push({ id: uid("allocation"), type: "", account: "", amount: "" });
+    if (path.startsWith("bills.")) target.unshift(blankBill());
+    if (path === "creditCards") target.unshift(blankCreditCard());
+    if (path === "variableSpending") target.unshift(blankVariable());
+    if (path === "debts") target.unshift(blankDebt());
+    if (path === "studentLoans") target.unshift(blankStudentLoan());
+    if (path === "allocations") target.unshift({ id: uid("allocation"), type: "", account: "", amount: "" });
     form.updatedAt = new Date().toISOString();
     saveState();
     renderEditor();
+    revealNewEntry(path);
     return;
   }
 
