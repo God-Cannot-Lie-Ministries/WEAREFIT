@@ -16,8 +16,15 @@
       })
     : null;
   let accessibleStateRows = new Map();
+  let persistedStateSignatures = new Map();
   let saveTimer = null;
   let realtimeChannel = null;
+  let hydratePromise = null;
+  let persistPromise = null;
+  let pendingPersistState = null;
+  let validationPromise = null;
+  let validationCache = { checkedAt: 0, result: null };
+  const signedUrlCache = new Map();
 
   function normalizeEmail(value) {
     return String(value || "").trim().toLowerCase();
@@ -44,18 +51,41 @@
     const cleaned = structuredClone(account);
     delete cleaned.password;
     delete cleaned.verificationCode;
+    delete cleaned.lastActiveAt;
+    [cleaned.profilePhoto, cleaned.spousePhoto].forEach((photo) => {
+      if (photo) delete photo.dataUrl;
+    });
+    (cleaned.paystubs || []).forEach((paystub) => delete paystub.dataUrl);
     cleaned.verified = true;
     return cleaned;
+  }
+
+  function stateSignature(state) {
+    const normalize = (value) => {
+      if (Array.isArray(value)) return value.map(normalize);
+      if (!value || typeof value !== "object") return value;
+      return Object.fromEntries(
+        Object.keys(value)
+          .filter((key) => key !== "dataUrl" && key !== "lastActiveAt")
+          .sort()
+          .map((key) => [key, normalize(value[key])]),
+      );
+    };
+    return JSON.stringify(normalize(state));
   }
 
   function stateForOwner(state, ownerEmail) {
     const owner = state.accounts[ownerEmail];
     if (!owner) return null;
     const connectedCoach = owner.coachEmail ? state.accounts[owner.coachEmail] : null;
+    const connectedCoachPhoto = connectedCoach?.profilePhoto
+      ? { ...connectedCoach.profilePhoto }
+      : null;
+    if (connectedCoachPhoto) delete connectedCoachPhoto.dataUrl;
     return {
       accounts: {
         [ownerEmail]: cleanAccount(owner),
-        ...(connectedCoach ? { [connectedCoach.email]: { name: connectedCoach.name, email: connectedCoach.email, role: "coach", profilePhoto: connectedCoach.profilePhoto || null, lastActiveAt: connectedCoach.lastActiveAt || null } } : {}),
+        ...(connectedCoach ? { [connectedCoach.email]: { name: connectedCoach.name, email: connectedCoach.email, role: "coach", profilePhoto: connectedCoachPhoto } } : {}),
       },
       forms: Object.fromEntries(
         Object.entries(state.forms).filter(([, form]) => form.ownerEmail === ownerEmail),
@@ -137,24 +167,39 @@
     return data.session;
   }
 
-  async function validateActiveAccount() {
+  async function validateActiveAccount(options = {}) {
     if (!client) return { active: true, reason: "active" };
-    const { data, error } = await client.auth.getUser();
-    if (!error && data.user) return { active: true, reason: "active" };
-    const status = Number(error?.status || 0);
-    const message = String(error?.message || "");
-    if (/user not found/i.test(message)) {
-      await client.auth.signOut({ scope: "local" }).catch(() => {});
-      return { active: false, reason: "deleted" };
+    if (!options.force && validationCache.result && Date.now() - validationCache.checkedAt < 10000) {
+      return validationCache.result;
     }
-    if (status === 401 || status === 403 || /invalid.*jwt|jwt.*invalid|session.*missing|not authenticated|refresh token/i.test(message)) {
-      await client.auth.signOut({ scope: "local" }).catch(() => {});
-      return { active: false, reason: "expired" };
-    }
-    throw error;
+    if (validationPromise) return validationPromise;
+    validationPromise = (async () => {
+      const { data, error } = await client.auth.getUser();
+      let result;
+      if (!error && data.user) {
+        result = { active: true, reason: "active" };
+      } else {
+        const status = Number(error?.status || 0);
+        const message = String(error?.message || "");
+        if (/user not found/i.test(message)) {
+          await client.auth.signOut({ scope: "local" }).catch(() => {});
+          result = { active: false, reason: "deleted" };
+        } else if (status === 401 || status === 403 || /invalid.*jwt|jwt.*invalid|session.*missing|not authenticated|refresh token/i.test(message)) {
+          await client.auth.signOut({ scope: "local" }).catch(() => {});
+          result = { active: false, reason: "expired" };
+        } else {
+          throw error;
+        }
+      }
+      validationCache = { checkedAt: Date.now(), result };
+      return result;
+    })().finally(() => {
+      validationPromise = null;
+    });
+    return validationPromise;
   }
 
-  async function hydrate(options = {}) {
+  async function hydrateInternal(options = {}) {
     const currentSession = await session();
     if (!currentSession) {
       if (!options.requireSession) return null;
@@ -174,6 +219,9 @@
       .select("owner_id, owner_email, role, coach_email, state");
     if (error) throw error;
     accessibleStateRows = new Map(rows.map((row) => [row.owner_email, row]));
+    persistedStateSignatures = new Map(
+      rows.map((row) => [row.owner_email, stateSignature(row.state || {})]),
+    );
     if (!accessibleStateRows.has(email)) {
       const metadata = currentSession.user.user_metadata || {};
       const account = {
@@ -272,27 +320,61 @@
     return merged;
   }
 
+  async function hydrate(options = {}) {
+    if (hydratePromise) return hydratePromise;
+    hydratePromise = hydrateInternal(options).finally(() => {
+      hydratePromise = null;
+    });
+    return hydratePromise;
+  }
+
+  async function signedUrl(bucket, storagePath, expiresIn) {
+    const cacheKey = `${bucket}:${storagePath}`;
+    const cached = signedUrlCache.get(cacheKey);
+    if (cached && cached.refreshAt > Date.now()) return cached.url;
+    const { data, error } = await client.storage.from(bucket).createSignedUrl(storagePath, expiresIn);
+    if (error) throw error;
+    const url = data?.signedUrl || "";
+    if (url) {
+      signedUrlCache.set(cacheKey, {
+        url,
+        refreshAt: Date.now() + Math.max(60000, (expiresIn - 300) * 1000),
+      });
+    }
+    return url;
+  }
+
   async function refreshFileUrls(state) {
+    const tasks = [];
     for (const account of Object.values(state.accounts || {})) {
       for (const photo of [account.profilePhoto, account.spousePhoto]) {
         if (!photo?.storagePath) continue;
-        const { data, error } = await client.storage.from("profile-photos").createSignedUrl(photo.storagePath, 86400);
-        if (data?.signedUrl) {
-          photo.dataUrl = data.signedUrl;
-        } else if (error) {
-          delete photo.dataUrl;
-          console.warn("Could not refresh a profile photo", error);
-        }
+        tasks.push(
+          signedUrl("profile-photos", photo.storagePath, 86400)
+            .then((url) => {
+              if (url) photo.dataUrl = url;
+            })
+            .catch((error) => {
+              delete photo.dataUrl;
+              console.warn("Could not refresh a profile photo", error);
+            }),
+        );
       }
       for (const paystub of account.paystubs || []) {
         if (!paystub?.storagePath) continue;
-        const { data } = await client.storage.from("financial-documents").createSignedUrl(paystub.storagePath, 3600);
-        if (data?.signedUrl) paystub.dataUrl = data.signedUrl;
+        tasks.push(
+          signedUrl("financial-documents", paystub.storagePath, 3600)
+            .then((url) => {
+              if (url) paystub.dataUrl = url;
+            })
+            .catch((error) => console.warn("Could not refresh a paystub link", error)),
+        );
       }
     }
+    await Promise.all(tasks);
   }
 
-  async function persist(state) {
+  async function persistOnce(state) {
     const accountStatus = await validateActiveAccount();
     if (!accountStatus.active) return;
     const currentSession = await session();
@@ -300,12 +382,6 @@
     const currentEmail = normalizeEmail(currentSession.user.email);
     const current = state.accounts[currentEmail];
     if (!current) return;
-    const { error: profileError } = await client
-      .from("profiles")
-      .update({ full_name: current.name || "", updated_at: new Date().toISOString() })
-      .eq("id", currentSession.user.id);
-    if (profileError) throw profileError;
-    await updatePresence(current.lastActiveAt || null);
     const allowedOwners = Object.values(state.accounts).filter(
       (account) =>
         account.email === currentEmail ||
@@ -314,21 +390,63 @@
           account.coachEmail === currentEmail &&
           account.coachRequestStatus === "approved"),
     );
-    for (const account of allowedOwners) {
+    const changedPayloads = allowedOwners.flatMap((account) => {
       const existing = accessibleStateRows.get(account.email);
+      const ownerState = stateForOwner(state, account.email);
+      const signature = stateSignature(ownerState);
+      if (persistedStateSignatures.get(account.email) === signature) return [];
       const payload = {
         owner_id: existing?.owner_id || currentSession.user.id,
         owner_email: account.email,
         role: account.role,
         coach_email: account.coachEmail || null,
-        state: stateForOwner(state, account.email),
+        state: ownerState,
         updated_at: new Date().toISOString(),
       };
+      return [{ account, payload, signature }];
+    });
+    if (!changedPayloads.length) return;
+    const currentChanged = changedPayloads.some(({ account }) => account.email === currentEmail);
+    const writes = changedPayloads.map(async ({ payload, signature }) => {
       const { error } = await client.from("portal_states").upsert(payload, {
         onConflict: "owner_id",
       });
       if (error) throw error;
+      persistedStateSignatures.set(payload.owner_email, signature);
+      accessibleStateRows.set(payload.owner_email, {
+        ...(accessibleStateRows.get(payload.owner_email) || {}),
+        ...payload,
+      });
+    });
+    if (currentChanged) {
+      writes.push(
+        client
+          .from("profiles")
+          .update({ full_name: current.name || "", updated_at: new Date().toISOString() })
+          .eq("id", currentSession.user.id)
+          .then(({ error }) => {
+            if (error) throw error;
+          }),
+      );
     }
+    await Promise.all(writes);
+  }
+
+  async function persist(state) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    pendingPersistState = state;
+    if (persistPromise) return persistPromise;
+    persistPromise = (async () => {
+      while (pendingPersistState) {
+        const nextState = pendingPersistState;
+        pendingPersistState = null;
+        await persistOnce(nextState);
+      }
+    })().finally(() => {
+      persistPromise = null;
+    });
+    return persistPromise;
   }
 
   async function updatePresence(lastActiveAt) {
@@ -350,7 +468,7 @@
   function queuePersist(state) {
     if (!client) return;
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => persist(state).catch(console.error), 800);
+    saveTimer = setTimeout(() => persist(state).catch(console.error), 900);
   }
 
   async function signUp({ name, email, password, role }) {
@@ -519,6 +637,10 @@
     }
     const { data, error: signedError } = await client.storage.from(bucket).createSignedUrl(path, 3600);
     if (signedError) throw signedError;
+    signedUrlCache.set(`${bucket}:${path}`, {
+      url: data.signedUrl,
+      refreshAt: Date.now() + 3300 * 1000,
+    });
     return { storagePath: path, dataUrl: data.signedUrl };
   }
 

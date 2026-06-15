@@ -31,6 +31,9 @@ let portalInitializationInProgress = false;
 let portalDataReady = !productionBackend.enabled;
 let portalLoadError = null;
 let lastTemporaryErrorNoticeAt = 0;
+let portalRefreshTimer = null;
+let portalRefreshQueued = false;
+let lastPortalRefreshAt = 0;
 const INACTIVITY_LIMIT_MS = 15 * 60 * 1000;
 const MILESTONE_RESET_VERSION = "2026-06-13-withdrawal-repair";
 const MILESTONE_RESET_CUTOFF = new Date("2026-06-13T16:00:00Z").getTime();
@@ -51,6 +54,13 @@ applyTheme();
 
 function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function portalContentSignature(state) {
+  return JSON.stringify(state, (key, value) => {
+    if (key === "lastActiveAt" || key === "sessionEmail") return undefined;
+    return value;
+  });
 }
 
 function usableDisplayName(value, email = "") {
@@ -1126,6 +1136,9 @@ function currentAccount() {
 }
 
 function clearProtectedPortalMemory() {
+  clearTimeout(portalRefreshTimer);
+  portalRefreshTimer = null;
+  portalRefreshQueued = false;
   if (!productionBackend.enabled) {
     appState.sessionEmail = null;
     return;
@@ -1162,7 +1175,7 @@ function touchActivity() {
   const account = currentAccount();
   if (!account) return;
   const now = Date.now();
-  if (now - lastPresenceUpdateAt < 30 * 1000) return;
+  if (now - lastPresenceUpdateAt < 60 * 1000) return;
   lastPresenceUpdateAt = now;
   account.lastActiveAt = new Date().toISOString();
   if (!productionBackend.config?.presenceEnabled) return;
@@ -6292,6 +6305,9 @@ document.addEventListener("focusin", (event) => {
 
 document.addEventListener("focusout", (event) => {
   normalizeCurrencyInput(event.target);
+  if (productionBackend.enabled && event.target.matches("input, textarea, select")) {
+    schedulePortalRefresh(1700);
+  }
 });
 
 document.addEventListener("change", async (event) => {
@@ -6492,8 +6508,7 @@ async function initializePortal() {
   if (currentAccount()) saveState();
   if (productionBackend.enabled && currentAccount()) {
     productionBackend.subscribeToPortalChanges?.(() => {
-      if (document.activeElement?.matches("input, textarea, select")) return;
-      refreshPortalFromBackend();
+      schedulePortalRefresh(250);
     });
   }
   touchActivity();
@@ -6501,20 +6516,34 @@ async function initializePortal() {
 }
 
 let portalRefreshInProgress = false;
-async function refreshPortalFromBackend() {
-  if (
-    !productionBackend.enabled ||
-    portalRefreshInProgress ||
+function portalRefreshBlocked() {
+  return (
     profilePhotoUpdateInProgress ||
     Date.now() < calculatorInteractionUntil ||
     document.visibilityState !== "visible" ||
     document.querySelector(".modal-backdrop") ||
     calculatorDragState ||
     Date.now() - lastLocalSaveAt < 1500 ||
-    document.activeElement?.matches("input, textarea, select") ||
-    !currentAccount()
-  ) return;
+    document.activeElement?.matches("input, textarea, select")
+  );
+}
+
+function schedulePortalRefresh(delay = 250) {
+  if (!productionBackend.enabled || !currentAccount()) return;
+  clearTimeout(portalRefreshTimer);
+  const minimumDelay = Math.max(0, 600 - (Date.now() - lastPortalRefreshAt));
+  portalRefreshTimer = setTimeout(() => refreshPortalFromBackend(), Math.max(delay, minimumDelay));
+}
+
+async function refreshPortalFromBackend() {
+  if (!productionBackend.enabled || !currentAccount()) return;
+  if (portalRefreshInProgress) {
+    portalRefreshQueued = true;
+    return;
+  }
+  if (portalRefreshBlocked()) return;
   portalRefreshInProgress = true;
+  lastPortalRefreshAt = Date.now();
   try {
     const hydrated = await productionBackend.hydrate({ requireSession: true });
     if (!hydrated) return;
@@ -6523,6 +6552,15 @@ async function refreshPortalFromBackend() {
     refreshedState.sessionEmail = currentEmail;
     if (activeView === "editor" && activeFormId && appState.forms[activeFormId] && !refreshedState.forms[activeFormId]) {
       throw new Error("The current worksheet has not finished loading.");
+    }
+    const contentChanged = portalContentSignature(appState) !== portalContentSignature(refreshedState);
+    if (!contentChanged) {
+      Object.entries(refreshedState.accounts || {}).forEach(([email, account]) => {
+        if (appState.accounts[email]) appState.accounts[email].lastActiveAt = account.lastActiveAt || null;
+      });
+      portalDataReady = true;
+      removePortalRetryBanner();
+      return;
     }
     appState = refreshedState;
     portalDataReady = true;
@@ -6546,6 +6584,10 @@ async function refreshPortalFromBackend() {
     showPortalRetryBanner();
   } finally {
     portalRefreshInProgress = false;
+    if (portalRefreshQueued) {
+      portalRefreshQueued = false;
+      schedulePortalRefresh(300);
+    }
   }
 }
 
@@ -6600,8 +6642,8 @@ setInterval(() => {
   validateCurrentAccount();
 }, 15 * 1000);
 setInterval(() => {
-  refreshPortalFromBackend();
-}, 20 * 1000);
+  schedulePortalRefresh(0);
+}, 45 * 1000);
 ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "pointerdown"].forEach((eventName) => {
   document.addEventListener(eventName, recordUserActivity, { passive: true });
 });
@@ -6609,11 +6651,13 @@ window.addEventListener("focus", () => {
   checkInactivityLogout();
   if (currentAccount()) recordUserActivity();
   validateCurrentAccount();
+  schedulePortalRefresh(300);
 });
 window.addEventListener("popstate", recordUserActivity);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     checkInactivityLogout();
     validateCurrentAccount();
+    schedulePortalRefresh(300);
   }
 });
