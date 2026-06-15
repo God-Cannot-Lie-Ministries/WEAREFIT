@@ -7093,3 +7093,81 @@ html[data-theme="dark"] .data-table th {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Keep native date controls and promotional debt fields contained on phones. */
+@media (max-width: 768px) {
+  .promo-fields,
+  .profile-inventory-card .promo-fields,
+  .debt-entry .promo-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    gap: 9px;
+    margin: 10px 0;
+    padding: 10px;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+
+  .promo-fields > *,
+  .promo-fields .field,
+  .promo-fields .input,
+  .promo-fields .percent-input-wrap,
+  .promo-type-field,
+  .promo-type-field .input,
+  .profile-inventory-grid > .field,
+  .debt-entry-grid > .field {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .promo-fields label,
+  .promo-type-field label,
+  .debt-entry-grid label,
+  .profile-inventory-grid label {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .promo-type-field select,
+  .debt-entry-grid select,
+  .profile-inventory-grid select {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    text-overflow: ellipsis;
+  }
+
+  input[type="date"].input,
+  input[type="date"].table-input,
+  .field input[type="date"],
+  .promo-fields input[type="date"] {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    inline-size: 100%;
+    min-inline-size: 0;
+    padding-inline: 10px 8px;
+    box-sizing: border-box;
+  }
+
+  input[type="date"]::-webkit-date-and-time-value {
+    min-width: 0;
+    text-align: left;
+  }
+
+  input[type="date"]::-webkit-datetime-edit {
+    min-width: 0;
+    padding: 0;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    flex: 0 0 auto;
+    margin-left: 4px;
+  }
+}
