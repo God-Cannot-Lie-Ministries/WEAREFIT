@@ -5618,6 +5618,407 @@ html[data-theme="dark"] .data-table th {
   }
 }
 
+/* Mobile-only containment: every phone view scrolls vertically, never sideways. */
+@media (max-width: 768px) {
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  body *,
+  body *::before,
+  body *::after {
+    box-sizing: border-box;
+  }
+
+  .app-shell,
+  .main,
+  .content,
+  .topbar,
+  .panel,
+  .panel-body,
+  .panel-heading,
+  .subpanel,
+  .summary-panel,
+  .form-card,
+  .profile-inventory,
+  .profile-inventory-list,
+  .profile-inventory-card,
+  .debt-entry,
+  .connection-panel,
+  .session-review-card,
+  .about-page,
+  .settings-page,
+  .editor-layout,
+  .editor-main,
+  .editor-aside,
+  .modal-backdrop,
+  .modal,
+  .modal-body,
+  .modal-header {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  p,
+  span,
+  strong,
+  small,
+  h1,
+  h2,
+  h3,
+  h4,
+  label,
+  a,
+  button {
+    overflow-wrap: anywhere;
+  }
+
+  img,
+  svg,
+  canvas,
+  video {
+    max-width: 100%;
+  }
+
+  .side-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+    gap: 5px;
+    padding: 7px 8px 9px;
+  }
+
+  .nav-btn {
+    width: 100%;
+    min-width: 0;
+    min-height: 38px;
+    justify-content: flex-start;
+    padding: 7px 8px;
+  }
+
+  .nav-label {
+    min-width: 0;
+    font-size: 10px;
+    line-height: 1.25;
+    white-space: normal;
+  }
+
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .topbar > div:first-child {
+    min-width: 0;
+    padding-right: 0;
+  }
+
+  .topbar h1,
+  .topbar p {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .topbar-actions {
+    position: static;
+    width: 100% !important;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .topbar-actions .btn {
+    flex: 1 1 auto;
+    max-width: 100%;
+  }
+
+  .page-heading,
+  .panel-heading,
+  .session-review-top,
+  .connection-current,
+  .community-footer,
+  .invite-card,
+  .request-card,
+  .withdrawal-card,
+  .onboarding-banner {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .page-heading > *,
+  .panel-heading > *,
+  .button-row,
+  .panel-heading .button-row,
+  .page-heading .button-row {
+    max-width: 100%;
+  }
+
+  .button-row {
+    flex-wrap: wrap;
+  }
+
+  .panel-heading .button-row .btn,
+  .page-heading .button-row .btn,
+  .panel-heading > .btn,
+  .page-heading > .btn {
+    width: 100%;
+  }
+
+  .metric-grid,
+  .form-grid,
+  .inbox-grid,
+  .overview-grid,
+  .tracker-grid,
+  .savings-grid,
+  .profile-inventory-grid,
+  .debt-entry-grid,
+  .profile-overview-metrics,
+  .session-review-grid,
+  .theme-grid,
+  .schedule-fields,
+  .paystub-submit-grid,
+  .feedback-form,
+  .routing-row,
+  .quick-activity-list,
+  .asset-summary-strip,
+  .assignment-solo-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .field,
+  .field input,
+  .field textarea,
+  .field select,
+  .input,
+  .table-input,
+  .money-input-wrap,
+  .percent-input-wrap,
+  .selection-field-button {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .routing-row {
+    align-items: stretch;
+  }
+
+  .routing-remove,
+  .profile-remove {
+    width: 34px;
+    margin-left: auto;
+  }
+
+  .data-table-wrap,
+  .bill-sections .data-table-wrap {
+    width: 100%;
+    max-width: 100%;
+    overflow: visible;
+  }
+
+  .data-table,
+  .data-table.compact {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .data-table thead {
+    display: none;
+  }
+
+  .data-table tbody,
+  .data-table tr,
+  .data-table td {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .data-table tr {
+    margin: 8px;
+    width: calc(100% - 16px);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--surface);
+    padding: 7px;
+  }
+
+  .data-table td {
+    border: 0;
+    padding: 4px 0;
+  }
+
+  .data-table td:last-child {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .bill-selector-wrap,
+  .bill-selector-wrap .table-input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .table-total {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .asset-chart-wrap {
+    width: calc(100% - 20px);
+    max-width: calc(100% - 20px);
+    overflow: hidden;
+    margin: 10px;
+    padding: 12px 8px 4px;
+  }
+
+  .asset-chart {
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    max-height: none;
+  }
+
+  .asset-chart-header,
+  .chart-legend {
+    position: static;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .asset-chart-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .asset-chart-change {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .chart-legend {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .chart-legend button {
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-start;
+  }
+
+  .chart-legend button strong {
+    margin-left: auto;
+  }
+
+  .profile-photo-row,
+  .profile-overview .profile-photo-row,
+  .household-photo-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .profile-photo-row .profile-photo-panel,
+  .profile-overview .profile-photo-panel,
+  .profile-photo-panel,
+  .spouse-photo-panel {
+    width: min(100%, 240px);
+    min-width: 0;
+    max-width: 240px;
+    justify-self: center;
+    margin-inline: auto;
+  }
+
+  .household-photo-row > div,
+  .profile-heading-person {
+    min-width: 0;
+    max-width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .profile-heading-person {
+    align-items: center;
+    flex-direction: column;
+  }
+
+  .avatar,
+  .avatar-lg,
+  .avatar-xl {
+    max-width: 100%;
+    flex-shrink: 0;
+  }
+
+  .modal-backdrop {
+    width: 100%;
+    overflow-x: hidden;
+    padding: 10px;
+  }
+
+  .modal,
+  .modal-wide,
+  .selector-modal {
+    width: 100%;
+    max-height: calc(100dvh - 20px);
+  }
+
+  .modal-header,
+  .modal-body {
+    width: 100%;
+    min-width: 0;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .selector-option,
+  .assignment-choice > span {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .assignment-choice > span {
+    grid-template-columns: 58px minmax(0, 1fr);
+  }
+
+  .assignment-solo-grid .individual-assignment-choice > span {
+    grid-template-columns: 38px minmax(0, 1fr) 20px;
+  }
+
+  .login-shell {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .login-brand,
+  .login-panel,
+  .login-box {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .login-brand,
+  .login-panel {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .draggable-calculator {
+    max-width: calc(100vw - 20px);
+  }
+}
+
 /* Financial profile currency and photo spacing */
 .financial-profile-view .money-input-wrap::before {
   left: 13px;
