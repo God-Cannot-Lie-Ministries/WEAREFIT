@@ -3276,7 +3276,7 @@ function memberFormCard(form) {
         </div>
         ${formStatusBadge(form)}
       </div>
-      <div class="form-origin"><span>${form.generatedFromProfile ? "Profile data ready · bills available in dropdowns" : "Legacy worksheet"}</span></div>
+      ${form.generatedFromProfile ? "" : `<div class="form-origin"><span>Legacy worksheet</span></div>`}
       <div class="card-stats">
         <div><span>This check</span><strong>${money(calc.thisCheck)}</strong></div>
         <div><span>Available</span><strong>${money(calc.available)}</strong></div>
