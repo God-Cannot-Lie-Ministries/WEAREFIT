@@ -7175,7 +7175,7 @@ html[data-theme="dark"] .data-table th {
 .profile-jump-nav {
   position: sticky;
   z-index: 18;
-  top: 12px;
+  top: 112px;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -7225,7 +7225,7 @@ html[data-theme="dark"] .data-table th {
 .debt-entry,
 .routing-row,
 .data-table tr {
-  scroll-margin-top: 84px;
+  scroll-margin-top: 176px;
 }
 
 @media (max-width: 768px) {
