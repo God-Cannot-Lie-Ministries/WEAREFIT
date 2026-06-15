@@ -74,6 +74,28 @@
     };
   }
 
+  function preferredPhoto(first, second) {
+    if (!first) return second || null;
+    if (!second) return first;
+    const firstTime = new Date(first.uploadedAt || 0).getTime();
+    const secondTime = new Date(second.uploadedAt || 0).getTime();
+    if (secondTime !== firstTime) return secondTime > firstTime ? second : first;
+    if (second.storagePath && !first.storagePath) return second;
+    return first;
+  }
+
+  function mergeAccountRecords(existing, incoming) {
+    if (!existing) return incoming;
+    const existingScore = Object.values(existing).filter((value) => value != null && value !== "").length;
+    const incomingScore = Object.values(incoming).filter((value) => value != null && value !== "").length;
+    const merged = incomingScore >= existingScore
+      ? { ...existing, ...incoming }
+      : { ...incoming, ...existing };
+    merged.profilePhoto = preferredPhoto(existing.profilePhoto, incoming.profilePhoto);
+    merged.spousePhoto = preferredPhoto(existing.spousePhoto, incoming.spousePhoto);
+    return merged;
+  }
+
   function mergeStates(rows, sessionEmail) {
     const merged = {
       accounts: {},
@@ -90,7 +112,9 @@
     };
     rows.forEach((row) => {
       const state = row.state || {};
-      Object.assign(merged.accounts, state.accounts || {});
+      Object.entries(state.accounts || {}).forEach(([email, account]) => {
+        merged.accounts[email] = mergeAccountRecords(merged.accounts[email], account);
+      });
       Object.assign(merged.forms, state.forms || {});
       if (state.milestoneResetVersion) merged.milestoneResetVersion = state.milestoneResetVersion;
       merged.dismissedMilestoneKeys = [
@@ -252,8 +276,13 @@
     for (const account of Object.values(state.accounts || {})) {
       for (const photo of [account.profilePhoto, account.spousePhoto]) {
         if (!photo?.storagePath) continue;
-        const { data } = await client.storage.from("profile-photos").createSignedUrl(photo.storagePath, 3600);
-        if (data?.signedUrl) photo.dataUrl = data.signedUrl;
+        const { data, error } = await client.storage.from("profile-photos").createSignedUrl(photo.storagePath, 86400);
+        if (data?.signedUrl) {
+          photo.dataUrl = data.signedUrl;
+        } else if (error) {
+          delete photo.dataUrl;
+          console.warn("Could not refresh a profile photo", error);
+        }
       }
       for (const paystub of account.paystubs || []) {
         if (!paystub?.storagePath) continue;

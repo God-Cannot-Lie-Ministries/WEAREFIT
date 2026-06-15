@@ -1360,17 +1360,21 @@ function initials(name) {
 function avatarMarkup(accountOrName, className = "") {
   const account =
     typeof accountOrName === "string" ? { name: accountOrName, profilePhoto: null } : accountOrName;
+  const name = account?.name || "FIT";
+  const fallback = `<span class="avatar-fallback" aria-hidden="true">${initials(name)}</span>`;
   if (account?.profilePhoto?.dataUrl) {
-    return `<span class="avatar avatar-photo ${className}"><img src="${account.profilePhoto.dataUrl}" alt="${escapeHtml(account.name)} profile photo"></span>`;
+    return `<span class="avatar avatar-photo ${className}">${fallback}<img src="${escapeHtml(account.profilePhoto.dataUrl)}" alt="${escapeHtml(name)} profile photo" data-avatar-image></span>`;
   }
-  return `<span class="avatar ${className}">${initials(account?.name || "FIT")}</span>`;
+  return `<span class="avatar ${className}">${initials(name)}</span>`;
 }
 
 function spouseAvatarMarkup(account, className = "") {
+  const name = account?.profile?.spouseName || "Spouse";
+  const fallback = `<span class="avatar-fallback" aria-hidden="true">${initials(name)}</span>`;
   if (account?.spousePhoto?.dataUrl) {
-    return `<span class="avatar avatar-photo ${className}"><img src="${account.spousePhoto.dataUrl}" alt="${escapeHtml(account.profile.spouseName)} profile photo"></span>`;
+    return `<span class="avatar avatar-photo ${className}">${fallback}<img src="${escapeHtml(account.spousePhoto.dataUrl)}" alt="${escapeHtml(name)} profile photo" data-avatar-image></span>`;
   }
-  return `<span class="avatar ${className}">${initials(account?.profile?.spouseName || "Spouse")}</span>`;
+  return `<span class="avatar ${className}">${initials(name)}</span>`;
 }
 
 function memberForms(email) {
@@ -6533,6 +6537,24 @@ async function validateCurrentAccount() {
 }
 
 initializePortal();
+document.addEventListener(
+  "error",
+  (event) => {
+    const image = event.target;
+    if (!(image instanceof HTMLImageElement) || !image.matches("[data-avatar-image]")) return;
+    image.closest(".avatar-photo")?.classList.add("avatar-photo-failed");
+  },
+  true,
+);
+document.addEventListener(
+  "load",
+  (event) => {
+    const image = event.target;
+    if (!(image instanceof HTMLImageElement) || !image.matches("[data-avatar-image]")) return;
+    image.closest(".avatar-photo")?.classList.remove("avatar-photo-failed");
+  },
+  true,
+);
 document.addEventListener("pointerdown", beginCalculatorDrag);
 document.addEventListener("pointermove", moveCalculator);
 document.addEventListener("pointerup", handleCalculatorPointerEnd);
