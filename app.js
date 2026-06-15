@@ -3355,7 +3355,7 @@ function renderEditor() {
     `;
 
   const content = `
-    <div class="content">
+    <div class="content worksheet-content">
       ${
         readOnly
           ? `<div class="readonly-banner"><strong>${isCoachReview ? "Coach review required" : "Approved document"}</strong><span>${isCoachReview ? "Choose bill timing, then complete the session with coach notes and action steps." : `This form belongs to ${escapeHtml(form.ownerName)}.`}</span></div>`
@@ -3456,11 +3456,11 @@ function billGroup(form, key, label, readOnly, isCoachReview) {
           <tbody>
             ${rows.map((row, index) => `
               <tr>
-                <td><div class="bill-selector-wrap"><input class="table-input" data-bill-suggestion="${key}.${index}" data-path="bills.${key}.${index}.name" value="${escapeHtml(row.name)}" placeholder="Choose or enter bill" ${readOnly ? "disabled" : ""}>${readOnly ? "" : `<button class="bill-selector-button" type="button" data-open-bill-selector aria-label="Choose a saved bill" title="Choose a saved bill">⌄</button>`}</div></td>
-                <td><input class="table-input" type="date" data-current-calendar data-path="bills.${key}.${index}.dueDate" value="${row.dueDate}" ${readOnly ? "disabled" : ""}></td>
-                <td><div class="money-input-wrap"><input class="table-input" type="text" inputmode="decimal" data-currency-input data-path="bills.${key}.${index}.amount" value="${moneyInputValue(row.amount)}" placeholder="0.00" ${readOnly ? "disabled" : ""}></div></td>
-                ${isCoachReview ? `<td>${billDecisionControl(`bills.${key}.${index}.coachDecision`, row.coachDecision, true)}</td>` : ""}
-                <td>${readOnly ? "" : `<button class="icon-btn danger" type="button" title="Remove row" aria-label="Remove row" data-remove-row="bills.${key}.${index}">×</button>`}</td>
+                <td data-mobile-label="Bill"><div class="bill-selector-wrap"><input class="table-input" data-bill-suggestion="${key}.${index}" data-path="bills.${key}.${index}.name" value="${escapeHtml(row.name)}" placeholder="Choose or enter bill" ${readOnly ? "disabled" : ""}>${readOnly ? "" : `<button class="bill-selector-button" type="button" data-open-bill-selector aria-label="Choose a saved bill" title="Choose a saved bill">⌄</button>`}</div></td>
+                <td data-mobile-label="Due date"><input class="table-input" type="date" data-current-calendar data-path="bills.${key}.${index}.dueDate" value="${row.dueDate}" ${readOnly ? "disabled" : ""}></td>
+                <td data-mobile-label="Amount"><div class="money-input-wrap"><input class="table-input" type="text" inputmode="decimal" data-currency-input data-path="bills.${key}.${index}.amount" value="${moneyInputValue(row.amount)}" placeholder="0.00" ${readOnly ? "disabled" : ""}></div></td>
+                ${isCoachReview ? `<td data-mobile-label="Coach plan">${billDecisionControl(`bills.${key}.${index}.coachDecision`, row.coachDecision, true)}</td>` : ""}
+                <td class="mobile-row-action">${readOnly ? "" : `<button class="icon-btn danger" type="button" title="Remove row" aria-label="Remove row" data-remove-row="bills.${key}.${index}">×</button>`}</td>
               </tr>
             `).join("")}
           </tbody>
@@ -3586,9 +3586,9 @@ function variablePanel(form, calc, readOnly) {
           <tbody>
             ${form.data.variableSpending.map((row, index) => `
               <tr>
-                <td><input class="table-input" data-path="variableSpending.${index}.category" value="${escapeHtml(row.category)}" placeholder="Category" ${readOnly ? "disabled" : ""}></td>
-                <td><div class="money-input-wrap"><input class="table-input" type="text" inputmode="decimal" data-currency-input data-path="variableSpending.${index}.budgeted" value="${moneyInputValue(row.budgeted)}" placeholder="0.00" ${readOnly ? "disabled" : ""}></div></td>
-                <td>${readOnly ? "" : `<button class="icon-btn danger" type="button" title="Remove category" aria-label="Remove category" data-remove-row="variableSpending.${index}">×</button>`}</td>
+                <td data-mobile-label="Category"><input class="table-input" data-path="variableSpending.${index}.category" value="${escapeHtml(row.category)}" placeholder="Category" ${readOnly ? "disabled" : ""}></td>
+                <td data-mobile-label="Budgeted amount"><div class="money-input-wrap"><input class="table-input" type="text" inputmode="decimal" data-currency-input data-path="variableSpending.${index}.budgeted" value="${moneyInputValue(row.budgeted)}" placeholder="0.00" ${readOnly ? "disabled" : ""}></div></td>
+                <td class="mobile-row-action">${readOnly ? "" : `<button class="icon-btn danger" type="button" title="Remove category" aria-label="Remove category" data-remove-row="variableSpending.${index}">×</button>`}</td>
               </tr>
             `).join("")}
           </tbody>
