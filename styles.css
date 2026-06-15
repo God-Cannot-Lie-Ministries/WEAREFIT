@@ -7171,3 +7171,95 @@ html[data-theme="dark"] .data-table th {
     margin-left: 4px;
   }
 }
+
+/* Normalize iPhone form controls instead of clipping their native oversized UI. */
+@media (max-width: 768px) {
+  .financial-profile-view .profile-inventory-card,
+  .financial-profile-view .asset-account-card,
+  .financial-profile-view .promo-fields,
+  .worksheet-content .debt-entry,
+  .worksheet-content .promo-fields {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .financial-profile-view .field,
+  .financial-profile-view .money-input-wrap,
+  .financial-profile-view .percent-input-wrap,
+  .worksheet-content .debt-entry .field,
+  .worksheet-content .debt-entry .money-input-wrap,
+  .worksheet-content .debt-entry .percent-input-wrap {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    contain: inline-size;
+  }
+
+  .financial-profile-view .field input,
+  .financial-profile-view .field select,
+  .financial-profile-view .field textarea,
+  .financial-profile-view .money-input-wrap input,
+  .financial-profile-view .percent-input-wrap input,
+  .worksheet-content .debt-entry .field input,
+  .worksheet-content .debt-entry .field select,
+  .worksheet-content .debt-entry .field textarea {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    inline-size: 100%;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    font-size: 16px;
+    box-sizing: border-box;
+  }
+
+  .financial-profile-view input[type="date"],
+  .worksheet-content input[type="date"],
+  .promo-fields input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: -webkit-fill-available;
+    max-width: -webkit-fill-available;
+    inline-size: -webkit-fill-available;
+    min-inline-size: 0;
+    height: 44px;
+    min-height: 44px;
+    max-height: 44px;
+    overflow: hidden;
+    padding: 8px 10px;
+    line-height: 1.2;
+  }
+
+  .financial-profile-view input[type="date"]::-webkit-date-and-time-value,
+  .worksheet-content input[type="date"]::-webkit-date-and-time-value,
+  .promo-fields input[type="date"]::-webkit-date-and-time-value {
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    line-height: 1.2;
+  }
+
+  .financial-profile-view input[type="date"]::-webkit-calendar-picker-indicator,
+  .worksheet-content input[type="date"]::-webkit-calendar-picker-indicator,
+  .promo-fields input[type="date"]::-webkit-calendar-picker-indicator {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .financial-profile-view .promo-fields,
+  .worksheet-content .promo-fields {
+    width: calc(100% - 2px);
+    max-width: calc(100% - 2px);
+    margin-inline: 1px;
+  }
+}
