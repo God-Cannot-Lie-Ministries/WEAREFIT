@@ -22,6 +22,12 @@
   let hydratePromise = null;
   let persistPromise = null;
   let pendingPersistState = null;
+  let persistRetryTimer = null;
+  let persistRetryState = null;
+  let persistRetryDelay = 1500;
+  let realtimeReconnectTimer = null;
+  let realtimeChangeHandler = null;
+  let realtimeSubscriptionGeneration = 0;
   let validationPromise = null;
   let validationCache = { checkedAt: 0, result: null };
   const signedUrlCache = new Map();
@@ -375,6 +381,11 @@
   }
 
   async function persistOnce(state) {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      const error = new Error("You are offline. Changes will sync when your connection returns.");
+      error.code = "FIT_OFFLINE";
+      throw error;
+    }
     const accountStatus = await validateActiveAccount();
     if (!accountStatus.active) return;
     const currentSession = await session();
@@ -432,6 +443,29 @@
     await Promise.all(writes);
   }
 
+  function clearPersistRetry() {
+    clearTimeout(persistRetryTimer);
+    persistRetryTimer = null;
+    persistRetryState = null;
+    persistRetryDelay = 1500;
+  }
+
+  function schedulePersistRetry(state, error) {
+    persistRetryState = state;
+    clearTimeout(persistRetryTimer);
+    const delay = persistRetryDelay;
+    persistRetryDelay = Math.min(persistRetryDelay * 2, 30000);
+    persistRetryTimer = setTimeout(() => {
+      const retryState = persistRetryState;
+      persistRetryTimer = null;
+      if (!retryState) return;
+      persist(retryState).catch((retryError) => {
+        console.warn("F.I.T. portal save retry is waiting for a stable connection", retryError);
+      });
+    }, delay);
+    console.warn(`F.I.T. portal save will retry in ${Math.round(delay / 1000)}s`, error);
+  }
+
   async function persist(state) {
     clearTimeout(saveTimer);
     saveTimer = null;
@@ -441,12 +475,27 @@
       while (pendingPersistState) {
         const nextState = pendingPersistState;
         pendingPersistState = null;
-        await persistOnce(nextState);
+        try {
+          await persistOnce(nextState);
+          clearPersistRetry();
+        } catch (error) {
+          pendingPersistState = persistRetryState || pendingPersistState || nextState;
+          schedulePersistRetry(pendingPersistState, error);
+          throw error;
+        }
       }
     })().finally(() => {
       persistPromise = null;
     });
     return persistPromise;
+  }
+
+  async function flushPending() {
+    const state = pendingPersistState || persistRetryState;
+    if (!state) return persistPromise;
+    clearTimeout(persistRetryTimer);
+    persistRetryTimer = null;
+    return persist(state);
   }
 
   async function updatePresence(lastActiveAt) {
@@ -468,7 +517,12 @@
   function queuePersist(state) {
     if (!client) return;
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => persist(state).catch(console.error), 900);
+    persistRetryState = state;
+    saveTimer = setTimeout(() => {
+      persist(state).catch((error) => {
+        console.warn("F.I.T. portal save is queued for retry", error);
+      });
+    }, 700);
   }
 
   async function signUp({ name, email, password, role }) {
@@ -527,6 +581,16 @@
   }
 
   async function signOut() {
+    try {
+      await flushPending();
+    } catch (error) {
+      console.warn("Pending changes could not be flushed before sign out", error);
+    }
+    await unsubscribeFromPortalChanges();
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    pendingPersistState = null;
+    clearPersistRetry();
     const { error } = await client.auth.signOut();
     if (error) throw error;
   }
@@ -563,13 +627,37 @@
     return data;
   }
 
+  async function unsubscribeFromPortalChanges() {
+    realtimeSubscriptionGeneration += 1;
+    clearTimeout(realtimeReconnectTimer);
+    realtimeReconnectTimer = null;
+    realtimeChangeHandler = null;
+    const channel = realtimeChannel;
+    realtimeChannel = null;
+    if (channel) await client?.removeChannel(channel);
+  }
+
   async function subscribeToPortalChanges(onChange) {
     if (!client) return;
+    realtimeChangeHandler = onChange;
+    clearTimeout(realtimeReconnectTimer);
+    realtimeReconnectTimer = null;
+    const generation = ++realtimeSubscriptionGeneration;
     if (realtimeChannel) await client.removeChannel(realtimeChannel);
     realtimeChannel = client
       .channel("fit-portal-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "portal_states" }, () => onChange())
-      .subscribe();
+      .on("postgres_changes", { event: "*", schema: "public", table: "portal_states" }, (payload) => onChange(payload))
+      .subscribe((status) => {
+        if (generation !== realtimeSubscriptionGeneration) return;
+        if (!["CHANNEL_ERROR", "TIMED_OUT", "CLOSED"].includes(status)) return;
+        clearTimeout(realtimeReconnectTimer);
+        realtimeReconnectTimer = setTimeout(() => {
+          if (generation !== realtimeSubscriptionGeneration || !realtimeChangeHandler) return;
+          subscribeToPortalChanges(realtimeChangeHandler).catch((error) => {
+            console.warn("Live updates will reconnect automatically", error);
+          });
+        }, 3000);
+      });
   }
 
   async function requestAccountDeletion() {
@@ -651,6 +739,7 @@
     hydrate,
     queuePersist,
     saveNow: persist,
+    flushPending,
     updatePresence,
     validateActiveAccount,
     signUp,
@@ -665,6 +754,7 @@
     removeMentee,
     sendSessionSummarySms,
     subscribeToPortalChanges,
+    unsubscribeFromPortalChanges,
     requestAccountDeletion,
     completeAccountDeletion,
     resendAccountDeletion,

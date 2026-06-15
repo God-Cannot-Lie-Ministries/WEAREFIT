@@ -27,6 +27,7 @@ let calculatorDragState = null;
 let calculatorInteractionUntil = 0;
 let calculatorResizeObserver = null;
 let pageLoadingTimer = null;
+let pageLoadingHideTimer = null;
 let portalInitializationInProgress = false;
 let portalDataReady = !productionBackend.enabled;
 let portalLoadError = null;
@@ -1139,6 +1140,11 @@ function clearProtectedPortalMemory() {
   clearTimeout(portalRefreshTimer);
   portalRefreshTimer = null;
   portalRefreshQueued = false;
+  removePortalRetryBanner();
+  hidePageLoading();
+  productionBackend.unsubscribeFromPortalChanges?.().catch((error) => {
+    console.warn("Could not close live updates cleanly", error);
+  });
   if (!productionBackend.enabled) {
     appState.sessionEmail = null;
     return;
@@ -1684,6 +1690,7 @@ function notifyProfileMilestones(member) {
 }
 
 function render() {
+  hidePageLoading();
   const account = currentAccount();
   applyTheme();
   if (loginMode === "reset" || loginMode === "delete-verify" || loginMode === "delete-success") {
@@ -1761,6 +1768,7 @@ function portalStatusMessage(kind) {
 }
 
 function renderPortalStatusPage(kind, options = {}) {
+  hidePageLoading();
   const message = portalStatusMessage(kind);
   const canRetry = kind === "temporary";
   const canReturn = Boolean(currentAccount()) && kind !== "expired";
@@ -1811,6 +1819,7 @@ function removePortalRetryBanner() {
 }
 
 function renderLogin() {
+  hidePageLoading();
   if (loginMode === "delete-success") {
     app.innerHTML = `
       <main class="login-shell">
@@ -4890,14 +4899,24 @@ async function approveForm(formId, coachNotes = "", actionSteps = "", textRecipi
 }
 
 function showToast(message) {
+  hidePageLoading();
   clearTimeout(toastTimer);
   toast.textContent = message;
   toast.classList.add("show");
   toastTimer = setTimeout(() => toast.classList.remove("show"), 2600);
 }
 
-function showPageLoading(message = "Updating your F.I.T. workspace...") {
+function hidePageLoading() {
   clearTimeout(pageLoadingTimer);
+  clearTimeout(pageLoadingHideTimer);
+  pageLoadingTimer = null;
+  pageLoadingHideTimer = null;
+  document.getElementById("page-loader")?.classList.remove("show");
+  document.body.removeAttribute("aria-busy");
+}
+
+function showPageLoading(message = "Updating your F.I.T. workspace...") {
+  hidePageLoading();
   let loader = document.getElementById("page-loader");
   if (!loader) {
     loader = document.createElement("div");
@@ -4909,12 +4928,11 @@ function showPageLoading(message = "Updating your F.I.T. workspace...") {
     document.body.appendChild(loader);
   }
   loader.querySelector("strong").textContent = message;
-  loader.classList.add("show");
-  document.body.setAttribute("aria-busy", "true");
   pageLoadingTimer = setTimeout(() => {
-    loader.classList.remove("show");
-    document.body.removeAttribute("aria-busy");
-  }, 700);
+    loader.classList.add("show");
+    document.body.setAttribute("aria-busy", "true");
+    pageLoadingHideTimer = setTimeout(hidePageLoading, 8000);
+  }, 180);
 }
 
 function verificationCode() {
@@ -5083,33 +5101,33 @@ async function createAccount(name, email, password, role) {
 }
 
 document.addEventListener("click", (event) => {
-  const completedAction = event.target.closest(
+  const remoteAction = event.target.closest(
     [
       "[data-save-form]",
-      "[data-delete-form]",
-      "[data-add-row]",
-      "[data-remove-row]",
-      "[data-add-profile-item]",
-      "[data-remove-profile-item]",
-      "[data-add-asset-account]",
-      "[data-remove-asset-account]",
-      "[data-asset-type]",
+      "[data-save-financial-profile]",
       "[data-confirm-remove-mentee]",
       "[data-coach-request-action]",
       "[data-invite-action]",
-      "[data-delete-coach-invite]",
-      "[data-delete-notification]",
-      "[data-delete-session]",
-      "[data-approve-form]",
     ].join(","),
   );
-  if (completedAction) showPageLoading();
+  if (remoteAction) showPageLoading();
 }, true);
 
 document.addEventListener("submit", (event) => {
-  if (!event.target.closest("#login-form, #signup-form, #verification-form")) {
-    showPageLoading();
-  }
+  const remoteForm = event.target.closest(
+    [
+      "#coach-invite-form",
+      "#coach-request-form",
+      "#session-completion-form",
+      "#withdrawal-form",
+      "#profile-withdrawal-form",
+      "#request-account-deletion-form",
+      "#complete-account-deletion-form",
+      "#password-reset-request-form",
+      "#password-update-form",
+    ].join(","),
+  );
+  if (remoteForm) showPageLoading();
 }, true);
 
 function revealNewEntry(path, profile = false) {
@@ -6518,6 +6536,7 @@ async function initializePortal() {
 let portalRefreshInProgress = false;
 function portalRefreshBlocked() {
   return (
+    navigator.onLine === false ||
     profilePhotoUpdateInProgress ||
     Date.now() < calculatorInteractionUntil ||
     document.visibilityState !== "visible" ||
@@ -6654,10 +6673,28 @@ window.addEventListener("focus", () => {
   schedulePortalRefresh(300);
 });
 window.addEventListener("popstate", recordUserActivity);
+window.addEventListener("offline", () => {
+  showPortalRetryBanner("You are offline. Keep working; changes will sync when your connection returns.");
+});
+window.addEventListener("online", () => {
+  removePortalRetryBanner();
+  productionBackend.flushPending?.().catch((error) => {
+    console.warn("Pending changes will retry automatically", error);
+  });
+  schedulePortalRefresh(200);
+});
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     checkInactivityLogout();
     validateCurrentAccount();
     schedulePortalRefresh(300);
+  } else if (currentAccount()) {
+    productionBackend.flushPending?.().catch((error) => {
+      console.warn("Pending changes will retry automatically", error);
+    });
   }
+});
+window.addEventListener("pagehide", () => {
+  if (!currentAccount()) return;
+  productionBackend.flushPending?.().catch(() => {});
 });
