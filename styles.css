@@ -6182,6 +6182,21 @@ html[data-theme="dark"] .data-table th {
     grid-template-columns: 58px minmax(0, 1fr);
   }
 
+  .assignment-choice .joint-avatar-stack {
+    width: 58px;
+    min-width: 58px;
+  }
+
+  .assignment-choice .joint-avatar-stack .avatar {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+  }
+
+  .assignment-choice .joint-avatar-stack .avatar + .avatar {
+    margin-left: -10px;
+  }
+
   .assignment-solo-grid .individual-assignment-choice > span {
     grid-template-columns: 38px minmax(0, 1fr) 20px;
   }
@@ -8922,4 +8937,34 @@ html[data-theme="dark"] .settings-page .settings-housing-choice .type-choice.act
     min-width: 44px;
     height: 43px;
   }
+}
+
+/* Make bill selectors read as the same field style used elsewhere. */
+.worksheet-content .bill-sections .bills-table .bill-selector-wrap .table-input,
+.worksheet-content .bill-sections .bill-selector-wrap .table-input {
+  padding-right: 42px;
+}
+
+.worksheet-content .bill-sections .bills-table .bill-selector-button,
+.worksheet-content .bill-sections .bill-selector-button {
+  top: 1px;
+  right: 1px;
+  bottom: 1px;
+  width: 38px;
+  border: 0 !important;
+  border-radius: 0 5px 5px 0;
+  background: transparent !important;
+  color: var(--muted);
+  box-shadow: none;
+}
+
+.worksheet-content .bill-sections .bills-table .bill-selector-button:hover,
+.worksheet-content .bill-sections .bill-selector-button:hover {
+  background: color-mix(in srgb, var(--surface-soft) 48%, transparent);
+  color: var(--navy);
+}
+
+html[data-theme="dark"] .worksheet-content .bill-sections .bills-table .bill-selector-button:hover,
+html[data-theme="dark"] .worksheet-content .bill-sections .bill-selector-button:hover {
+  color: #ffffff;
 }
