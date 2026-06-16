@@ -8594,10 +8594,16 @@ html[data-theme="dark"] .settings-page .settings-housing-choice .type-choice.act
     min-width: 0;
   }
 
+  .worksheet-content .bill-sections .bills-table tbody {
+    gap: 10px;
+    padding: 12px;
+  }
+
   .worksheet-content .bill-sections .bills-table thead tr,
   .worksheet-content .bill-sections .bills-table tbody tr {
     display: grid;
     grid-template-columns: minmax(0, 1.35fr) minmax(116px, 0.78fr) minmax(128px, 0.84fr) 64px;
+    gap: 12px;
     width: 100%;
     min-width: 0;
     align-items: center;
@@ -8656,34 +8662,40 @@ html[data-theme="dark"] .settings-page .settings-housing-choice .type-choice.act
   }
 
   .worksheet-content .bill-sections .bills-table .table-input {
-    min-height: 54px;
-    border: 1px solid var(--gold-line);
-    border-radius: 7px;
+    min-height: 40px;
+    border: 1px solid #cbd4df;
+    border-radius: 6px;
     background: var(--surface);
-    padding: 9px 13px;
+    padding: 8px 10px;
     box-shadow: none;
   }
 
+  html[data-theme="dark"] .worksheet-content .bill-sections .bills-table .table-input {
+    border-color: rgba(239, 195, 83, 0.42);
+    background: #081b39;
+    color: #ffffff;
+  }
+
   .worksheet-content .bill-sections .bills-table .money-input-wrap::before {
-    left: 14px;
+    left: 12px;
   }
 
   .worksheet-content .bill-sections .bills-table .money-input-wrap .table-input {
-    padding-left: 36px !important;
+    padding-left: 32px !important;
   }
 
   .worksheet-content .bill-sections .bills-table .bill-selector-wrap .table-input {
-    padding-right: 50px;
+    padding-right: 42px;
   }
 
   .worksheet-content .bill-sections .bills-table .bill-selector-button {
     top: 1px;
     right: 1px;
     bottom: 1px;
-    width: 46px;
-    border-left: 1px solid var(--gold-line);
-    border-radius: 0 6px 6px 0;
-    background: color-mix(in srgb, var(--surface-soft) 86%, transparent);
+    width: 38px;
+    border: 0;
+    border-radius: 0 5px 5px 0;
+    background: transparent;
   }
 
   .worksheet-content .final-budget-panel .data-table-wrap {
