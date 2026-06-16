@@ -8254,3 +8254,108 @@ html[data-theme="dark"] .settings-page .settings-housing-choice .type-choice.act
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Compact Budgeting section so the final worksheet step fits cleanly on phones. */
+@media (max-width: 768px) {
+  .worksheet-content .final-budget-panel .panel-heading {
+    gap: 8px;
+  }
+
+  .worksheet-content .final-budget-panel .panel-heading .btn {
+    min-height: 38px;
+    padding: 8px 11px;
+  }
+
+  .worksheet-content .final-budget-panel .budget-remaining-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+    padding: 8px;
+  }
+
+  .worksheet-content .final-budget-panel .budget-remaining-strip .computed-field {
+    min-height: 66px;
+    align-content: space-between;
+    padding: 8px;
+  }
+
+  .worksheet-content .final-budget-panel .budget-remaining-strip .computed-field span {
+    font-size: 8px;
+    letter-spacing: 0.06em;
+    line-height: 1.15;
+  }
+
+  .worksheet-content .final-budget-panel .budget-remaining-strip .computed-field strong {
+    font-size: clamp(15px, 4.3vw, 18px);
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .worksheet-content .final-budget-panel .data-table tbody {
+    gap: 7px;
+    padding: 8px;
+  }
+
+  .worksheet-content .final-budget-panel .data-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(112px, 0.72fr) 38px;
+    align-items: end;
+    gap: 7px;
+    padding: 8px;
+  }
+
+  .worksheet-content .final-budget-panel .data-table td[data-mobile-label] {
+    gap: 3px;
+  }
+
+  .worksheet-content .final-budget-panel .data-table td[data-mobile-label] + td[data-mobile-label] {
+    margin-top: 0;
+  }
+
+  .worksheet-content .final-budget-panel .data-table td[data-mobile-label]::before {
+    font-size: 8px;
+    letter-spacing: 0.05em;
+  }
+
+  .worksheet-content .final-budget-panel .data-table .table-input {
+    min-height: 38px;
+    padding: 7px 8px;
+    font-size: 15px;
+  }
+
+  .worksheet-content .final-budget-panel .data-table .money-input-wrap .table-input {
+    padding-left: 25px;
+  }
+
+  .worksheet-content .final-budget-panel .data-table .mobile-row-action {
+    display: flex;
+    align-items: end;
+    justify-content: center;
+    margin-top: 0;
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .worksheet-content .final-budget-panel .data-table .mobile-row-action .icon-btn {
+    width: 36px;
+    min-width: 0;
+    max-width: 100%;
+    height: 38px;
+    padding: 0;
+  }
+
+  .worksheet-content .final-budget-panel .table-total {
+    min-height: 38px;
+    padding: 8px 11px;
+  }
+}
+
+@media (max-width: 360px) {
+  .worksheet-content .final-budget-panel .budget-remaining-strip,
+  .worksheet-content .final-budget-panel .data-table tr {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .worksheet-content .final-budget-panel .data-table .mobile-row-action {
+    justify-content: flex-end;
+  }
+}
