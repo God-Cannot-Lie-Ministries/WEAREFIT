@@ -1318,6 +1318,26 @@ function profileDebtTotal(account) {
   );
 }
 
+function allocationTotalFor(form, type, accountName) {
+  const normalizedAccount = String(accountName || "").trim().toLowerCase();
+  if (!normalizedAccount) return 0;
+  return currencyValue((form.data.allocations || [])
+    .filter((item) => item.type === type && String(item.account || "").trim().toLowerCase() === normalizedAccount)
+    .reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
+}
+
+function plannedContribution(row, form, type) {
+  const regularContribution =
+    type === "credit_card" && row.coachDecision === "next_check"
+      ? 0
+      : Number(row.contribution) || 0;
+  return currencyValue(regularContribution + allocationTotalFor(form, type, row.account));
+}
+
+function remainingAfterPlannedPayment(row, form, type) {
+  return currencyValue(Math.max(0, (Number(row.totalBalance ?? row.totalOwed) || 0) - plannedContribution(row, form, type)));
+}
+
 function refreshFinancialProfileSummary(account = currentAccount()) {
   if (!account) return;
   const values = {
@@ -1414,6 +1434,9 @@ function getMemberCarryForward(account) {
     if (account.financialInventory?.creditCards?.length) {
       carried.creditCards = clone(account.financialInventory.creditCards);
     }
+    if (account.financialInventory?.studentLoans?.length) {
+      carried.studentLoans = clone(account.financialInventory.studentLoans);
+    }
     return carried;
   }
   const latest = memberForms(account.email)[0];
@@ -1452,9 +1475,7 @@ function getMemberCarryForward(account) {
           .map((card) => ({
             account: card.account,
             dueDate: card.dueDate,
-            totalBalance: String(
-              Math.max(0, (Number(card.totalBalance) || 0) - (Number(card.contribution) || 0)),
-            ),
+            totalBalance: String(remainingAfterPlannedPayment(card, latest, "credit_card")),
             lastStatementBalance: card.lastStatementBalance || "",
             paymentDue: card.paymentDue || "",
             apr: card.apr,
@@ -1474,12 +1495,18 @@ function getMemberCarryForward(account) {
           .filter((debt) => debt.account)
           .map((debt) => ({
             ...clone(debt),
-            totalOwed: String(
-              Math.max(0, (Number(debt.totalOwed) || 0) - (Number(debt.contribution) || 0)),
-            ),
+            totalOwed: String(remainingAfterPlannedPayment(debt, latest, "debt")),
             contribution: "",
           })),
-    studentLoans: clone(account.financialInventory.studentLoans || []),
+    studentLoans: account.financialInventory.studentLoans.length
+      ? clone(account.financialInventory.studentLoans)
+      : (latest.data.studentLoans || [])
+          .filter((loan) => loan.account)
+          .map((loan) => ({
+            ...clone(loan),
+            totalOwed: String(remainingAfterPlannedPayment(loan, latest, "student_loan")),
+            contribution: "",
+          })),
   };
 }
 
@@ -1522,6 +1549,18 @@ function calculate(form) {
   const allocationTotal = currencyValue((data.allocations || [])
     .filter((item) => ["debt", "credit_card", "student_loan"].includes(item.type))
     .reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
+  const totalCreditCardBalanceAfter = currencyValue(data.creditCards.reduce(
+    (sum, item) => sum + remainingAfterPlannedPayment(item, form, "credit_card"),
+    0,
+  ));
+  const totalDebtBalanceAfter = currencyValue(data.debts.reduce(
+    (sum, item) => sum + remainingAfterPlannedPayment(item, form, "debt"),
+    0,
+  ));
+  const totalStudentLoanBalanceAfter = currencyValue((data.studentLoans || []).reduce(
+    (sum, item) => sum + remainingAfterPlannedPayment(item, form, "student_loan"),
+    0,
+  ));
   const variableBudget = currencyValue(data.variableSpending.reduce(
     (sum, item) => sum + (Number(item.budgeted) || 0),
     0,
@@ -1568,6 +1607,9 @@ function calculate(form) {
     allocationTotal,
     available,
     totalDebt,
+    totalCreditCardBalanceAfter,
+    totalDebtBalanceAfter,
+    totalStudentLoanBalanceAfter,
     savingsAfter,
     mortgageAfter,
     variableBudget,
@@ -3619,7 +3661,7 @@ function creditCardPanel(form, calc, readOnly, isCoachReview) {
         ${readOnly ? "" : `<button class="btn btn-secondary btn-small" type="button" data-add-row="creditCards"><span aria-hidden="true">＋</span> Add card</button>`}
       </div>
       <div class="debt-card-list">
-        ${form.data.creditCards.map((row, index) => creditCardCard(row, index, readOnly, isCoachReview)).join("")}
+        ${form.data.creditCards.map((row, index) => creditCardCard(form, row, index, readOnly, isCoachReview)).join("")}
       </div>
       <div class="credit-allowance-summary">
         ${computedField("Total credit card allowance", money(totalAllowance))}
@@ -3631,18 +3673,16 @@ function creditCardPanel(form, calc, readOnly, isCoachReview) {
   `;
 }
 
-function creditCardCard(row, index, readOnly, isCoachReview) {
+function creditCardCard(form, row, index, readOnly, isCoachReview) {
   migratePromoCard(row);
-  const remaining = Math.max(
-    0,
-    (Number(row.totalBalance) || 0) - (Number(row.contribution) || 0),
-  );
+  const remaining = remainingAfterPlannedPayment(row, form, "credit_card");
+  const extraPayment = allocationTotalFor(form, "credit_card", row.account);
   const purchasePromo = row.promoType === "purchases" || row.promoType === "both";
   const balancePromo = row.promoType === "balance_transfers" || row.promoType === "both";
   return `
     <article class="debt-entry credit-card-entry">
       <div class="debt-entry-heading">
-        <div><strong>${escapeHtml(row.account || "New credit card")}</strong><span class="entry-balance">${money(remaining)} remaining</span></div>
+        <div><strong>${escapeHtml(row.account || "New credit card")}</strong><span class="entry-balance">${money(remaining)} remaining${extraPayment ? ` · ${money(extraPayment)} extra routed` : ""}</span></div>
         ${readOnly ? "" : `<button class="icon-btn danger" type="button" title="Remove card" aria-label="Remove card" data-remove-row="creditCards.${index}">×</button>`}
       </div>
       <div class="debt-entry-grid">
@@ -3691,9 +3731,9 @@ function variablePanel(form, calc, readOnly) {
         ${readOnly ? "" : `<button class="btn btn-secondary btn-small" type="button" data-add-row="variableSpending"><span aria-hidden="true">＋</span> Add category</button>`}
       </div>
       <div class="budget-remaining-strip">
-        ${computedField("Remaining funds available to budget", money(calc.remainingBeforeBudget), "remaining-before-budget")}
-        ${computedField("Budgeted from remaining funds", money(calc.variableBudget), "variable-budget")}
-        ${computedField(overBudget ? "Amount over remaining funds" : "Remaining after budget", money(Math.abs(calc.available)), "available")}
+        ${computedField("Ready to budget", money(calc.remainingBeforeBudget), "remaining-before-budget")}
+        ${computedField("Budgeted", money(calc.variableBudget), "variable-budget")}
+        ${computedField(overBudget ? "Over budget" : "Left over", money(Math.abs(calc.available)), "available")}
       </div>
       <div class="data-table-wrap">
         <table class="data-table">
@@ -3709,7 +3749,7 @@ function variablePanel(form, calc, readOnly) {
           </tbody>
         </table>
       </div>
-      <div class="table-total"><span>${overBudget ? "Reduce the budget to stay within remaining funds" : "Remaining after final budget"}</span><strong>${money(calc.available)}</strong></div>
+      <div class="table-total"><span>${overBudget ? "Reduce budget" : "Left over"}</span><strong>${money(calc.available)}</strong></div>
     </section>
   `;
 }
@@ -3744,18 +3784,20 @@ function debtPanel(form, calc, readOnly) {
         ${readOnly ? "" : `<button class="btn btn-secondary btn-small" type="button" data-add-row="debts"><span aria-hidden="true">＋</span> Add debt</button>`}
       </div>
       <div class="debt-card-list">
-        ${form.data.debts.map((row, index) => debtCard(row, index, readOnly)).join("")}
+        ${form.data.debts.map((row, index) => debtCard(form, row, index, readOnly)).join("")}
       </div>
-      <div class="table-total"><span>Total debt</span><strong>${money(calc.totalDebt)}</strong></div>
+      <div class="table-total"><span>Remaining debt after planned payments</span><strong>${money(calc.totalDebtBalanceAfter)}</strong></div>
     </section>
   `;
 }
 
-function debtCard(row, index, readOnly) {
+function debtCard(form, row, index, readOnly) {
+  const remaining = remainingAfterPlannedPayment(row, form, "debt");
+  const extraPayment = allocationTotalFor(form, "debt", row.account);
   return `
     <article class="debt-entry debt-tracker-entry">
       <div class="debt-entry-heading">
-        <strong>${escapeHtml(row.account || "New debt account")}</strong>
+        <div><strong>${escapeHtml(row.account || "New debt account")}</strong><span class="entry-balance">${money(remaining)} remaining${extraPayment ? ` · ${money(extraPayment)} extra routed` : ""}</span></div>
         ${readOnly ? "" : `<button class="icon-btn danger" type="button" title="Remove debt" aria-label="Remove debt" data-remove-row="debts.${index}">×</button>`}
       </div>
       <div class="debt-entry-grid">
@@ -3786,14 +3828,17 @@ function studentLoanPanel(form, calc, readOnly) {
   return `
     <section class="panel" id="student-loans">
       <div class="panel-heading"><div><h3>Student loans</h3><p>Plan payments while tracking each remaining balance.</p></div>${readOnly ? "" : `<button class="btn btn-secondary btn-small" type="button" data-add-row="studentLoans"><span aria-hidden="true">＋</span> Add student loan</button>`}</div>
-      <div class="debt-card-list">${(form.data.studentLoans || []).map((loan, index) => studentLoanCard(loan, index, readOnly)).join("") || emptyInline("No student loans", "Add a student loan from the form or financial profile.")}</div>
+      <div class="debt-card-list">${(form.data.studentLoans || []).map((loan, index) => studentLoanCard(form, loan, index, readOnly)).join("") || emptyInline("No student loans", "Add a student loan from the form or financial profile.")}</div>
       <div class="table-total"><span>This check's student loan subtotal</span><strong>${money(calc.studentLoanContributions)}</strong></div>
+      <div class="table-total"><span>Remaining student loan balance after planned payments</span><strong>${money(calc.totalStudentLoanBalanceAfter)}</strong></div>
     </section>
   `;
 }
 
-function studentLoanCard(loan, index, readOnly) {
-  return `<article class="debt-entry student-loan-entry"><div class="debt-entry-heading"><strong>${escapeHtml(loan.account || "New student loan")}</strong>${readOnly ? "" : `<button class="icon-btn danger" type="button" title="Remove student loan" aria-label="Remove student loan" data-remove-row="studentLoans.${index}">×</button>`}</div><div class="debt-entry-grid">
+function studentLoanCard(form, loan, index, readOnly) {
+  const remaining = remainingAfterPlannedPayment(loan, form, "student_loan");
+  const extraPayment = allocationTotalFor(form, "student_loan", loan.account);
+  return `<article class="debt-entry student-loan-entry"><div class="debt-entry-heading"><div><strong>${escapeHtml(loan.account || "New student loan")}</strong><span class="entry-balance">${money(remaining)} remaining${extraPayment ? ` · ${money(extraPayment)} extra routed` : ""}</span></div>${readOnly ? "" : `<button class="icon-btn danger" type="button" title="Remove student loan" aria-label="Remove student loan" data-remove-row="studentLoans.${index}">×</button>`}</div><div class="debt-entry-grid">
     ${textField("Loan name", `studentLoans.${index}.account`, loan.account, readOnly, "Student loan name")}
     ${studentLoanTypeField(`studentLoans.${index}.loanType`, loan.loanType, readOnly)}
     ${moneyField("Balance", `studentLoans.${index}.totalOwed`, loan.totalOwed, readOnly)}
@@ -4244,11 +4289,11 @@ function summaryPanel(calc) {
         ${summaryRow("Mortgage contribution", money(calc.mortgageContribution))}
         ${summaryRow("Savings contribution", money(calc.savingsContribution))}
         ${summaryRow("Extra payments", money(calc.allocationTotal), false, "allocation-total")}
-        ${summaryRow("Remaining before budget", money(calc.remainingBeforeBudget))}
-        ${summaryRow("Budgeted from remaining funds", money(calc.variableBudget))}
+        ${summaryRow("Ready to budget", money(calc.remainingBeforeBudget))}
+        ${summaryRow("Budgeted", money(calc.variableBudget))}
         ${summaryRow("Total planned outflow", money(calc.totalPlanned))}
         ${calc.approvedBills ? summaryRow("Coach selected this check", money(calc.approvedBills)) : ""}
-        ${summaryRow("Remaining after budget", money(calc.available), true, "available")}
+        ${summaryRow(calc.available < 0 ? "Over budget" : "Left over", money(calc.available), true, "available")}
       </div>
     </div>
   `;
@@ -4813,20 +4858,18 @@ async function approveForm(formId, coachNotes = "", actionSteps = "", textRecipi
     mortgage: {
       totalAmount: form.data.mortgage.totalAmount,
       interestRate: form.data.mortgage.interestRate,
-      currentBalance: String(calc.mortgageAfter || ""),
+      currentBalance: calc.mortgageAfter === 0 ? "0.00" : String(calc.mortgageAfter || ""),
       paymentAmount: form.data.mortgage.paymentAmount,
       nextDueDate: form.data.mortgage.nextDueDate,
       mustPayBy: form.data.mortgage.mustPayBy,
-      remainingBefore: String(calc.mortgageAfter || ""),
+      remainingBefore: calc.mortgageAfter === 0 ? "0.00" : String(calc.mortgageAfter || ""),
     },
     creditCards: form.data.creditCards
       .filter((card) => card.account)
       .map((card) => ({
         account: card.account,
         dueDate: card.dueDate,
-        totalBalance: String(
-          Math.max(0, (Number(card.totalBalance) || 0) - (Number(card.contribution) || 0)),
-        ),
+        totalBalance: String(remainingAfterPlannedPayment(card, form, "credit_card")),
         lastStatementBalance: card.lastStatementBalance || "",
         paymentDue: card.paymentDue || "",
         allowance: card.allowance || "",
@@ -4839,22 +4882,20 @@ async function approveForm(formId, coachNotes = "", actionSteps = "", textRecipi
       })),
     savings: {
       goal: form.data.savings.goal,
-      current: String(calc.savingsAfter || ""),
+      current: calc.savingsAfter === 0 ? "0.00" : String(calc.savingsAfter || ""),
     },
     debts: form.data.debts
       .filter((debt) => debt.account)
       .map((debt) => ({
         ...clone(debt),
-        totalOwed: String(
-          Math.max(0, (Number(debt.totalOwed) || 0) - (Number(debt.contribution) || 0)),
-        ),
+        totalOwed: String(remainingAfterPlannedPayment(debt, form, "debt")),
         contribution: "",
       })),
     studentLoans: (form.data.studentLoans || [])
       .filter((loan) => loan.account)
       .map((loan) => ({
         ...clone(loan),
-        totalOwed: String(Math.max(0, (Number(loan.totalOwed) || 0) - (Number(loan.contribution) || 0))),
+        totalOwed: String(remainingAfterPlannedPayment(loan, form, "student_loan")),
         contribution: "",
       })),
   };

@@ -144,6 +144,12 @@ Open `index.html` directly or serve this folder locally. The checked-in `config.
 
 To test against Supabase locally, temporarily update `config.js` with your Supabase URL and publishable key, then set `production: true`.
 
+Run the calculation regression checks before publishing math changes:
+
+```bash
+node --test tests/math-regression.test.js
+```
+
 ## Security notes
 
 - Row Level Security policies are included for profiles, portal states, email audit records, and private storage.
