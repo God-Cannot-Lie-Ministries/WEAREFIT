@@ -8560,6 +8560,10 @@ html[data-theme="dark"] .settings-page .settings-housing-choice .type-choice.act
     align-items: center;
   }
 
+  .worksheet-content .bill-sections .bills-table tbody tr {
+    border-top: 1px solid var(--gold-line);
+  }
+
   .worksheet-content .bill-sections .bills-table.coach-review thead tr,
   .worksheet-content .bill-sections .bills-table.coach-review tbody tr {
     grid-template-columns: minmax(0, 1.2fr) minmax(108px, 0.72fr) minmax(112px, 0.72fr) minmax(132px, 0.9fr) 64px;
@@ -8571,6 +8575,8 @@ html[data-theme="dark"] .settings-page .settings-housing-choice .type-choice.act
     width: auto !important;
     min-width: 0;
     align-items: center;
+    border-top: 0;
+    padding: 0;
   }
 
   .worksheet-content .bill-sections .bills-table th {
@@ -8608,6 +8614,36 @@ html[data-theme="dark"] .settings-page .settings-housing-choice .type-choice.act
   .worksheet-content .bill-sections .bills-table .bill-selector-wrap {
     width: 100%;
     min-width: 0;
+  }
+
+  .worksheet-content .bill-sections .bills-table .table-input {
+    min-height: 58px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 10px 14px;
+    box-shadow: none;
+  }
+
+  .worksheet-content .bill-sections .bills-table .money-input-wrap::before {
+    left: 16px;
+  }
+
+  .worksheet-content .bill-sections .bills-table .money-input-wrap .table-input {
+    padding-left: 38px !important;
+  }
+
+  .worksheet-content .bill-sections .bills-table .bill-selector-wrap .table-input {
+    padding-right: 52px;
+  }
+
+  .worksheet-content .bill-sections .bills-table .bill-selector-button {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 48px;
+    border-left: 1px solid var(--gold-line);
+    background: transparent;
   }
 
   .worksheet-content .final-budget-panel .data-table-wrap {
