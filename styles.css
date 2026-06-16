@@ -1620,7 +1620,16 @@ select {
 }
 
 .percent-input-wrap input {
-  padding-right: 28px;
+  appearance: textfield;
+  -moz-appearance: textfield;
+  padding-right: 42px;
+}
+
+.percent-input-wrap input::-webkit-outer-spin-button,
+.percent-input-wrap input::-webkit-inner-spin-button {
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .table-total {
@@ -1781,6 +1790,32 @@ select {
 
 .final-budget-panel.over-budget .table-total strong {
   color: var(--red);
+}
+
+.worksheet-content .percent-input-wrap input {
+  padding-right: 44px;
+}
+
+.worksheet-content .bill-sections .data-table.compact {
+  min-width: 0;
+}
+
+.worksheet-content .bill-sections .data-table th:last-child,
+.worksheet-content .bill-sections .data-table .mobile-row-action {
+  width: 48px;
+  min-width: 48px;
+  text-align: center;
+}
+
+.worksheet-content .bill-sections .data-table .mobile-row-action .icon-btn {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0;
+}
+
+.worksheet-content .final-budget-table td::before {
+  content: none;
 }
 
 .summary-list {
@@ -6281,9 +6316,18 @@ html[data-theme="dark"] .data-table th {
   }
 
   .worksheet-content .data-table .mobile-row-action {
+    display: flex;
+    justify-content: flex-end;
+    box-sizing: border-box;
     margin-top: 8px;
     border-top: 1px solid var(--line);
+    padding-right: 2px;
     padding-top: 7px;
+  }
+
+  .worksheet-content .data-table .mobile-row-action .icon-btn {
+    flex: 0 0 auto;
+    max-width: calc(100% - 2px);
   }
 
   .worksheet-content .data-table .mobile-row-action:empty {
@@ -8362,6 +8406,66 @@ html[data-theme="dark"] .settings-page .settings-housing-choice .type-choice.act
 
 /* Keep the Budgeting rows inside the worksheet panel on wider screens too. */
 @media (min-width: 769px) {
+  .worksheet-content .bill-sections .data-table-wrap {
+    overflow: hidden;
+  }
+
+  .worksheet-content .bill-sections .bills-table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    border-collapse: separate;
+  }
+
+  .worksheet-content .bill-sections .bills-table thead,
+  .worksheet-content .bill-sections .bills-table tbody {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .worksheet-content .bill-sections .bills-table thead tr,
+  .worksheet-content .bill-sections .bills-table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(116px, 0.78fr) minmax(128px, 0.84fr) 64px;
+    width: 100%;
+    min-width: 0;
+    align-items: center;
+  }
+
+  .worksheet-content .bill-sections .bills-table.coach-review thead tr,
+  .worksheet-content .bill-sections .bills-table.coach-review tbody tr {
+    grid-template-columns: minmax(0, 1.2fr) minmax(108px, 0.72fr) minmax(112px, 0.72fr) minmax(132px, 0.9fr) 64px;
+  }
+
+  .worksheet-content .bill-sections .bills-table th,
+  .worksheet-content .bill-sections .bills-table td {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+  }
+
+  .worksheet-content .bill-sections .bills-table .mobile-row-action {
+    width: auto;
+    min-width: 0;
+    justify-content: center;
+    overflow: visible;
+    padding-inline: 8px;
+  }
+
+  .worksheet-content .bill-sections .bills-table .mobile-row-action .icon-btn {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+  }
+
+  .worksheet-content .bill-sections .bills-table .table-input,
+  .worksheet-content .bill-sections .bills-table .money-input-wrap,
+  .worksheet-content .bill-sections .bills-table .bill-selector-wrap {
+    width: 100%;
+    min-width: 0;
+  }
+
   .worksheet-content .final-budget-panel .data-table-wrap {
     overflow: hidden;
   }

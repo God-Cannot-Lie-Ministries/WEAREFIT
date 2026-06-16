@@ -2712,7 +2712,7 @@ function dueDayLabel(dueDay) {
 }
 
 function profilePercentField(label, path, value) {
-  return `<div class="field"><label>${label}</label><div class="percent-input-wrap"><input class="input" type="number" min="0" max="100" step="0.01" data-profile-path="${path}" data-percent-validation value="${value}" placeholder="0.00"></div></div>`;
+  return `<div class="field"><label>${label}</label><div class="percent-input-wrap"><input class="input" type="text" inputmode="decimal" data-profile-path="${path}" data-percent-validation value="${value}" placeholder="0.00"></div></div>`;
 }
 
 function profileFutureDateField(label, path, value) {
@@ -3608,8 +3608,8 @@ function billGroup(form, key, label, readOnly, isCoachReview) {
         ${readOnly ? "" : `<button class="icon-btn" type="button" title="Add ${label} bill" aria-label="Add ${label} bill" data-add-row="bills.${key}">＋</button>`}
       </div>
       <div class="data-table-wrap">
-        <table class="data-table compact">
-          <thead><tr><th style="width:${isCoachReview ? "31%" : "45%"}">Bill</th><th style="width:${isCoachReview ? "23%" : "28%"}">Due date</th><th style="width:${isCoachReview ? "19%" : "22%"}">Amount</th>${isCoachReview ? `<th style="width:22%">Coach plan</th>` : ""}<th style="width:5%"></th></tr></thead>
+        <table class="data-table compact bills-table ${isCoachReview ? "coach-review" : ""}">
+          <thead><tr><th style="width:${isCoachReview ? "30%" : "42%"}">Bill</th><th style="width:${isCoachReview ? "22%" : "26%"}">Due date</th><th style="width:${isCoachReview ? "18%" : "22%"}">Amount</th>${isCoachReview ? `<th style="width:22%">Coach plan</th>` : ""}<th style="width:${isCoachReview ? "8%" : "10%"}"></th></tr></thead>
           <tbody>
             ${rows.map((row, index) => `
               <tr>
@@ -3736,13 +3736,12 @@ function variablePanel(form, calc, readOnly) {
         ${computedField(overBudget ? "Over budget" : "Left over", money(Math.abs(calc.available)), "available")}
       </div>
       <div class="data-table-wrap">
-        <table class="data-table">
-          <thead><tr><th style="width:55%">Category</th><th>Budgeted amount</th><th style="width:5%"></th></tr></thead>
+        <table class="data-table final-budget-table">
           <tbody>
             ${form.data.variableSpending.map((row, index) => `
               <tr>
-                <td data-mobile-label="Category"><input class="table-input" data-path="variableSpending.${index}.category" value="${escapeHtml(row.category)}" placeholder="Category" ${readOnly ? "disabled" : ""}></td>
-                <td data-mobile-label="Budgeted amount"><div class="money-input-wrap"><input class="table-input" type="text" inputmode="decimal" data-currency-input data-path="variableSpending.${index}.budgeted" value="${moneyInputValue(row.budgeted)}" placeholder="0.00" ${readOnly ? "disabled" : ""}></div></td>
+                <td><input class="table-input" data-path="variableSpending.${index}.category" value="${escapeHtml(row.category)}" placeholder="Category" ${readOnly ? "disabled" : ""}></td>
+                <td><div class="money-input-wrap"><input class="table-input" type="text" inputmode="decimal" data-currency-input data-path="variableSpending.${index}.budgeted" value="${moneyInputValue(row.budgeted)}" placeholder="0.00" ${readOnly ? "disabled" : ""}></div></td>
                 <td class="mobile-row-action">${readOnly ? "" : `<button class="icon-btn danger" type="button" title="Remove category" aria-label="Remove category" data-remove-row="variableSpending.${index}">×</button>`}</td>
               </tr>
             `).join("")}
@@ -4342,7 +4341,7 @@ function percentField(label, path, value, readOnly) {
     <div class="field">
       <label>${label}</label>
       <div class="percent-input-wrap">
-        <input class="input" type="number" min="0" max="100" step="0.01" data-percent-validation data-path="${path}" value="${value}" placeholder="0.00" ${readOnly ? "disabled" : ""}>
+        <input class="input" type="text" inputmode="decimal" data-percent-validation data-path="${path}" value="${value}" placeholder="0.00" ${readOnly ? "disabled" : ""}>
       </div>
     </div>
   `;
