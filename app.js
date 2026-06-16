@@ -4666,6 +4666,11 @@ function showNewFormModal() {
 function showShareModal(formId) {
   const form = appState.forms[formId];
   if (!form) return;
+  const calc = calculate(form);
+  if (calc.available < 0) {
+    showOverBudgetDialog(calc);
+    return;
+  }
   const account = currentAccount();
   const coach = account.coachEmail ? appState.accounts[account.coachEmail] : null;
   const coachName = coachDisplayName(account, coach);
@@ -4702,6 +4707,31 @@ function showShareModal(formId) {
     </section>
   `;
   modal.dataset.formId = formId;
+  document.body.appendChild(modal);
+}
+
+function showOverBudgetDialog(calc) {
+  document.querySelectorAll('[data-modal="over-budget"]').forEach((modal) => modal.remove());
+  const modal = document.createElement("div");
+  modal.className = "modal-backdrop";
+  modal.dataset.modal = "over-budget";
+  modal.innerHTML = `
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="over-budget-title">
+      <div class="modal-header">
+        <div><p class="document-label">Worksheet needs adjustment</p><h3 id="over-budget-title">This worksheet is over budget</h3></div>
+        <button class="icon-btn" type="button" aria-label="Close" data-close-modal>×</button>
+      </div>
+      <div class="modal-body">
+        <p>Your worksheet cannot be sent while planned expenses are higher than the money available for this check.</p>
+        <div class="over-budget-summary">
+          <div><span>Amount over budget</span><strong>${money(Math.abs(calc.available))}</strong></div>
+          <div><span>Total planned outflow</span><strong>${money(calc.totalPlanned)}</strong></div>
+        </div>
+        <p>Reduce budget categories, bills, contributions, or extra payments until the worksheet shows <strong>$0.00 left over</strong> or a positive left over amount.</p>
+        <button class="btn btn-primary" type="button" data-close-modal>Review worksheet</button>
+      </div>
+    </section>
+  `;
   document.body.appendChild(modal);
 }
 
@@ -6234,6 +6264,11 @@ document.addEventListener("submit", async (event) => {
     const account = currentAccount();
     if (email !== account.coachEmail || account.coachRequestStatus !== "approved") {
       showToast("Connect with an approved coach before sharing this worksheet.");
+      return;
+    }
+    const calc = calculate(form);
+    if (calc.available < 0) {
+      showOverBudgetDialog(calc);
       return;
     }
     form.sharedWith = [email];

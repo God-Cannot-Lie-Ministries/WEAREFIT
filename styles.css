@@ -2066,6 +2066,34 @@ select {
   line-height: 1.55;
 }
 
+.over-budget-summary {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 18px;
+}
+
+.over-budget-summary > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--canvas);
+  padding: 10px 12px;
+}
+
+.over-budget-summary span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.over-budget-summary strong {
+  color: var(--red);
+  font-size: 15px;
+}
+
 .share-list {
   display: grid;
   gap: 8px;
@@ -8560,10 +8588,6 @@ html[data-theme="dark"] .settings-page .settings-housing-choice .type-choice.act
     align-items: center;
   }
 
-  .worksheet-content .bill-sections .bills-table tbody tr {
-    border-top: 1px solid var(--gold-line);
-  }
-
   .worksheet-content .bill-sections .bills-table.coach-review thead tr,
   .worksheet-content .bill-sections .bills-table.coach-review tbody tr {
     grid-template-columns: minmax(0, 1.2fr) minmax(108px, 0.72fr) minmax(112px, 0.72fr) minmax(132px, 0.9fr) 64px;
@@ -8617,33 +8641,34 @@ html[data-theme="dark"] .settings-page .settings-housing-choice .type-choice.act
   }
 
   .worksheet-content .bill-sections .bills-table .table-input {
-    min-height: 58px;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    padding: 10px 14px;
+    min-height: 54px;
+    border: 1px solid var(--gold-line);
+    border-radius: 7px;
+    background: var(--surface);
+    padding: 9px 13px;
     box-shadow: none;
   }
 
   .worksheet-content .bill-sections .bills-table .money-input-wrap::before {
-    left: 16px;
+    left: 14px;
   }
 
   .worksheet-content .bill-sections .bills-table .money-input-wrap .table-input {
-    padding-left: 38px !important;
+    padding-left: 36px !important;
   }
 
   .worksheet-content .bill-sections .bills-table .bill-selector-wrap .table-input {
-    padding-right: 52px;
+    padding-right: 50px;
   }
 
   .worksheet-content .bill-sections .bills-table .bill-selector-button {
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 48px;
+    top: 1px;
+    right: 1px;
+    bottom: 1px;
+    width: 46px;
     border-left: 1px solid var(--gold-line);
-    background: transparent;
+    border-radius: 0 6px 6px 0;
+    background: color-mix(in srgb, var(--surface-soft) 86%, transparent);
   }
 
   .worksheet-content .final-budget-panel .data-table-wrap {
