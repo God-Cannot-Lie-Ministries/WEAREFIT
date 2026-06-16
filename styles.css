@@ -8359,3 +8359,66 @@ html[data-theme="dark"] .settings-page .settings-housing-choice .type-choice.act
     justify-content: flex-end;
   }
 }
+
+/* Keep the Budgeting rows inside the worksheet panel on wider screens too. */
+@media (min-width: 769px) {
+  .worksheet-content .final-budget-panel .data-table-wrap {
+    overflow: hidden;
+  }
+
+  .worksheet-content .final-budget-panel .data-table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    border-collapse: separate;
+  }
+
+  .worksheet-content .final-budget-panel .data-table thead,
+  .worksheet-content .final-budget-panel .data-table tbody {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .worksheet-content .final-budget-panel .data-table thead tr,
+  .worksheet-content .final-budget-panel .data-table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(180px, 1fr) 58px;
+    width: 100%;
+    min-width: 0;
+    align-items: center;
+  }
+
+  .worksheet-content .final-budget-panel .data-table th,
+  .worksheet-content .final-budget-panel .data-table td {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+  }
+
+  .worksheet-content .final-budget-panel .data-table th {
+    min-height: 56px;
+  }
+
+  .worksheet-content .final-budget-panel .data-table td {
+    min-height: 76px;
+  }
+
+  .worksheet-content .final-budget-panel .data-table th:last-child,
+  .worksheet-content .final-budget-panel .data-table .mobile-row-action {
+    justify-content: center;
+    padding-inline: 8px;
+  }
+
+  .worksheet-content .final-budget-panel .data-table .mobile-row-action .icon-btn {
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
+  }
+
+  .worksheet-content .final-budget-panel .table-input,
+  .worksheet-content .final-budget-panel .money-input-wrap {
+    width: 100%;
+    min-width: 0;
+  }
+}
