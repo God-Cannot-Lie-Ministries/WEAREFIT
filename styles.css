@@ -8323,11 +8323,10 @@ html[data-theme="dark"] .settings-page .settings-housing-choice .type-choice.act
 
   .worksheet-content .bill-sections .bills-table tr {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 44px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px;
     grid-template-areas:
-      "bill action"
-      "date date"
-      "amount amount";
+      "bill bill action"
+      "date amount amount";
     align-items: start;
     gap: 8px;
     width: 100%;
@@ -8404,10 +8403,9 @@ html[data-theme="dark"] .settings-page .settings-housing-choice .type-choice.act
 
   .worksheet-content .bill-sections .bills-table.coach-review tr {
     grid-template-areas:
-      "bill action"
-      "date date"
-      "amount amount"
-      "plan plan";
+      "bill bill action"
+      "date amount amount"
+      "plan plan plan";
   }
 
   .worksheet-content .bill-sections .bills-table.coach-review td:nth-child(4) {
@@ -8507,6 +8505,22 @@ html[data-theme="dark"] .settings-page .settings-housing-choice .type-choice.act
 }
 
 @media (max-width: 360px) {
+  .worksheet-content .bill-sections .bills-table tr {
+    grid-template-columns: minmax(0, 1fr) 44px;
+    grid-template-areas:
+      "bill action"
+      "date date"
+      "amount amount";
+  }
+
+  .worksheet-content .bill-sections .bills-table.coach-review tr {
+    grid-template-areas:
+      "bill action"
+      "date date"
+      "amount amount"
+      "plan plan";
+  }
+
   .worksheet-content .final-budget-panel .budget-remaining-strip,
   .worksheet-content .final-budget-panel .data-table tr {
     grid-template-columns: minmax(0, 1fr);
@@ -8554,8 +8568,25 @@ html[data-theme="dark"] .settings-page .settings-housing-choice .type-choice.act
   .worksheet-content .bill-sections .bills-table th,
   .worksheet-content .bill-sections .bills-table td {
     display: flex;
+    width: auto !important;
     min-width: 0;
     align-items: center;
+  }
+
+  .worksheet-content .bill-sections .bills-table th {
+    min-height: 42px;
+    justify-content: flex-start;
+    border-bottom: 1px solid var(--gold-line);
+    background: transparent;
+    color: var(--gold);
+    padding: 8px 12px;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+  }
+
+  .worksheet-content .bill-sections .bills-table th:last-child {
+    justify-content: center;
+    color: transparent;
   }
 
   .worksheet-content .bill-sections .bills-table .mobile-row-action {
