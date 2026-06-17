@@ -8980,3 +8980,48 @@ html[data-theme="dark"] .worksheet-content .bill-sections .bills-table .bill-sel
 html[data-theme="dark"] .worksheet-content .bill-sections .bill-selector-button:hover {
   color: #ffffff;
 }
+
+/* Final Budgeting polish: remove the brown table-header treatment. */
+.worksheet-content .final-budget-panel .data-table th {
+  border-top: 1px solid color-mix(in srgb, var(--gold-line) 62%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--gold-line) 38%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-soft) 86%, transparent), color-mix(in srgb, var(--surface) 96%, transparent));
+  color: color-mix(in srgb, var(--navy) 76%, var(--muted));
+  letter-spacing: 0.12em;
+}
+
+.worksheet-content .final-budget-panel .data-table td {
+  background: color-mix(in srgb, var(--surface) 94%, var(--navy) 6%);
+}
+
+.worksheet-content .final-budget-panel .data-table tr + tr td {
+  border-top-color: color-mix(in srgb, var(--gold-line) 28%, var(--line));
+}
+
+.worksheet-content .final-budget-panel .table-input {
+  border-color: color-mix(in srgb, var(--gold-line) 48%, var(--line));
+  background: color-mix(in srgb, var(--surface) 96%, var(--navy) 4%);
+}
+
+.worksheet-content .final-budget-panel .table-input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 18%, transparent);
+}
+
+html[data-theme="dark"] .worksheet-content .final-budget-panel .data-table th {
+  border-top-color: rgba(239, 195, 83, 0.28);
+  border-bottom-color: rgba(239, 195, 83, 0.22);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012));
+  color: #cbd6e8;
+}
+
+html[data-theme="dark"] .worksheet-content .final-budget-panel .data-table td {
+  background: rgba(11, 40, 83, 0.82);
+}
+
+html[data-theme="dark"] .worksheet-content .final-budget-panel .table-input {
+  border-color: rgba(239, 195, 83, 0.42);
+  background: rgba(5, 20, 44, 0.62);
+}
