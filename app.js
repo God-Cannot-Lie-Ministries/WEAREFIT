@@ -3733,7 +3733,7 @@ function variablePanel(form, calc, readOnly) {
       <div class="budget-remaining-strip">
         ${computedField("Ready to budget", money(calc.remainingBeforeBudget), "remaining-before-budget")}
         ${computedField("Budgeted", money(calc.variableBudget), "variable-budget")}
-        ${computedField(overBudget ? "Over budget" : "Left over", money(Math.abs(calc.available)), "available")}
+        ${computedField("Left to budget", money(calc.available), "available")}
       </div>
       <div class="data-table-wrap">
         <table class="data-table final-budget-table">
@@ -3748,7 +3748,7 @@ function variablePanel(form, calc, readOnly) {
           </tbody>
         </table>
       </div>
-      <div class="table-total"><span>${overBudget ? "Reduce budget" : "Left over"}</span><strong>${money(calc.available)}</strong></div>
+      <div class="table-total"><span>Left to budget</span><strong>${money(calc.available)}</strong></div>
     </section>
   `;
 }
@@ -4292,7 +4292,7 @@ function summaryPanel(calc) {
         ${summaryRow("Budgeted", money(calc.variableBudget))}
         ${summaryRow("Total planned outflow", money(calc.totalPlanned))}
         ${calc.approvedBills ? summaryRow("Coach selected this check", money(calc.approvedBills)) : ""}
-        ${summaryRow(calc.available < 0 ? "Over budget" : "Left over", money(calc.available), true, "available")}
+        ${summaryRow("Left to budget", money(calc.available), true, "available")}
       </div>
     </div>
   `;
@@ -4718,16 +4718,16 @@ function showOverBudgetDialog(calc) {
   modal.innerHTML = `
     <section class="modal" role="dialog" aria-modal="true" aria-labelledby="over-budget-title">
       <div class="modal-header">
-        <div><p class="document-label">Worksheet needs adjustment</p><h3 id="over-budget-title">This worksheet is over budget</h3></div>
+        <div><p class="document-label">Worksheet needs adjustment</p><h3 id="over-budget-title">Reduce the budget first</h3></div>
         <button class="icon-btn" type="button" aria-label="Close" data-close-modal>×</button>
       </div>
       <div class="modal-body">
         <p>Your worksheet cannot be sent while planned expenses are higher than the money available for this check.</p>
         <div class="over-budget-summary">
-          <div><span>Amount over budget</span><strong>${money(Math.abs(calc.available))}</strong></div>
+          <div><span>Amount to reduce</span><strong>${money(Math.abs(calc.available))}</strong></div>
           <div><span>Total planned outflow</span><strong>${money(calc.totalPlanned)}</strong></div>
         </div>
-        <p>Reduce budget categories, bills, contributions, or extra payments until the worksheet shows <strong>$0.00 left over</strong> or a positive left over amount.</p>
+        <p>Reduce budget categories, bills, contributions, or extra payments until <strong>Left to budget</strong> is $0.00 or higher.</p>
         <button class="btn btn-primary" type="button" data-close-modal>Review worksheet</button>
       </div>
     </section>
