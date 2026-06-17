@@ -9025,3 +9025,119 @@ html[data-theme="dark"] .worksheet-content .final-budget-panel .table-input {
   border-color: rgba(239, 195, 83, 0.42);
   background: rgba(5, 20, 44, 0.62);
 }
+
+.upcoming-bills-view {
+  display: grid;
+  gap: 18px;
+}
+
+.upcoming-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.upcoming-bills-panel {
+  overflow: hidden;
+}
+
+.upcoming-bill-list {
+  display: grid;
+  gap: 0;
+}
+
+.upcoming-bill-card {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  padding: 14px 16px;
+}
+
+.upcoming-bill-card:last-child {
+  border-bottom: 0;
+}
+
+.upcoming-date-badge {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--gold-line) 68%, var(--line));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--gold-soft) 58%, var(--surface));
+  color: var(--navy);
+}
+
+.upcoming-date-badge strong {
+  margin-bottom: -9px;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.upcoming-date-badge span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.upcoming-bill-main {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.upcoming-bill-main h3 {
+  margin: 0;
+  color: var(--navy);
+  font-size: 17px;
+}
+
+.upcoming-bill-main p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+.upcoming-amount {
+  color: var(--navy);
+  font-size: 20px;
+  text-align: right;
+}
+
+html[data-theme="dark"] .upcoming-date-badge {
+  background: rgba(239, 195, 83, 0.09);
+  color: #ffffff;
+}
+
+html[data-theme="dark"] .upcoming-bill-main h3,
+html[data-theme="dark"] .upcoming-amount {
+  color: #ffffff;
+}
+
+@media (max-width: 768px) {
+  .upcoming-summary-grid,
+  .upcoming-bill-card {
+    grid-template-columns: 1fr;
+  }
+
+  .upcoming-bill-card {
+    align-items: start;
+    gap: 10px;
+  }
+
+  .upcoming-bill-main {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .upcoming-amount {
+    text-align: left;
+  }
+}

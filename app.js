@@ -202,6 +202,7 @@ function blankProfileDebt() {
     account: "",
     totalOwed: "",
     minimumPayment: "",
+    dueDate: "",
     apr: "",
     promotionalRateApplied: false,
     promotionalRate: "",
@@ -327,6 +328,8 @@ function ensureAccountModel(account) {
   mortgage.totalAmount ||= "";
   mortgage.interestRate ||= "";
   mortgage.currentBalance ||= "";
+  mortgage.paymentAmount ||= "";
+  mortgage.nextDueDate ||= "";
 }
 
 function reconcileReportedWithdrawals(state, account) {
@@ -545,6 +548,39 @@ function dueDateForDay(dueDay) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+function dateValueFromLocal(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function addDays(date, days) {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
+}
+
+function nextMonthlyDueDate(dueDay, fromDate = new Date()) {
+  if (!dueDay) return "";
+  const dateForMonth = (year, month) => {
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    const day = dueDay === "last" ? lastDay : Math.min(Number(dueDay), lastDay);
+    return new Date(year, month, day, 12, 0, 0, 0);
+  };
+  const start = new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate(), 0, 0, 0, 0);
+  let dueDate = dateForMonth(start.getFullYear(), start.getMonth());
+  if (dueDate < start) {
+    dueDate = dateForMonth(start.getFullYear(), start.getMonth() + 1);
+  }
+  return dateValueFromLocal(dueDate);
+}
+
+function isDateWithinNextMonth(value) {
+  if (!value) return false;
+  const start = new Date(`${todayValue()}T00:00:00`);
+  const end = addDays(start, 31);
+  const dueDate = new Date(`${value}T12:00:00`);
+  return dueDate >= start && dueDate <= end;
+}
+
 function recurringBillToWorksheetBill(bill) {
   return {
     ...blankBill(),
@@ -639,6 +675,8 @@ function syncDraftFormsWithFinancialProfile(account) {
         totalAmount: account.financialInventory.mortgage.totalAmount || form.data.mortgage.totalAmount || "",
         interestRate: account.financialInventory.mortgage.interestRate || form.data.mortgage.interestRate || "",
         currentBalance: account.financialInventory.mortgage.currentBalance || form.data.mortgage.currentBalance || "",
+        paymentAmount: account.financialInventory.mortgage.paymentAmount || form.data.mortgage.paymentAmount || "",
+        nextDueDate: account.financialInventory.mortgage.nextDueDate || form.data.mortgage.nextDueDate || "",
       };
       form.data.housingPaymentType = account.financialInventory.housingPaymentType || "mortgage";
       form.generatedFromProfile = true;
@@ -690,8 +728,8 @@ function blankForm(owner, carryForward = owner.carryForward || {}, assignedPerso
         totalAmount: inventory.mortgage?.totalAmount || carryForward.mortgage?.totalAmount || "",
         interestRate: inventory.mortgage?.interestRate || carryForward.mortgage?.interestRate || "",
         currentBalance: inventory.mortgage?.currentBalance || carryForward.mortgage?.currentBalance || "",
-        paymentAmount: carryForward.mortgage?.paymentAmount || "",
-        nextDueDate: carryForward.mortgage?.nextDueDate || "",
+        paymentAmount: inventory.mortgage?.paymentAmount || carryForward.mortgage?.paymentAmount || "",
+        nextDueDate: inventory.mortgage?.nextDueDate || carryForward.mortgage?.nextDueDate || "",
         mustPayBy: carryForward.mortgage?.mustPayBy || "",
         remainingBefore: carryForward.mortgage?.remainingBefore || "",
         contribution: "",
@@ -1011,10 +1049,30 @@ function seedState() {
         account: "Student Loan",
         totalOwed: "12600",
         minimumPayment: "180",
+        dueDate: "2026-06-25",
         apr: "5.5",
         notes: "Extra payments after card payoff",
       },
     ],
+    studentLoans: [
+      {
+        ...blankStudentLoan(),
+        account: "Federal Student Loan",
+        loanType: "federal_unsubsidized",
+        totalOwed: "8200",
+        paymentDue: "95",
+        dueDate: "2026-07-01",
+        apr: "4.75",
+      },
+    ],
+    mortgage: {
+      totalAmount: "240000",
+      interestRate: "5.25",
+      currentBalance: "228500",
+      paymentAmount: "1650",
+      nextDueDate: "2026-07-01",
+    },
+    housingPaymentType: "mortgage",
   };
   member.savingsInvestmentAccounts = [
     {
@@ -1765,6 +1823,11 @@ function render() {
     return;
   }
 
+  if (activeView === "upcoming-bills") {
+    renderUpcomingBills();
+    return;
+  }
+
   if (activeView === "profile") {
     renderProfile();
     return;
@@ -2076,6 +2139,7 @@ function shell(content, options = {}) {
                   <span class="nav-label">Create Worksheet</span>
                 </button>`
           }
+          ${navButton("upcoming-bills", "◷", "Upcoming bills")}
           ${navButton("coach-connection", "↗", isCoach ? "Mentee Management" : "Coach Connection")}
           ${navButton("profile", "◉", "My Financial Profile")}
           ${navButton("sessions", "✦", isCoach ? "Mentee Session Reviews" : "Session History")}
@@ -2113,6 +2177,151 @@ function shell(content, options = {}) {
         ${communityFooter()}
       </main>
     </div>
+  `;
+}
+
+function daysUntilLabel(value) {
+  if (!value) return "No due date";
+  const today = new Date(`${todayValue()}T00:00:00`);
+  const dueDate = new Date(`${value}T12:00:00`);
+  const difference = Math.round((dueDate - today) / 86400000);
+  if (difference === 0) return "Due today";
+  if (difference === 1) return "Due tomorrow";
+  return `Due in ${difference} days`;
+}
+
+function upcomingBillItems(account) {
+  ensureFinancialInventory(account);
+  const categoryLabel = Object.fromEntries(billGroups);
+  const addItem = (items, item) => {
+    if (!item.name || !item.dueDate || !isDateWithinNextMonth(item.dueDate)) return;
+    items.push({
+      id: item.id || uid("upcoming"),
+      name: item.name,
+      amount: currencyValue(item.amount),
+      dueDate: item.dueDate,
+      type: item.type,
+      source: item.source,
+    });
+  };
+  const items = [];
+
+  account.financialInventory.recurringBills.forEach((bill) => {
+    if (!bill.scheduleEnabled || !bill.dueDay) return;
+    addItem(items, {
+      id: bill.id,
+      name: bill.name,
+      amount: bill.amount,
+      dueDate: nextMonthlyDueDate(bill.dueDay),
+      type: "Recurring bill",
+      source: categoryLabel[bill.category] || "Other Bills",
+    });
+  });
+
+  account.financialInventory.creditCards.forEach((card) => {
+    addItem(items, {
+      id: card.id,
+      name: card.account,
+      amount: card.paymentDue,
+      dueDate: card.dueDate,
+      type: "Credit card",
+      source: "Card payment",
+    });
+  });
+
+  account.financialInventory.debts.forEach((debt) => {
+    addItem(items, {
+      id: debt.id,
+      name: debt.account,
+      amount: debt.minimumPayment,
+      dueDate: debt.dueDate,
+      type: "Debt",
+      source: "Minimum payment",
+    });
+  });
+
+  account.financialInventory.studentLoans.forEach((loan) => {
+    addItem(items, {
+      id: loan.id,
+      name: loan.account,
+      amount: loan.paymentDue,
+      dueDate: loan.dueDate,
+      type: "Student loan",
+      source: loan.loanType ? loan.loanType.replaceAll("_", " ") : "Student loan payment",
+    });
+  });
+
+  const mortgage = account.financialInventory.mortgage || {};
+  if (account.financialInventory.housingPaymentType !== "rent") {
+    addItem(items, {
+      id: "mortgage-payment",
+      name: "Mortgage payment",
+      amount: mortgage.paymentAmount,
+      dueDate: mortgage.nextDueDate,
+      type: "Mortgage",
+      source: "Housing",
+    });
+  }
+
+  return items.sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.name.localeCompare(b.name));
+}
+
+function renderUpcomingBills() {
+  const account = currentAccount();
+  if (!account) {
+    activeView = "dashboard";
+    renderDashboard();
+    return;
+  }
+  activeView = "upcoming-bills";
+  const items = upcomingBillItems(account);
+  const total = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const content = `
+    <div class="content upcoming-bills-view">
+      <div class="page-heading">
+        <div>
+          <p class="eyebrow">Next 31 days</p>
+          <h2>Upcoming bills</h2>
+          <p>Bills due within a month based on ${account.role === "coach" ? "your private coach financial profile" : "your saved financial profile"}.</p>
+        </div>
+        <button class="btn btn-primary" type="button" data-view="profile">Update financial profile</button>
+      </div>
+      <section class="upcoming-summary-grid" aria-label="Upcoming bill summary">
+        ${metric("Bills coming up", String(items.length))}
+        ${metric("Amount due soon", money(total))}
+        ${metric("Next due", items[0] ? dateLabel(items[0].dueDate) : "None")}
+      </section>
+      <section class="panel upcoming-bills-panel">
+        <div class="panel-heading">
+          <div><h3>Due within a month</h3><p>Includes recurring bills, cards, debts, student loans, and mortgage when selected.</p></div>
+          <span class="badge green">${money(total)} total</span>
+        </div>
+        <div class="upcoming-bill-list">
+          ${
+            items.length
+              ? items.map(upcomingBillCard).join("")
+              : emptyState("◷", "No bills due within a month", "Add due dates and amounts in your financial profile to see reminders here.", `<button class="btn btn-primary" type="button" data-view="profile">Go to financial profile</button>`)
+          }
+        </div>
+      </section>
+    </div>
+  `;
+  app.innerHTML = shell(content, {
+    title: "Upcoming bills",
+    subtitle: "Bills and payments due within the next month",
+  });
+}
+
+function upcomingBillCard(item) {
+  return `
+    <article class="upcoming-bill-card">
+      <div class="upcoming-date-badge"><strong>${new Date(`${item.dueDate}T12:00:00`).getDate()}</strong><span>${new Intl.DateTimeFormat("en-US", { month: "short" }).format(new Date(`${item.dueDate}T12:00:00`))}</span></div>
+      <div class="upcoming-bill-main">
+        <div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(item.type)} · ${escapeHtml(item.source)}</p></div>
+        <span class="badge">${daysUntilLabel(item.dueDate)}</span>
+      </div>
+      <strong class="upcoming-amount">${money(item.amount)}</strong>
+    </article>
   `;
 }
 
@@ -2661,6 +2870,8 @@ function mortgageProfileSection(account) {
           ${moneyField("Total mortgage amount", "financialInventory.mortgage.totalAmount", mortgage.totalAmount, false)}
           ${percentField("Mortgage interest rate", "financialInventory.mortgage.interestRate", mortgage.interestRate, false)}
           ${moneyField("Current mortgage balance", "financialInventory.mortgage.currentBalance", mortgage.currentBalance, false)}
+          ${moneyField("Monthly mortgage payment", "financialInventory.mortgage.paymentAmount", mortgage.paymentAmount, false)}
+          ${dateField("Next mortgage due date", "financialInventory.mortgage.nextDueDate", mortgage.nextDueDate, false)}
         </div>
         <div class="savings-progress-block"><div class="savings-progress-copy"><strong>${money(Math.max(0, total - current))} paid</strong><span>${money(current)} remaining</span></div>${progressBar(progress, `${Math.round(progress)}% paid`)}</div>
         </div>
@@ -2741,6 +2952,7 @@ function debtProfileCard(debt, index) {
         ${textField("Debt / account", `financialInventory.debts.${index}.account`, debt.account, false, "Account name")}
         ${moneyField("Current balance", `financialInventory.debts.${index}.totalOwed`, debt.totalOwed, false)}
         ${moneyField("Minimum payment", `financialInventory.debts.${index}.minimumPayment`, debt.minimumPayment, false)}
+        ${dateField("Due date", `financialInventory.debts.${index}.dueDate`, debt.dueDate, false)}
         ${percentField("Annual APR", `financialInventory.debts.${index}.apr`, debt.apr, false)}
       </div>
       <label class="check-control">
