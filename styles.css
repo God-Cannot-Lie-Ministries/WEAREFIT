@@ -3479,6 +3479,15 @@ html[data-theme="dark"] .chart-legend button strong {
   padding: 12px;
 }
 
+.schedule-help {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
 .promo-type-field {
   max-width: 430px;
   margin-top: 14px;

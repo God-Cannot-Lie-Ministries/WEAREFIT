@@ -586,6 +586,7 @@ function isDateWithinNextMonth(value) {
 function recurringBillToWorksheetBill(bill) {
   return {
     ...blankBill(),
+    profileBillId: bill.id || "",
     name: bill.name,
     dueDate: bill.scheduleEnabled ? recurringBillNextDueDate(bill) : "",
     amount: bill.scheduleEnabled ? bill.amount : "",
@@ -594,32 +595,75 @@ function recurringBillToWorksheetBill(bill) {
 }
 
 function recurringBillNextDueDate(bill) {
-  return bill.nextDueDate || (bill.dueDay ? dueDateForDay(bill.dueDay) : "");
+  return bill.nextDueDate || (bill.dueDay ? nextMonthlyDueDate(bill.dueDay) : "");
+}
+
+function upcomingProfilePayment(row, amountKey, dueDateKey = "dueDate") {
+  const amount = currencyValue(row?.[amountKey]);
+  return amount && isDateWithinNextMonth(row?.[dueDateKey]) ? amount.toFixed(2) : "";
+}
+
+function isUpcomingRecurringBill(bill) {
+  if (!bill?.name || !bill.scheduleEnabled) return false;
+  const dueDate = recurringBillNextDueDate(bill);
+  return Boolean(dueDate && currencyValue(bill.amount) && isDateWithinNextMonth(dueDate));
+}
+
+function worksheetBillsFromUpcomingProfile(profileBills = []) {
+  const rows = profileBills
+    .filter(isUpcomingRecurringBill)
+    .map((bill) => recurringBillToWorksheetBill(bill));
+  while (rows.length < 3) rows.push(blankBill());
+  return rows;
 }
 
 function syncWorksheetBillsWithProfile(existingBills = [], profileBills = []) {
+  const profileRows = profileBills
+    .filter(isUpcomingRecurringBill)
+    .map((bill) => recurringBillToWorksheetBill(bill));
+  const profileById = new Map(profileRows.filter((bill) => bill.profileBillId).map((bill) => [bill.profileBillId, bill]));
   const profileByName = new Map(
-    profileBills
-      .filter((bill) => bill.name)
-      .map((bill) => [String(bill.name).trim().toLowerCase(), recurringBillToWorksheetBill(bill)]),
+    profileRows.map((bill) => [String(bill.name).trim().toLowerCase(), bill]),
   );
+  const usedProfileIds = new Set();
+  const usedNames = new Set();
   const synced = existingBills
     .map((bill) => {
-      if (!bill.name) return clone(bill);
-      const profileBill = profileByName.get(String(bill.name).trim().toLowerCase());
-      if (!profileBill) return clone(bill);
+      const isEmpty = !bill.name && !bill.amount && !bill.dueDate && !bill.coachDecision;
+      if (isEmpty) return null;
+      const nameKey = String(bill.name || "").trim().toLowerCase();
+      const profileBill = profileById.get(bill.profileBillId) || profileByName.get(nameKey);
+      if (!profileBill) {
+        if (nameKey) usedNames.add(nameKey);
+        return clone(bill);
+      }
+      if (profileBill.profileBillId) usedProfileIds.add(profileBill.profileBillId);
+      usedNames.add(String(profileBill.name || "").trim().toLowerCase());
       return {
         ...blankBill(),
         ...clone(bill),
         ...profileBill,
         coachDecision: bill.coachDecision || "",
       };
-    });
+    })
+    .filter(Boolean);
+  profileRows.forEach((profileBill) => {
+    const nameKey = String(profileBill.name || "").trim().toLowerCase();
+    if (
+      (profileBill.profileBillId && usedProfileIds.has(profileBill.profileBillId)) ||
+      usedNames.has(nameKey)
+    ) {
+      return;
+    }
+    synced.push(profileBill);
+    if (profileBill.profileBillId) usedProfileIds.add(profileBill.profileBillId);
+    usedNames.add(nameKey);
+  });
   while (synced.length < 3) synced.push(blankBill());
   return synced;
 }
 
-function syncWorksheetAccountsWithProfile(existingRows = [], profileRows = [], blankFactory, minimumRows) {
+function syncWorksheetAccountsWithProfile(existingRows = [], profileRows = [], blankFactory, minimumRows, paymentPlan = null) {
   const existingByAccount = new Map(
     existingRows
       .filter((row) => row.account)
@@ -632,7 +676,7 @@ function syncWorksheetAccountsWithProfile(existingRows = [], profileRows = [], b
       return {
         ...blankFactory(),
         ...clone(profileRow),
-        contribution: existingRow?.contribution || "",
+        contribution: existingRow?.contribution || (paymentPlan ? upcomingProfilePayment(profileRow, paymentPlan.amountKey, paymentPlan.dueDateKey) : ""),
         coachDecision: existingRow?.coachDecision || "",
       };
     });
@@ -659,6 +703,7 @@ function syncDraftFormsWithFinancialProfile(account) {
         account.financialInventory.creditCards,
         blankCreditCard,
         2,
+        { amountKey: "paymentDue", dueDateKey: "dueDate" },
       );
       form.data.creditCards.forEach(migratePromoCard);
       form.data.studentLoans = syncWorksheetAccountsWithProfile(
@@ -666,12 +711,14 @@ function syncDraftFormsWithFinancialProfile(account) {
         account.financialInventory.studentLoans,
         blankStudentLoan,
         0,
+        { amountKey: "paymentDue", dueDateKey: "dueDate" },
       );
       form.data.debts = syncWorksheetAccountsWithProfile(
         form.data.debts,
         account.financialInventory.debts,
         blankDebt,
         3,
+        { amountKey: "minimumPayment", dueDateKey: "dueDate" },
       );
       if (account.savingsInvestmentAccounts.some((item) => item.type === "savings")) {
         form.data.savings.current = String(savingsTotal);
@@ -684,6 +731,9 @@ function syncDraftFormsWithFinancialProfile(account) {
         paymentAmount: account.financialInventory.mortgage.paymentAmount || form.data.mortgage.paymentAmount || "",
         nextDueDate: account.financialInventory.mortgage.nextDueDate || form.data.mortgage.nextDueDate || "",
       };
+      if (!form.data.mortgage.contribution) {
+        form.data.mortgage.contribution = upcomingProfilePayment(form.data.mortgage, "paymentAmount", "nextDueDate");
+      }
       form.data.housingPaymentType = account.financialInventory.housingPaymentType || "mortgage";
       form.generatedFromProfile = true;
       form.updatedAt = new Date().toISOString();
@@ -703,6 +753,10 @@ function blankForm(owner, carryForward = owner.carryForward || {}, assignedPerso
     ? carryForward.creditCards
     : inventory.creditCards;
   const sourceDebts = carryForward.debts?.length ? carryForward.debts : inventory.debts;
+  const mortgageSource = {
+    ...(carryForward.mortgage || {}),
+    ...(inventory.mortgage || {}),
+  };
   const now = new Date().toISOString();
   const readableDate = new Intl.DateTimeFormat("en-US", {
     month: "long",
@@ -728,17 +782,22 @@ function blankForm(owner, carryForward = owner.carryForward || {}, assignedPerso
     data: {
       overview: { checkDate: "", thisCheck: "", additionalIncome: "" },
       bills: Object.fromEntries(
-        billGroups.map(([key]) => [key, [blankBill(), blankBill(), blankBill()]]),
+        billGroups.map(([key]) => [
+          key,
+          worksheetBillsFromUpcomingProfile(
+            inventory.recurringBills.filter((bill) => bill.category === key),
+          ),
+        ]),
       ),
       mortgage: {
-        totalAmount: inventory.mortgage?.totalAmount || carryForward.mortgage?.totalAmount || "",
-        interestRate: inventory.mortgage?.interestRate || carryForward.mortgage?.interestRate || "",
-        currentBalance: inventory.mortgage?.currentBalance || carryForward.mortgage?.currentBalance || "",
-        paymentAmount: inventory.mortgage?.paymentAmount || carryForward.mortgage?.paymentAmount || "",
-        nextDueDate: inventory.mortgage?.nextDueDate || carryForward.mortgage?.nextDueDate || "",
+        totalAmount: mortgageSource.totalAmount || "",
+        interestRate: mortgageSource.interestRate || "",
+        currentBalance: mortgageSource.currentBalance || "",
+        paymentAmount: mortgageSource.paymentAmount || "",
+        nextDueDate: mortgageSource.nextDueDate || "",
         mustPayBy: carryForward.mortgage?.mustPayBy || "",
         remainingBefore: carryForward.mortgage?.remainingBefore || "",
-        contribution: "",
+        contribution: upcomingProfilePayment(mortgageSource, "paymentAmount", "nextDueDate"),
       },
       housingPaymentType: inventory.housingPaymentType || "mortgage",
       creditCards: sourceCards?.length
@@ -746,10 +805,11 @@ function blankForm(owner, carryForward = owner.carryForward || {}, assignedPerso
             const nextCard = {
               ...blankCreditCard(),
               ...card,
-              contribution: card.paymentDue || "",
+              contribution: "",
               coachDecision: "",
             };
             migratePromoCard(nextCard);
+            nextCard.contribution = upcomingProfilePayment(nextCard, "paymentDue", "dueDate");
             return nextCard;
           })
         : [blankCreditCard(), blankCreditCard()],
@@ -764,10 +824,18 @@ function blankForm(owner, carryForward = owner.carryForward || {}, assignedPerso
         contribution: "",
       },
       debts: sourceDebts?.length
-        ? clone(sourceDebts).map((debt) => ({ ...blankDebt(), ...debt, contribution: "" }))
+        ? clone(sourceDebts).map((debt) => ({
+            ...blankDebt(),
+            ...debt,
+            contribution: upcomingProfilePayment(debt, "minimumPayment", "dueDate"),
+          }))
         : [blankDebt(), blankDebt(), blankDebt()],
       studentLoans: inventory.studentLoans?.length
-        ? clone(inventory.studentLoans).map((loan) => ({ ...blankStudentLoan(), ...loan, contribution: loan.paymentDue || "" }))
+        ? clone(inventory.studentLoans).map((loan) => ({
+            ...blankStudentLoan(),
+            ...loan,
+            contribution: upcomingProfilePayment(loan, "paymentDue", "dueDate"),
+          }))
         : [],
       calculatorHistory: [],
       calculatorDraft: "",
@@ -2809,8 +2877,9 @@ function recurringBillProfileCard(bill, index) {
       ${
         bill.scheduleEnabled
           ? `<div class="schedule-fields">
-              <div class="field"><label>Due day of each month</label><select class="input" data-profile-path="financialInventory.recurringBills.${index}.dueDay">${dueDayOptions(bill.dueDay)}</select></div>
-              ${dateField("Next due date if it changes", `financialInventory.recurringBills.${index}.nextDueDate`, bill.nextDueDate, false)}
+              <p class="schedule-help">For bills that change dates, leave the fixed monthly day blank and enter the next due date. Worksheets use that next due date first.</p>
+              <div class="field"><label>Fixed monthly due day</label><select class="input" data-profile-path="financialInventory.recurringBills.${index}.dueDay">${dueDayOptions(bill.dueDay)}</select></div>
+              ${dateField("Next due date for variable bills", `financialInventory.recurringBills.${index}.nextDueDate`, bill.nextDueDate, false)}
               ${moneyField("Monthly amount", `financialInventory.recurringBills.${index}.amount`, bill.amount, false)}
             </div>`
           : ""
@@ -4625,6 +4694,7 @@ function applyRecurringBillSuggestion(input, form) {
   if (!suggestion) return;
   const [category, index] = input.dataset.billSuggestion.split(".");
   const bill = form.data.bills[category][Number(index)];
+  bill.profileBillId = suggestion.id || "";
   bill.name = suggestion.name;
   bill.dueDate = suggestion.scheduleEnabled ? recurringBillNextDueDate(suggestion) : "";
   bill.amount = suggestion.scheduleEnabled ? suggestion.amount : "";
@@ -5867,7 +5937,8 @@ document.addEventListener("click", async (event) => {
     const bill = form.data.bills[category]?.[Number(rowIndex)];
     if (suggestion && bill) {
       bill.name = suggestion.name;
-      bill.dueDate = suggestion.scheduleEnabled ? dueDateForDay(suggestion.dueDay) : "";
+      bill.profileBillId = suggestion.id || "";
+      bill.dueDate = suggestion.scheduleEnabled ? recurringBillNextDueDate(suggestion) : "";
       bill.amount = suggestion.scheduleEnabled ? suggestion.amount : "";
       form.updatedAt = new Date().toISOString();
       saveState();
