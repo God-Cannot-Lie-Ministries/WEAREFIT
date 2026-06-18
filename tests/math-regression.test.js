@@ -50,10 +50,13 @@ function calculate(form) {
   ));
   const mortgageContribution = currencyValue(data.housingPaymentType === "mortgage" ? Number(data.mortgage.contribution) || 0 : 0);
   const savingsContribution = currencyValue(data.savings.contribution);
-  const savingsAfter = currencyValue((Number(data.savings.current) || 0) + (Number(data.savings.contribution) || 0));
+  const savingsRolloverTotal = currencyValue((data.allocations || [])
+    .filter((item) => item.type === "savings")
+    .reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
+  const savingsAfter = currencyValue((Number(data.savings.current) || 0) + (Number(data.savings.contribution) || 0) + savingsRolloverTotal);
   const mortgageAfter = currencyValue(Math.max(0, (Number(data.mortgage.currentBalance || data.mortgage.remainingBefore) || 0) - mortgageContribution));
   const allocationTotal = currencyValue((data.allocations || [])
-    .filter((item) => ["debt", "credit_card", "student_loan"].includes(item.type))
+    .filter((item) => ["debt", "credit_card", "student_loan", "savings"].includes(item.type))
     .reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
   const variableBudget = currencyValue(data.variableSpending.reduce(
     (sum, item) => sum + (Number(item.budgeted) || 0),
@@ -129,6 +132,7 @@ function sampleForm() {
         { type: "credit_card", account: "Discover", amount: "20.00" },
         { type: "debt", account: "Medical", amount: "10.00" },
         { type: "student_loan", account: "Federal Loan", amount: "15.00" },
+        { type: "savings", account: "Emergency Fund", amount: "30.00" },
       ],
       variableSpending: [{ budgeted: "200.55" }],
     },
@@ -145,12 +149,12 @@ test("worksheet math includes additional income in tithe and keeps cents everywh
   assert.equal(calc.studentLoanContributions, 50.25);
   assert.equal(calc.mortgageContribution, 250);
   assert.equal(calc.savingsContribution, 100);
-  assert.equal(calc.allocationTotal, 145);
+  assert.equal(calc.allocationTotal, 175);
   assert.equal(calc.variableBudget, 200.55);
-  assert.equal(calc.available, 136.15);
+  assert.equal(calc.available, 106.15);
 });
 
-test("wait-for-next-check skips the regular card payment but still honors extra routed payment", () => {
+test("wait-for-next-check skips the regular card payment but still honors rollover payment", () => {
   const form = sampleForm();
   const calc = calculate(form);
   assert.equal(calc.totalCreditCardBalanceAfter, 1104.75);
@@ -158,7 +162,7 @@ test("wait-for-next-check skips the regular card payment but still honors extra 
   assert.equal(remainingAfterPlannedPayment(form.data.creditCards[1], form, "credit_card"), 280);
 });
 
-test("extra routed payments reduce debts and student loans", () => {
+test("rollovers reduce debts and student loans", () => {
   const form = sampleForm();
   const calc = calculate(form);
   assert.equal(calc.totalDebtBalanceAfter, 464.5);
@@ -168,5 +172,5 @@ test("extra routed payments reduce debts and student loans", () => {
 test("mortgage and savings balances calculate after this check", () => {
   const calc = calculate(sampleForm());
   assert.equal(calc.mortgageAfter, 199750);
-  assert.equal(calc.savingsAfter, 1100);
+  assert.equal(calc.savingsAfter, 1130);
 });

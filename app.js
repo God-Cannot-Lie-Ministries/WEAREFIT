@@ -8,6 +8,7 @@ const billGroups = [
   ["subscriptions", "Subscriptions / Services"],
   ["other", "Other Bills"],
 ];
+const rolloverTypes = ["debt", "credit_card", "student_loan", "savings"];
 
 let appState = loadState();
 let activeView = "dashboard";
@@ -472,7 +473,7 @@ function normalizeStateModels(state) {
     form.data.calculatorMinimized ||= false;
     form.data.calculatorHistoryOpen ||= false;
     form.data.allocations = (form.data.allocations || []).filter((item) =>
-      ["debt", "credit_card", "student_loan"].includes(item.type),
+      rolloverTypes.includes(item.type),
     );
     form.data.variableSpending ||= [];
     form.data.savings ||= { goal: "", current: "", contribution: "" };
@@ -1091,7 +1092,7 @@ function seedState() {
     minimumPayment: "180",
     contribution: "180",
     apr: "5.5",
-    notes: "Extra payments after card payoff",
+    notes: "Rollovers after card payoff",
   };
   member.financialInventory = {
     recurringBills: [
@@ -1129,7 +1130,7 @@ function seedState() {
         minimumPayment: "180",
         dueDate: "2026-06-25",
         apr: "5.5",
-        notes: "Extra payments after card payoff",
+        notes: "Rollovers after card payoff",
       },
     ],
     studentLoans: [
@@ -1483,6 +1484,30 @@ function remainingAfterPlannedPayment(row, form, type) {
   return currencyValue(Math.max(0, (Number(row.totalBalance ?? row.totalOwed) || 0) - plannedContribution(row, form, type)));
 }
 
+function applySavingsRollovers(member, form) {
+  const savingsAccounts = (member.savingsInvestmentAccounts || []).filter((item) => item.type === "savings");
+  if (!savingsAccounts.length) return;
+  (form.data.allocations || [])
+    .filter((item) => item.type === "savings" && item.account && Number(item.amount))
+    .forEach((rollover) => {
+      const account = savingsAccounts.find(
+        (item) => String(item.name || "").trim().toLowerCase() === String(rollover.account || "").trim().toLowerCase(),
+      );
+      if (!account) return;
+      const amount = currencyValue(rollover.amount);
+      const nextBalance = currencyValue((Number(account.balance) || 0) + amount);
+      account.balance = nextBalance.toFixed(2);
+      account.updatedAt = todayValue();
+      account.history ||= [];
+      account.history.push({
+        id: uid("balance"),
+        balance: account.balance,
+        date: todayValue(),
+        note: `Rollover from ${form.title}`,
+      });
+    });
+}
+
 function refreshFinancialProfileSummary(account = currentAccount()) {
   if (!account) return;
   const values = {
@@ -1687,8 +1712,11 @@ function calculate(form) {
     (sum, item) => sum + (Number(item.totalOwed) || 0),
     0,
   );
+  const savingsRolloverTotal = currencyValue((data.allocations || [])
+    .filter((item) => item.type === "savings")
+    .reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
   const savingsAfter = currencyValue(
-    (Number(data.savings.current) || 0) + (Number(data.savings.contribution) || 0),
+    (Number(data.savings.current) || 0) + (Number(data.savings.contribution) || 0) + savingsRolloverTotal,
   );
   const mortgageAfter = currencyValue(Math.max(
     0,
@@ -1696,7 +1724,7 @@ function calculate(form) {
       (data.housingPaymentType === "mortgage" ? Number(data.mortgage.contribution) || 0 : 0),
   ));
   const allocationTotal = currencyValue((data.allocations || [])
-    .filter((item) => ["debt", "credit_card", "student_loan"].includes(item.type))
+    .filter((item) => rolloverTypes.includes(item.type))
     .reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
   const totalCreditCardBalanceAfter = currencyValue(data.creditCards.reduce(
     (sum, item) => sum + remainingAfterPlannedPayment(item, form, "credit_card"),
@@ -1748,6 +1776,7 @@ function calculate(form) {
     studentLoanContributions,
     mortgageContribution,
     savingsContribution,
+    savingsRolloverTotal,
     plannedBeforeBudget,
     remainingBeforeAllocations,
     remainingBeforeBudget,
@@ -3395,7 +3424,7 @@ function sessionReviewCard(session, viewer) {
         ${sessionDetail("Action steps before next session", session.actionSteps || "Continue following the approved worksheet.")}
         ${sessionListDetail("Bills to Pay This Check", session.billsToPayThisCheck || session.billsPaid)}
         ${sessionListDetail("Future Bills / Waiting for Next Check", session.futureBills || session.billsLeft)}
-        ${sessionListDetail("Extra payments", session.allocations)}
+        ${sessionListDetail("Rollovers", session.allocations)}
         ${sessionListDetail("Savings withdrawals", session.savingsWithdrawals)}
         ${sessionDetail("Member notes", session.memberNotes || "N/A")}
       </div>
@@ -3490,7 +3519,7 @@ function createSessionReview(form, coach, coachNotes, actionSteps) {
   const normalizedCoachNotes = coachNotes || "N/A";
   const normalizedActionSteps = actionSteps || "N/A";
   const memberNotes = form.data.notes || "N/A";
-  const aiSummary = `${form.assignedName || member.name} completed a F.I.T. paycheck-planning session with ${coach.name}. Total income for this check was ${money(calc.totalIncome)}, including ${money(calc.additionalIncome)} in additional income. The rounded tithe was ${titheMoney(calc.tithe)}, planned before bills and extra payments. Bills to Pay This Check: ${paid.length ? paid.join("; ") : "none"}. Future Bills / Waiting for Next Check: ${left.length ? left.join("; ") : "none"}. Extra payments total ${money(calc.allocationTotal)}, leaving ${money(calc.available)} available. ${savingsWithdrawals.length ? `Savings withdrawals recorded: ${savingsWithdrawals.join("; ")}.` : "No savings withdrawals were recorded for this form."} Coach notes: ${normalizedCoachNotes}. Member notes: ${memberNotes}.`;
+  const aiSummary = `${form.assignedName || member.name} completed a F.I.T. paycheck-planning session with ${coach.name}. Total income for this check was ${money(calc.totalIncome)}, including ${money(calc.additionalIncome)} in additional income. The rounded tithe was ${titheMoney(calc.tithe)}, planned before bills and rollovers. Bills to Pay This Check: ${paid.length ? paid.join("; ") : "none"}. Future Bills / Waiting for Next Check: ${left.length ? left.join("; ") : "none"}. Rollovers total ${money(calc.allocationTotal)}, leaving ${money(calc.available)} available. ${savingsWithdrawals.length ? `Savings withdrawals recorded: ${savingsWithdrawals.join("; ")}.` : "No savings withdrawals were recorded for this form."} Coach notes: ${normalizedCoachNotes}. Member notes: ${memberNotes}.`;
   return {
     id: uid("session"),
     formId: form.id,
@@ -3853,7 +3882,7 @@ function renderEditor() {
               <a href="#savings">Savings</a>
               <a href="#debt">Debt</a>
               <a href="#student-loans">Student loans</a>
-              <a href="#allocations">Extra payments</a>
+              <a href="#allocations">Rollovers</a>
               <a href="#spending">Budgeting</a>
               <a href="#notes">Notes</a>
             </nav>
@@ -3986,7 +4015,7 @@ function creditCardCard(form, row, index, readOnly, isCoachReview) {
   return `
     <article class="debt-entry credit-card-entry">
       <div class="debt-entry-heading">
-        <div><strong>${escapeHtml(row.account || "New credit card")}</strong><span class="entry-balance">${money(remaining)} remaining${extraPayment ? ` · ${money(extraPayment)} extra routed` : ""}</span></div>
+        <div><strong>${escapeHtml(row.account || "New credit card")}</strong><span class="entry-balance">${money(remaining)} remaining${extraPayment ? ` · ${money(extraPayment)} rolled over` : ""}</span></div>
         ${readOnly ? "" : `<button class="icon-btn danger" type="button" title="Remove card" aria-label="Remove card" data-remove-row="creditCards.${index}">×</button>`}
       </div>
       <div class="debt-entry-grid">
@@ -4031,7 +4060,7 @@ function variablePanel(form, calc, readOnly) {
   return `
     <section class="panel final-budget-panel ${overBudget ? "over-budget" : ""}" id="spending">
       <div class="panel-heading">
-        <div><p class="eyebrow">Final step</p><h3>Budget remaining funds</h3><p>Use only what remains after bills, contributions, and extra payments.</p></div>
+        <div><p class="eyebrow">Final step</p><h3>Budget remaining funds</h3><p>Use only what remains after bills, contributions, and rollovers.</p></div>
         ${readOnly ? "" : `<button class="btn btn-secondary btn-small" type="button" data-add-row="variableSpending"><span aria-hidden="true">＋</span> Add category</button>`}
       </div>
       <div class="budget-remaining-strip">
@@ -4100,7 +4129,7 @@ function debtCard(form, row, index, readOnly) {
   return `
     <article class="debt-entry debt-tracker-entry">
       <div class="debt-entry-heading">
-        <div><strong>${escapeHtml(row.account || "New debt account")}</strong><span class="entry-balance">${money(remaining)} remaining${extraPayment ? ` · ${money(extraPayment)} extra routed` : ""}</span></div>
+        <div><strong>${escapeHtml(row.account || "New debt account")}</strong><span class="entry-balance">${money(remaining)} remaining${extraPayment ? ` · ${money(extraPayment)} rolled over` : ""}</span></div>
         ${readOnly ? "" : `<button class="icon-btn danger" type="button" title="Remove debt" aria-label="Remove debt" data-remove-row="debts.${index}">×</button>`}
       </div>
       <div class="debt-entry-grid">
@@ -4141,7 +4170,7 @@ function studentLoanPanel(form, calc, readOnly) {
 function studentLoanCard(form, loan, index, readOnly) {
   const remaining = remainingAfterPlannedPayment(loan, form, "student_loan");
   const extraPayment = allocationTotalFor(form, "student_loan", loan.account);
-  return `<article class="debt-entry student-loan-entry"><div class="debt-entry-heading"><div><strong>${escapeHtml(loan.account || "New student loan")}</strong><span class="entry-balance">${money(remaining)} remaining${extraPayment ? ` · ${money(extraPayment)} extra routed` : ""}</span></div>${readOnly ? "" : `<button class="icon-btn danger" type="button" title="Remove student loan" aria-label="Remove student loan" data-remove-row="studentLoans.${index}">×</button>`}</div><div class="debt-entry-grid">
+  return `<article class="debt-entry student-loan-entry"><div class="debt-entry-heading"><div><strong>${escapeHtml(loan.account || "New student loan")}</strong><span class="entry-balance">${money(remaining)} remaining${extraPayment ? ` · ${money(extraPayment)} rolled over` : ""}</span></div>${readOnly ? "" : `<button class="icon-btn danger" type="button" title="Remove student loan" aria-label="Remove student loan" data-remove-row="studentLoans.${index}">×</button>`}</div><div class="debt-entry-grid">
     ${textField("Loan name", `studentLoans.${index}.account`, loan.account, readOnly, "Student loan name")}
     ${studentLoanTypeField(`studentLoans.${index}.loanType`, loan.loanType, readOnly)}
     ${moneyField("Balance", `studentLoans.${index}.totalOwed`, loan.totalOwed, readOnly)}
@@ -4153,19 +4182,22 @@ function studentLoanCard(form, loan, index, readOnly) {
 }
 
 function allocationTargetOptions(form, selectedType, selectedAccount) {
+  const owner = appState.accounts[form.ownerEmail];
   const groups = [
     ["debt", "Debts", form.data.debts || []],
     ["credit_card", "Credit cards", form.data.creditCards || []],
     ["student_loan", "Student loans", form.data.studentLoans || []],
+    ["savings", "Savings accounts", (owner?.savingsInvestmentAccounts || []).filter((item) => item.type === "savings")],
   ];
   const selectedValue = `${selectedType || ""}|${selectedAccount || ""}`;
-  return `<option value="">Select a debt or card</option>${groups
+  return `<option value="">Select a rollover target</option>${groups
     .map(([type, label, rows]) => {
       const options = rows
-        .filter((row) => row.account)
+        .filter((row) => row.account || row.name)
         .map((row) => {
-          const value = `${type}|${row.account}`;
-          return `<option value="${escapeHtml(value)}" ${value === selectedValue ? "selected" : ""}>${escapeHtml(row.account)}</option>`;
+          const accountName = row.account || row.name || "Savings account";
+          const value = `${type}|${accountName}`;
+          return `<option value="${escapeHtml(value)}" ${value === selectedValue ? "selected" : ""}>${escapeHtml(accountName)}</option>`;
         })
         .join("");
       return options ? `<optgroup label="${label}">${options}</optgroup>` : "";
@@ -4178,23 +4210,23 @@ function allocationPanel(form, calc, readOnly) {
   return `
     <section class="panel debt-routing-panel" id="allocations">
       <div class="panel-heading">
-        <div><h3>Extra payments</h3><p>Apply available money to a debt, credit card, or student loan.</p></div>
-        ${readOnly ? "" : `<button class="btn btn-secondary btn-small" type="button" data-add-row="allocations"><span aria-hidden="true">＋</span> Add payment</button>`}
+        <div><h3>Rollovers</h3><p>Move remaining money to savings, debt, credit cards, or student loans.</p></div>
+        ${readOnly ? "" : `<button class="btn btn-secondary btn-small" type="button" data-add-row="allocations"><span aria-hidden="true">＋</span> Add rollover</button>`}
       </div>
       <div class="routing-list">
         ${
           rows.length
             ? rows.map((row, index) => `
               <article class="routing-row">
-                <div class="field"><label>Debt or card</label><button class="input selection-field-button" type="button" data-open-allocation-selector="${index}" ${readOnly ? "disabled" : ""}><span>${escapeHtml(row.account || "Choose a debt or card")}</span><i aria-hidden="true">⌄</i></button></div>
-                ${moneyField("Payment amount", `allocations.${index}.amount`, row.amount, readOnly)}
-                ${readOnly ? "" : `<button class="icon-btn danger routing-remove" type="button" aria-label="Remove extra payment" title="Remove extra payment" data-remove-row="allocations.${index}">×</button>`}
+                <div class="field"><label>Rollover target</label><button class="input selection-field-button" type="button" data-open-allocation-selector="${index}" ${readOnly ? "disabled" : ""}><span>${escapeHtml(row.account || "Choose a rollover target")}</span><i aria-hidden="true">⌄</i></button></div>
+                ${moneyField("Rollover amount", `allocations.${index}.amount`, row.amount, readOnly)}
+                ${readOnly ? "" : `<button class="icon-btn danger routing-remove" type="button" aria-label="Remove rollover" title="Remove rollover" data-remove-row="allocations.${index}">×</button>`}
               </article>
             `).join("")
-            : emptyInline("No extra payments added", "Add a payment to apply available money to a debt or card.")
+            : emptyInline("No rollovers added", "Add a rollover to move remaining money to savings, debt, credit cards, or student loans.")
         }
       </div>
-      <div class="table-total"><span>Total extra payments</span><strong data-live-allocation-total>${money(calc.allocationTotal)}</strong></div>
+      <div class="table-total"><span>Total rollovers</span><strong data-live-allocation-total>${money(calc.allocationTotal)}</strong></div>
     </section>
   `;
 }
@@ -4591,7 +4623,7 @@ function summaryPanel(calc) {
         ${summaryRow("Student loan contributions", money(calc.studentLoanContributions))}
         ${summaryRow("Mortgage contribution", money(calc.mortgageContribution))}
         ${summaryRow("Savings contribution", money(calc.savingsContribution))}
-        ${summaryRow("Extra payments", money(calc.allocationTotal), false, "allocation-total")}
+        ${summaryRow("Rollovers", money(calc.allocationTotal), false, "allocation-total")}
         ${summaryRow("Ready to budget", money(calc.remainingBeforeBudget))}
         ${summaryRow("Budgeted", money(calc.variableBudget))}
         ${summaryRow("Total planned outflow", money(calc.totalPlanned))}
@@ -4749,27 +4781,29 @@ function showBillSelectorModal(form, category, rowIndex) {
 }
 
 function showAllocationSelectorModal(form, allocationIndex) {
+  const owner = appState.accounts[form.ownerEmail];
   const groups = [
     ["debt", "Debts", form.data.debts || []],
     ["credit_card", "Credit cards", form.data.creditCards || []],
     ["student_loan", "Student loans", form.data.studentLoans || []],
+    ["savings", "Savings accounts", (owner?.savingsInvestmentAccounts || []).filter((item) => item.type === "savings")],
   ];
   const modal = document.createElement("div");
   modal.className = "modal-backdrop";
   modal.innerHTML = `
     <section class="modal selector-modal" role="dialog" aria-modal="true" aria-labelledby="allocation-selector-title">
-      <div class="modal-header"><div><p class="document-label">Extra payment</p><h3 id="allocation-selector-title">Choose a debt or card</h3></div><button class="icon-btn" type="button" aria-label="Close" data-close-modal>×</button></div>
+      <div class="modal-header"><div><p class="document-label">Rollover</p><h3 id="allocation-selector-title">Choose a rollover target</h3></div><button class="icon-btn" type="button" aria-label="Close" data-close-modal>×</button></div>
       <div class="modal-body">
         <div class="selector-option-groups">
           ${groups.map(([type, label, rows]) => {
-            const available = rows.map((row, rowIndex) => ({ row, rowIndex })).filter(({ row }) => row.account);
+            const available = rows.map((row, rowIndex) => ({ row, rowIndex })).filter(({ row }) => row.account || row.name);
             if (!available.length) return "";
             return `<section><h4>${label}</h4><div class="selector-option-list">${available.map(({ row, rowIndex }) => `
               <button class="selector-option" type="button" data-select-allocation="${allocationIndex}.${type}.${rowIndex}">
-                <span><strong>${escapeHtml(row.account)}</strong><small>${money(row.totalOwed || row.totalBalance || row.paymentDue || 0)} tracked</small></span>
+                <span><strong>${escapeHtml(row.account || row.name || "Savings account")}</strong><small>${money(row.totalOwed || row.totalBalance || row.paymentDue || row.balance || 0)} tracked</small></span>
                 <i aria-hidden="true">→</i>
               </button>`).join("")}</div></section>`;
-          }).join("") || emptyInline("No debts or cards available", "Add a debt, credit card, or student loan first.")}
+          }).join("") || emptyInline("No rollover targets available", "Add savings accounts, debts, credit cards, or student loans first.")}
         </div>
       </div>
     </section>
@@ -5048,7 +5082,7 @@ function showOverBudgetDialog(calc) {
           <div><span>Amount to reduce</span><strong>${money(Math.abs(calc.available))}</strong></div>
           <div><span>Total planned outflow</span><strong>${money(calc.totalPlanned)}</strong></div>
         </div>
-        <p>Reduce budget categories, bills, contributions, or extra payments until <strong>Left to budget</strong> is $0.00 or higher.</p>
+        <p>Reduce budget categories, bills, contributions, or rollovers until <strong>Left to budget</strong> is $0.00 or higher.</p>
         <button class="btn btn-primary" type="button" data-close-modal>Review worksheet</button>
       </div>
     </section>
@@ -5119,7 +5153,7 @@ function printWorksheetSummary(formId) {
       <div class="fact"><span>Remaining debt</span><strong>${money(calc.totalDebt)}</strong></div>
     </div>
     <div class="two"><section class="section"><h2>Bills to Pay This Check</h2>${printList(billsPaid)}</section><section class="section"><h2>Future Bills / Waiting for Next Check</h2>${printList(billsRemaining)}</section></div>
-    <div class="two"><section class="section"><h2>Extra payments</h2>${printList(allocations)}</section><section class="section"><h2>Savings withdrawals</h2>${printList(savingsWithdrawals)}</section></div>
+    <div class="two"><section class="section"><h2>Rollovers</h2>${printList(allocations)}</section><section class="section"><h2>Savings withdrawals</h2>${printList(savingsWithdrawals)}</section></div>
     <h2>Savings and assets</h2><div class="grid">
       <div class="fact"><span>Worksheet savings</span><strong>${money(calc.savingsAfter)}</strong></div>
       <div class="fact"><span>Profile savings</span><strong>${money(profileSavingsTotal(member))}</strong></div>
@@ -5254,6 +5288,7 @@ async function approveForm(formId, coachNotes = "", actionSteps = "", textRecipi
       })),
   };
   const existingRecurringBills = member.financialInventory.recurringBills || [];
+  applySavingsRollovers(member, form);
   member.financialInventory.recurringBills = billGroups.flatMap(([key]) =>
     form.data.bills[key]
       .filter((bill) => bill.name)
@@ -5986,17 +6021,19 @@ document.addEventListener("click", async (event) => {
       debt: form.data.debts || [],
       credit_card: form.data.creditCards || [],
       student_loan: form.data.studentLoans || [],
+      savings: (appState.accounts[form.ownerEmail]?.savingsInvestmentAccounts || []).filter((item) => item.type === "savings"),
     };
     const source = sourceGroups[type]?.[Number(sourceIndex)];
     const row = form.data.allocations?.[Number(allocationIndex)];
-    if (source?.account && row) {
+    const sourceName = source?.account || source?.name;
+    if (sourceName && row) {
       row.type = type;
-      row.account = source.account;
+      row.account = sourceName;
       form.updatedAt = new Date().toISOString();
       saveState();
       selectedAllocation.closest(".modal-backdrop")?.remove();
       renderEditor();
-      showToast(`${source.account} selected.`);
+      showToast(`${sourceName} selected.`);
     }
     return;
   }
