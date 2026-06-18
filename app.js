@@ -584,18 +584,19 @@ function isDateWithinNextMonth(value) {
 }
 
 function recurringBillToWorksheetBill(bill) {
+  const dueDate = recurringBillNextDueDate(bill);
   return {
     ...blankBill(),
     profileBillId: bill.id || "",
     name: bill.name,
-    dueDate: bill.scheduleEnabled ? recurringBillNextDueDate(bill) : "",
-    amount: bill.scheduleEnabled ? bill.amount : "",
+    dueDate,
+    amount: dueDate ? bill.amount : "",
     coachDecision: "",
   };
 }
 
 function recurringBillNextDueDate(bill) {
-  return bill.nextDueDate || (bill.dueDay ? nextMonthlyDueDate(bill.dueDay) : "");
+  return bill?.dueDay ? nextMonthlyDueDate(bill.dueDay) : bill?.nextDueDate || "";
 }
 
 function upcomingProfilePayment(row, amountKey, dueDateKey = "dueDate") {
@@ -604,7 +605,7 @@ function upcomingProfilePayment(row, amountKey, dueDateKey = "dueDate") {
 }
 
 function isUpcomingRecurringBill(bill) {
-  if (!bill?.name || !bill.scheduleEnabled) return false;
+  if (!bill?.name) return false;
   const dueDate = recurringBillNextDueDate(bill);
   return Boolean(dueDate && currencyValue(bill.amount) && isDateWithinNextMonth(dueDate));
 }
@@ -1259,6 +1260,11 @@ function commitFinancialProfileInputs(account = currentAccount()) {
     if (asset) asset[field] = currencyInputStorageValue(input);
   });
   account.savingsInvestmentAccounts.forEach((_, index) => saveAssetHistoryEntry(account, index));
+}
+
+function syncRecurringBillScheduleState(bill) {
+  if (!bill) return;
+  bill.scheduleEnabled = Boolean(bill.amount || bill.dueDay || bill.nextDueDate);
 }
 
 function currentAccount() {
@@ -2283,12 +2289,13 @@ function upcomingBillItems(account) {
   const items = [];
 
   account.financialInventory.recurringBills.forEach((bill) => {
-    if (!bill.scheduleEnabled || (!bill.dueDay && !bill.nextDueDate)) return;
+    const dueDate = recurringBillNextDueDate(bill);
+    if (!dueDate) return;
     addItem(items, {
       id: bill.id,
       name: bill.name,
       amount: bill.amount,
-      dueDate: bill.nextDueDate || nextMonthlyDueDate(bill.dueDay),
+      dueDate,
       type: "Recurring bill",
       source: categoryLabel[bill.category] || "Other Bills",
     });
@@ -2859,9 +2866,10 @@ function formatFileSize(bytes) {
 }
 
 function recurringBillProfileCard(bill, index) {
+  const nextDueDate = recurringBillNextDueDate(bill);
   return `
     <article class="profile-inventory-card">
-      <div class="profile-inventory-grid">
+      <div class="profile-inventory-grid recurring-bill-grid">
         ${textField("Bill name", `financialInventory.recurringBills.${index}.name`, bill.name, false, "Bill name")}
         <div class="field">
           <label>Category</label>
@@ -2869,18 +2877,11 @@ function recurringBillProfileCard(bill, index) {
             ${billGroups.map(([value, label]) => selectOption(value, label, bill.category)).join("")}
           </select>
         </div>
+        ${dateField("Next due date", `financialInventory.recurringBills.${index}.nextDueDate`, nextDueDate, false)}
+        <div class="field"><label>Fixed monthly due day</label><select class="input" data-profile-path="financialInventory.recurringBills.${index}.dueDay">${dueDayOptions(bill.dueDay)}</select></div>
+        ${moneyField("Amount", `financialInventory.recurringBills.${index}.amount`, bill.amount, false)}
       </div>
-      <label class="schedule-toggle"><input type="checkbox" data-recurring-schedule-toggle="${index}" ${bill.scheduleEnabled ? "checked" : ""}><span>Add schedule, next due date, and amount</span></label>
-      ${
-        bill.scheduleEnabled
-          ? `<div class="schedule-fields">
-              <p class="schedule-help">For bills that change dates, leave the fixed monthly day blank and enter the next due date. Worksheets use that next due date first.</p>
-              <div class="field"><label>Fixed monthly due day</label><select class="input" data-profile-path="financialInventory.recurringBills.${index}.dueDay">${dueDayOptions(bill.dueDay)}</select></div>
-              ${dateField("Next due date for variable bills", `financialInventory.recurringBills.${index}.nextDueDate`, bill.nextDueDate, false)}
-              ${moneyField("Monthly amount", `financialInventory.recurringBills.${index}.amount`, bill.amount, false)}
-            </div>`
-          : ""
-      }
+      <p class="schedule-help">Choose a fixed monthly day when the bill is due on the same day each month. Leave it blank and enter the next due date when the date changes.</p>
       <button class="icon-btn danger profile-remove" type="button" aria-label="Remove recurring bill" title="Remove recurring bill" data-remove-profile-item="recurringBills.${index}">×</button>
     </article>
   `.replaceAll("data-path=", "data-profile-path=");
@@ -4693,8 +4694,8 @@ function applyRecurringBillSuggestion(input, form) {
   const bill = form.data.bills[category][Number(index)];
   bill.profileBillId = suggestion.id || "";
   bill.name = suggestion.name;
-  bill.dueDate = suggestion.scheduleEnabled ? recurringBillNextDueDate(suggestion) : "";
-  bill.amount = suggestion.scheduleEnabled ? suggestion.amount : "";
+  bill.dueDate = recurringBillNextDueDate(suggestion);
+  bill.amount = bill.dueDate ? suggestion.amount : "";
   const dueDateInput = document.querySelector(
     `input[data-path="bills.${category}.${index}.dueDate"]`,
   );
@@ -4722,7 +4723,7 @@ function showBillSelectorModal(form, category, rowIndex) {
             suggestions.length
               ? suggestions.map((bill) => `
                 <button class="selector-option" type="button" data-select-bill-target="${category}.${rowIndex}" data-select-bill-id="${escapeHtml(bill.id)}">
-                  <span><strong>${escapeHtml(bill.name)}</strong><small>${escapeHtml(categoryLabel[bill.category] || "Other Bills")} · ${bill.scheduleEnabled ? `${bill.nextDueDate ? dateLabel(bill.nextDueDate) : dueDayLabel(bill.dueDay)} · ${money(bill.amount)}` : "No schedule saved"}</small></span>
+                  <span><strong>${escapeHtml(bill.name)}</strong><small>${escapeHtml(categoryLabel[bill.category] || "Other Bills")} · ${recurringBillNextDueDate(bill) ? `${dateLabel(recurringBillNextDueDate(bill))} · ${money(bill.amount)}` : "No due date saved"}</small></span>
                   <i aria-hidden="true">→</i>
                 </button>`).join("")
               : emptyInline("No saved bills yet", "Add recurring bills in your financial profile, or type a bill name directly.")
@@ -5935,8 +5936,8 @@ document.addEventListener("click", async (event) => {
     if (suggestion && bill) {
       bill.name = suggestion.name;
       bill.profileBillId = suggestion.id || "";
-      bill.dueDate = suggestion.scheduleEnabled ? recurringBillNextDueDate(suggestion) : "";
-      bill.amount = suggestion.scheduleEnabled ? suggestion.amount : "";
+      bill.dueDate = recurringBillNextDueDate(suggestion);
+      bill.amount = bill.dueDate ? suggestion.amount : "";
       form.updatedAt = new Date().toISOString();
       saveState();
       selectedBill.closest(".modal-backdrop")?.remove();
@@ -6744,6 +6745,20 @@ document.addEventListener("change", async (event) => {
     if (!validateControlledInput(profileInput)) return;
     const account = currentAccount();
     setAtPath(account, profileInput.dataset.profilePath, currencyInputStorageValue(profileInput));
+    const recurringMatch = profileInput.dataset.profilePath.match(/^financialInventory\.recurringBills\.(\d+)\.(\w+)$/);
+    if (recurringMatch) {
+      const [, indexValue, field] = recurringMatch;
+      const bill = account.financialInventory.recurringBills[Number(indexValue)];
+      if (bill) {
+        if (field === "dueDay" && bill.dueDay) {
+          bill.nextDueDate = nextMonthlyDueDate(bill.dueDay);
+        }
+        syncRecurringBillScheduleState(bill);
+      }
+      saveFinancialProfileMutation(account);
+      if (field === "dueDay") renderProfile();
+      return;
+    }
     saveFinancialProfileMutation(account);
     return;
   }

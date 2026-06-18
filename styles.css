@@ -886,6 +886,10 @@ textarea:disabled {
   gap: 12px;
 }
 
+.recurring-bill-grid {
+  grid-template-columns: minmax(0, 1.35fr) repeat(4, minmax(0, 1fr));
+}
+
 .profile-remove {
   position: static;
   display: flex;
@@ -3481,7 +3485,7 @@ html[data-theme="dark"] .chart-legend button strong {
 
 .schedule-help {
   grid-column: 1 / -1;
-  margin: 0;
+  margin: 10px 0 0;
   color: var(--muted);
   font-size: 12px;
   font-weight: 750;
