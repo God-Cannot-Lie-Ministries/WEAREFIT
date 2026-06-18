@@ -183,6 +183,7 @@ function blankRecurringBill(category = "other") {
     dueDay: "",
     nextDueDate: "",
     amount: "",
+    monthlyAmount: "",
   };
 }
 
@@ -326,6 +327,7 @@ function ensureAccountModel(account) {
     if (!bill.dueDay && bill.dueDate) bill.dueDay = String(Number(bill.dueDate.slice(-2)));
     bill.dueDay ||= "";
     bill.nextDueDate ||= "";
+    bill.monthlyAmount ||= bill.amount || "";
     delete bill.dueDate;
   });
   account.financialInventory.creditCards.forEach(migratePromoCard);
@@ -903,6 +905,7 @@ function loadState() {
               category,
               scheduleEnabled: Boolean(bill.amount || bill.dueDate),
               dueDay: bill.dueDate ? String(Number(bill.dueDate.slice(-2))) : bill.dueDay || "",
+              monthlyAmount: bill.monthlyAmount || bill.amount || "",
             })),
           );
         }
@@ -1265,9 +1268,13 @@ function commitFinancialProfileInputs(account = currentAccount()) {
   account.savingsInvestmentAccounts.forEach((_, index) => saveAssetHistoryEntry(account, index));
 }
 
-function syncRecurringBillScheduleState(bill) {
+function syncRecurringBillScheduleState(bill, changedField = "") {
   if (!bill) return;
-  bill.scheduleEnabled = Boolean(bill.amount || bill.dueDay || bill.nextDueDate);
+  if (bill.dueDay) bill.nextDueDate = nextMonthlyDueDate(bill.dueDay);
+  if (bill.scheduleEnabled && bill.monthlyAmount && changedField !== "amount") {
+    bill.amount = bill.monthlyAmount;
+  }
+  bill.scheduleEnabled = Boolean(bill.amount || bill.monthlyAmount || bill.dueDay || bill.nextDueDate);
 }
 
 function currentAccount() {
@@ -2881,6 +2888,7 @@ function recurringBillProfileCard(bill, index) {
           </select>
         </div>
         ${dateField("Next due date", `financialInventory.recurringBills.${index}.nextDueDate`, nextDueDate, false)}
+        ${moneyField("Next payment amount", `financialInventory.recurringBills.${index}.amount`, bill.amount, false)}
       </div>
       <label class="schedule-toggle"><input type="checkbox" data-recurring-schedule-toggle="${index}" ${bill.scheduleEnabled ? "checked" : ""}><span>Recurring bill details</span></label>
       ${
@@ -2888,7 +2896,7 @@ function recurringBillProfileCard(bill, index) {
           ? `<div class="schedule-fields">
               <p class="schedule-help">Selecting a fixed monthly day fills the next due date above. Leave it blank when the due date changes.</p>
               <div class="field"><label>Fixed monthly due day</label><select class="input" data-profile-path="financialInventory.recurringBills.${index}.dueDay">${dueDayOptions(bill.dueDay)}</select></div>
-              ${moneyField("Amount", `financialInventory.recurringBills.${index}.amount`, bill.amount, false)}
+              ${moneyField("Monthly amount", `financialInventory.recurringBills.${index}.monthlyAmount`, bill.monthlyAmount || bill.amount, false)}
             </div>`
           : ""
       }
@@ -5263,6 +5271,7 @@ async function approveForm(formId, coachNotes = "", actionSteps = "", textRecipi
           dueDay: previousBill?.dueDay || (bill.dueDate ? String(Number(bill.dueDate.slice(-2))) : ""),
           nextDueDate: previousBill?.nextDueDate || "",
           amount: bill.amount,
+          monthlyAmount: previousBill?.monthlyAmount || bill.amount || "",
         };
       }),
   );
@@ -5900,9 +5909,12 @@ document.addEventListener("click", async (event) => {
     const account = currentAccount();
     const bill = account.financialInventory.recurringBills[Number(scheduleToggle.dataset.recurringScheduleToggle)];
     bill.scheduleEnabled = scheduleToggle.checked;
-    if (!bill.scheduleEnabled) {
+    if (bill.scheduleEnabled) {
+      bill.monthlyAmount ||= bill.amount || "";
+      syncRecurringBillScheduleState(bill);
+    } else {
       bill.dueDay = "";
-      bill.amount = "";
+      bill.monthlyAmount = "";
     }
     saveFinancialProfileMutation(account);
     renderProfile();
@@ -6762,14 +6774,9 @@ document.addEventListener("change", async (event) => {
     if (recurringMatch) {
       const [, indexValue, field] = recurringMatch;
       const bill = account.financialInventory.recurringBills[Number(indexValue)];
-      if (bill) {
-        if (field === "dueDay" && bill.dueDay) {
-          bill.nextDueDate = nextMonthlyDueDate(bill.dueDay);
-        }
-        syncRecurringBillScheduleState(bill);
-      }
+      syncRecurringBillScheduleState(bill, field);
       saveFinancialProfileMutation(account);
-      if (field === "dueDay") renderProfile();
+      if (field === "dueDay" || field === "monthlyAmount") renderProfile();
       return;
     }
     saveFinancialProfileMutation(account);
