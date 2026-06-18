@@ -152,6 +152,13 @@ function blankVariable() {
   return { id: uid("variable"), category: "", budgeted: "" };
 }
 
+function defaultBudgetRows() {
+  return ["Grocery", "Gas", "Toiletries", "Entertainment"].map((category) => ({
+    ...blankVariable(),
+    category,
+  }));
+}
+
 function blankDebt() {
   return {
     id: uid("debt"),
@@ -811,11 +818,7 @@ function blankForm(owner, carryForward = owner.carryForward || {}, assignedPerso
             return nextCard;
           })
         : [blankCreditCard(), blankCreditCard()],
-      variableSpending: [
-        { ...blankVariable(), category: "Groceries" },
-        { ...blankVariable(), category: "Transportation" },
-        { ...blankVariable(), category: "Personal" },
-      ],
+      variableSpending: defaultBudgetRows(),
       savings: {
         goal: carryForward.savings?.goal || "",
         current: carryForward.savings?.current || "",
@@ -2891,6 +2894,7 @@ function creditCardProfileCard(card, index) {
   migratePromoCard(card);
   const purchasePromo = card.promoType === "purchases" || card.promoType === "both";
   const balancePromo = card.promoType === "balance_transfers" || card.promoType === "both";
+  const hasPromo = card.promoType && card.promoType !== "none";
   return `
     <article class="profile-inventory-card">
       <div class="profile-inventory-grid">
@@ -2900,7 +2904,7 @@ function creditCardProfileCard(card, index) {
         ${moneyField("Payment due", `financialInventory.creditCards.${index}.paymentDue`, card.paymentDue, false)}
         ${moneyField("Credit card allowance", `financialInventory.creditCards.${index}.allowance`, card.allowance, false)}
         ${dateField("Due date", `financialInventory.creditCards.${index}.dueDate`, card.dueDate, false)}
-        ${percentField("Annual APR", `financialInventory.creditCards.${index}.apr`, card.apr, false)}
+        ${hasPromo ? "" : percentField("Annual APR", `financialInventory.creditCards.${index}.apr`, card.apr, false)}
       </div>
       <div class="field promo-type-field">
         <label>Promotional APR</label>
@@ -3032,7 +3036,7 @@ function debtProfileCard(debt, index) {
         ${moneyField("Current balance", `financialInventory.debts.${index}.totalOwed`, debt.totalOwed, false)}
         ${moneyField("Minimum payment", `financialInventory.debts.${index}.minimumPayment`, debt.minimumPayment, false)}
         ${dateField("Due date", `financialInventory.debts.${index}.dueDate`, debt.dueDate, false)}
-        ${percentField("Annual APR", `financialInventory.debts.${index}.apr`, debt.apr, false)}
+        ${debt.promotionalRateApplied ? "" : percentField("Annual APR", `financialInventory.debts.${index}.apr`, debt.apr, false)}
       </div>
       <label class="check-control">
         <input type="checkbox" data-profile-promo-toggle="debts.${index}" ${debt.promotionalRateApplied ? "checked" : ""}>
@@ -3963,6 +3967,7 @@ function creditCardCard(form, row, index, readOnly, isCoachReview) {
   const extraPayment = allocationTotalFor(form, "credit_card", row.account);
   const purchasePromo = row.promoType === "purchases" || row.promoType === "both";
   const balancePromo = row.promoType === "balance_transfers" || row.promoType === "both";
+  const hasPromo = row.promoType && row.promoType !== "none";
   return `
     <article class="debt-entry credit-card-entry">
       <div class="debt-entry-heading">
@@ -3977,7 +3982,7 @@ function creditCardCard(form, row, index, readOnly, isCoachReview) {
         ${moneyField("Credit card allowance", `creditCards.${index}.allowance`, row.allowance, readOnly)}
         ${dateField("Due date", `creditCards.${index}.dueDate`, row.dueDate, readOnly)}
         ${moneyField("This check's contribution", `creditCards.${index}.contribution`, row.contribution, readOnly)}
-        ${percentField("Annual APR", `creditCards.${index}.apr`, row.apr, readOnly)}
+        ${hasPromo ? "" : percentField("Annual APR", `creditCards.${index}.apr`, row.apr, readOnly)}
         <div class="field"><label>Coach plan</label>${billDecisionControl(`creditCards.${index}.coachDecision`, row.coachDecision, isCoachReview)}</div>
         <div class="field"><label>Promotional APR</label><select class="input" data-card-promo-type="${index}" ${readOnly ? "disabled" : ""}>
           ${selectOption("none", "No promotional APR", row.promoType)}
@@ -4088,7 +4093,7 @@ function debtCard(form, row, index, readOnly) {
         ${moneyField("Total owed", `debts.${index}.totalOwed`, row.totalOwed, readOnly)}
         ${moneyField("Minimum payment", `debts.${index}.minimumPayment`, row.minimumPayment, readOnly)}
         ${moneyField("This check's contribution", `debts.${index}.contribution`, row.contribution, readOnly)}
-        ${percentField("Annual APR", `debts.${index}.apr`, row.apr, readOnly)}
+        ${row.promotionalRateApplied ? "" : percentField("Annual APR", `debts.${index}.apr`, row.apr, readOnly)}
       </div>
       <label class="check-control">
         <input type="checkbox" data-promo-toggle="${index}" ${row.promotionalRateApplied ? "checked" : ""} ${readOnly ? "disabled" : ""}>
