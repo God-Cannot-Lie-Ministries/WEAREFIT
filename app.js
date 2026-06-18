@@ -731,9 +731,6 @@ function syncDraftFormsWithFinancialProfile(account) {
         paymentAmount: account.financialInventory.mortgage.paymentAmount || form.data.mortgage.paymentAmount || "",
         nextDueDate: account.financialInventory.mortgage.nextDueDate || form.data.mortgage.nextDueDate || "",
       };
-      if (!form.data.mortgage.contribution) {
-        form.data.mortgage.contribution = upcomingProfilePayment(form.data.mortgage, "paymentAmount", "nextDueDate");
-      }
       form.data.housingPaymentType = account.financialInventory.housingPaymentType || "mortgage";
       form.generatedFromProfile = true;
       form.updatedAt = new Date().toISOString();
@@ -797,7 +794,7 @@ function blankForm(owner, carryForward = owner.carryForward || {}, assignedPerso
         nextDueDate: mortgageSource.nextDueDate || "",
         mustPayBy: carryForward.mortgage?.mustPayBy || "",
         remainingBefore: carryForward.mortgage?.remainingBefore || "",
-        contribution: upcomingProfilePayment(mortgageSource, "paymentAmount", "nextDueDate"),
+        contribution: "",
       },
       housingPaymentType: inventory.housingPaymentType || "mortgage",
       creditCards: sourceCards?.length
