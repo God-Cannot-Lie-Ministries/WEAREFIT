@@ -7,6 +7,17 @@
       name="description"
       content="WEAREFIT Financial Integrity Training member and coach portal"
     />
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests; block-all-mixed-content" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <link rel="canonical" href="https://fit-training.org/" />
+    <script>
+      (() => {
+        const localHostnames = new Set(["localhost", "127.0.0.1", "::1", ""]);
+        if (location.protocol === "http:" && !localHostnames.has(location.hostname)) {
+          location.replace(`https://${location.host}${location.pathname}${location.search}${location.hash}`);
+        }
+      })();
+    </script>
     <title>WEAREFIT</title>
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <link rel="preconnect" href="https://jrkxltypsvapusybroyp.supabase.co" crossorigin />
@@ -18,6 +29,6 @@
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script defer src="config.js?v=20260613-final"></script>
     <script defer src="backend.js?v=20260615-stability-speed-pass"></script>
-    <script defer src="app.js?v=20260617-mortgage-payment-only"></script>
+    <script defer src="app.js?v=20260617-secure-payment-live"></script>
   </body>
 </html>

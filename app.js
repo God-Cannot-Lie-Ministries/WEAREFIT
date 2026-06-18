@@ -3868,7 +3868,7 @@ function mortgagePanel(form, calc, readOnly) {
         ${dateField("Next due date", "mortgage.nextDueDate", mortgage.nextDueDate, readOnly)}
         ${dateField("Must pay by", "mortgage.mustPayBy", mortgage.mustPayBy, readOnly)}
         ${moneyField("This check's contribution", "mortgage.contribution", mortgage.contribution, readOnly)}
-        ${computedField("Payment still needed", money(paymentRemaining))}
+        ${computedField("Payment still needed", money(paymentRemaining), "mortgage-payment-needed")}
       </div>
       <div class="savings-progress-block">${progressBar(progress, `${Math.round(progress)}% of mortgage paid`)}</div>
     </section>
@@ -4698,6 +4698,10 @@ function showAllocationSelectorModal(form, allocationIndex) {
 
 function refreshLiveAvailable(form) {
   const calc = calculate(form);
+  const mortgagePaymentRemaining = currencyValue(Math.max(
+    0,
+    (Number(form.data.mortgage.paymentAmount) || 0) - (Number(form.data.mortgage.contribution) || 0),
+  ));
   document.querySelectorAll("[data-live-available]").forEach((element) => {
     element.textContent = money(calc.available);
   });
@@ -4715,6 +4719,9 @@ function refreshLiveAvailable(form) {
   });
   document.querySelectorAll("[data-live-allocation-total]").forEach((element) => {
     element.textContent = money(calc.allocationTotal);
+  });
+  document.querySelectorAll("[data-live-mortgage-payment-needed]").forEach((element) => {
+    element.textContent = money(mortgagePaymentRemaining);
   });
 }
 
