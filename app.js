@@ -4056,10 +4056,10 @@ function savingsPanel(form, calc, readOnly) {
         ${moneyField("Savings goal", "savings.goal", savings.goal, readOnly)}
         ${moneyField("Current savings", "savings.current", savings.current, readOnly)}
         ${moneyField("This check's contribution", "savings.contribution", savings.contribution, readOnly)}
-        ${computedField("Total savings after contribution", money(calc.savingsAfter))}
+        ${computedField("Total savings after contribution", money(calc.savingsAfter), "savings-after")}
       </div>
       <div class="savings-progress-block">
-        <div class="savings-progress-copy"><strong>${money(calc.savingsAfter)} saved</strong><span>${money(calc.savingsRemaining)} left to reach ${money(calc.savingsGoal)}</span></div>
+        <div class="savings-progress-copy"><strong data-live-savings-after-copy>${money(calc.savingsAfter)} saved</strong><span data-live-savings-remaining-copy>${money(calc.savingsRemaining)} left to reach ${money(calc.savingsGoal)}</span></div>
         ${progressBar(calc.savingsProgress, `${Math.round(calc.savingsProgress)}% complete`)}
       </div>
     </section>
@@ -4790,6 +4790,15 @@ function refreshLiveAvailable(form) {
   });
   document.querySelectorAll("[data-live-mortgage-payment-needed]").forEach((element) => {
     element.textContent = money(mortgagePaymentRemaining);
+  });
+  document.querySelectorAll("[data-live-savings-after]").forEach((element) => {
+    element.textContent = money(calc.savingsAfter);
+  });
+  document.querySelectorAll("[data-live-savings-after-copy]").forEach((element) => {
+    element.textContent = `${money(calc.savingsAfter)} saved`;
+  });
+  document.querySelectorAll("[data-live-savings-remaining-copy]").forEach((element) => {
+    element.textContent = `${money(calc.savingsRemaining)} left to reach ${money(calc.savingsGoal)}`;
   });
 }
 
