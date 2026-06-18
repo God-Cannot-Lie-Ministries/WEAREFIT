@@ -2881,10 +2881,17 @@ function recurringBillProfileCard(bill, index) {
           </select>
         </div>
         ${dateField("Next due date", `financialInventory.recurringBills.${index}.nextDueDate`, nextDueDate, false)}
-        <div class="field"><label>Fixed monthly due day</label><select class="input" data-profile-path="financialInventory.recurringBills.${index}.dueDay">${dueDayOptions(bill.dueDay)}</select></div>
-        ${moneyField("Amount", `financialInventory.recurringBills.${index}.amount`, bill.amount, false)}
       </div>
-      <p class="schedule-help">Choose a fixed monthly day when the bill is due on the same day each month. Leave it blank and enter the next due date when the date changes.</p>
+      <label class="schedule-toggle"><input type="checkbox" data-recurring-schedule-toggle="${index}" ${bill.scheduleEnabled ? "checked" : ""}><span>Recurring bill details</span></label>
+      ${
+        bill.scheduleEnabled
+          ? `<div class="schedule-fields">
+              <p class="schedule-help">Selecting a fixed monthly day fills the next due date above. Leave it blank when the due date changes.</p>
+              <div class="field"><label>Fixed monthly due day</label><select class="input" data-profile-path="financialInventory.recurringBills.${index}.dueDay">${dueDayOptions(bill.dueDay)}</select></div>
+              ${moneyField("Amount", `financialInventory.recurringBills.${index}.amount`, bill.amount, false)}
+            </div>`
+          : ""
+      }
       <button class="icon-btn danger profile-remove" type="button" aria-label="Remove recurring bill" title="Remove recurring bill" data-remove-profile-item="recurringBills.${index}">×</button>
     </article>
   `.replaceAll("data-path=", "data-profile-path=");
@@ -5895,7 +5902,6 @@ document.addEventListener("click", async (event) => {
     bill.scheduleEnabled = scheduleToggle.checked;
     if (!bill.scheduleEnabled) {
       bill.dueDay = "";
-      bill.nextDueDate = "";
       bill.amount = "";
     }
     saveFinancialProfileMutation(account);

@@ -887,7 +887,7 @@ textarea:disabled {
 }
 
 .recurring-bill-grid {
-  grid-template-columns: minmax(0, 1.35fr) repeat(4, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr);
 }
 
 .profile-remove {
