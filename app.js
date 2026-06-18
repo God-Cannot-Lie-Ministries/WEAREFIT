@@ -3943,8 +3943,6 @@ function mortgagePanel(form, calc, readOnly) {
 }
 
 function creditCardPanel(form, calc, readOnly, isCoachReview) {
-  const totalAllowance = form.data.creditCards.reduce((sum, card) => sum + (Number(card.allowance) || 0), 0);
-  const allowanceUsed = form.data.creditCards.reduce((sum, card) => sum + (Number(card.lastStatementBalance) || 0), 0);
   return `
     <section class="panel" id="cards">
       <div class="panel-heading">
@@ -3953,11 +3951,6 @@ function creditCardPanel(form, calc, readOnly, isCoachReview) {
       </div>
       <div class="debt-card-list">
         ${form.data.creditCards.map((row, index) => creditCardCard(form, row, index, readOnly, isCoachReview)).join("")}
-      </div>
-      <div class="credit-allowance-summary">
-        ${computedField("Total credit card allowance", money(totalAllowance))}
-        ${computedField("Statement balances counted", money(allowanceUsed))}
-        ${computedField("Allowance remaining", money(Math.max(0, totalAllowance - allowanceUsed)))}
       </div>
       <div class="table-total"><span>This check's credit card subtotal</span><strong>${money(calc.creditCards)}</strong></div>
     </section>
