@@ -112,12 +112,27 @@ async function sendAndLog(
   logPayload: Record<string, unknown>,
   emailPayload: Record<string, unknown>,
 ) {
-  const { data: log, error: logError } = await adminClient
+  let logTable = "fit_email_logs";
+  let { data: log, error: logError } = await adminClient
     .from("fit_email_logs")
     .insert(logPayload)
     .select("id")
     .single();
-  if (logError) throw logError;
+  if (logError) {
+    logTable = "email_audit";
+    const fallback = await adminClient
+      .from("email_audit")
+      .insert({
+        actor_id: logPayload.user_id || null,
+        email_type: logPayload.event_type,
+        recipient: logPayload.recipient_email,
+        status: "pending",
+      })
+      .select("id")
+      .single();
+    if (fallback.error) throw logError;
+    log = fallback.data;
+  }
 
   try {
     const response = await fetch("https://api.resend.com/emails", {
@@ -127,16 +142,30 @@ async function sendAndLog(
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.message || "Email provider rejected the message.");
-    await adminClient
-      .from("fit_email_logs")
-      .update({ status: "sent", resend_email_id: result.id || null, sent_at: new Date().toISOString() })
-      .eq("id", log.id);
+    if (logTable === "fit_email_logs") {
+      await adminClient
+        .from("fit_email_logs")
+        .update({ status: "sent", resend_email_id: result.id || null, sent_at: new Date().toISOString() })
+        .eq("id", log.id);
+    } else {
+      await adminClient
+        .from("email_audit")
+        .update({ status: "sent", provider_id: result.id || null })
+        .eq("id", log.id);
+    }
     return { ok: true, id: result.id };
   } catch (error) {
-    await adminClient
-      .from("fit_email_logs")
-      .update({ status: "failed", error_message: error.message || "Email failed" })
-      .eq("id", log.id);
+    if (logTable === "fit_email_logs") {
+      await adminClient
+        .from("fit_email_logs")
+        .update({ status: "failed", error_message: error.message || "Email failed" })
+        .eq("id", log.id);
+    } else {
+      await adminClient
+        .from("email_audit")
+        .update({ status: "failed" })
+        .eq("id", log.id);
+    }
     return { ok: false, error: error.message || "Email failed" };
   }
 }
