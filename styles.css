@@ -9171,3 +9171,332 @@ html[data-theme="dark"] .upcoming-amount {
     text-align: left;
   }
 }
+
+/* Tablet/iPad layout pass: fixes the middle viewport without changing phone or desktop layouts. */
+@media (min-width: 768px) and (max-width: 1100px) {
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .login-shell {
+    grid-template-columns: minmax(260px, 0.72fr) minmax(0, 1fr);
+  }
+
+  .login-brand,
+  .login-panel {
+    min-width: 0;
+    padding: 32px;
+  }
+
+  .brand-lockup {
+    flex-wrap: wrap;
+  }
+
+  .brand-lockup img {
+    width: 78px;
+  }
+
+  .brand-statement h1 {
+    font-size: clamp(34px, 5vw, 46px);
+  }
+
+  .app-shell {
+    grid-template-columns: 204px minmax(0, 1fr);
+  }
+
+  .sidebar {
+    width: 204px;
+  }
+
+  .sidebar-brand,
+  .sidebar-footer,
+  .nav-btn {
+    padding-inline: 14px;
+  }
+
+  .nav-btn {
+    min-width: 0;
+    white-space: normal;
+  }
+
+  .content {
+    width: 100%;
+    max-width: 100%;
+    padding: 22px;
+  }
+
+  .page-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px 16px;
+  }
+
+  .page-heading > * {
+    min-width: 0;
+  }
+
+  .metric-grid,
+  .form-grid,
+  .inbox-grid,
+  .milestone-list,
+  .upcoming-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profile-layout,
+  .about-hero,
+  .about-origin {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .about-hero,
+  .about-origin,
+  .about-model {
+    padding-inline: 26px;
+  }
+
+  .story-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profile-form-grid,
+  .household-photo-row,
+  .profile-overview .profile-photo-row,
+  .profile-photo-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .profile-photo-panel,
+  .spouse-photo-panel,
+  .profile-overview .profile-photo-panel,
+  .profile-summary-stack .profile-photo-panel,
+  .profile-summary-stack .spouse-photo-panel {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .profile-photo-panel {
+    grid-template-columns: 58px minmax(0, 1fr);
+    padding: 14px;
+  }
+
+  .profile-photo-panel .avatar,
+  .profile-overview .avatar-xl {
+    width: 58px;
+    height: 58px;
+  }
+
+  .profile-overview-metrics,
+  .profile-summary-stack {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .profile-inventory-card,
+  .asset-account-card,
+  .debt-entry,
+  .routing-row,
+  .panel,
+  .summary-panel,
+  .form-card {
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .profile-inventory-card {
+    padding: 14px;
+  }
+
+  .profile-inventory-card *,
+  .asset-account-card *,
+  .debt-entry *,
+  .routing-row *,
+  .panel *,
+  .summary-panel * {
+    min-width: 0;
+  }
+
+  .profile-inventory-grid,
+  .recurring-bill-grid,
+  .debt-entry-grid,
+  .schedule-fields,
+  .promo-fields,
+  .overview-grid,
+  .tracker-grid,
+  .savings-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .profile-inventory-grid > .field,
+  .debt-entry-grid > .field,
+  .schedule-fields > .field,
+  .promo-fields > .field {
+    min-width: 0;
+  }
+
+  .field label,
+  .computed-field span,
+  .profile-inventory-card label,
+  .debt-entry label {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .input,
+  .table-input,
+  textarea,
+  select,
+  .selection-field-button,
+  .bill-selector-wrap,
+  .money-input-wrap,
+  .percent-input-wrap {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  input[type="date"],
+  .promo-fields input[type="date"] {
+    min-width: 0;
+    max-width: 100%;
+    padding-inline: 12px 36px;
+  }
+
+  .money-input-wrap::before {
+    left: 13px;
+  }
+
+  .money-input-wrap input,
+  .money-input-wrap .input,
+  .money-input-wrap .table-input {
+    padding-left: 34px !important;
+  }
+
+  .editor-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .editor-aside {
+    position: static;
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
+  }
+
+  .worksheet-content .editor-main,
+  .worksheet-content .panel-body,
+  .worksheet-content .bill-sections,
+  .worksheet-content .subpanel,
+  .worksheet-content .data-table-wrap {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .worksheet-content .bill-sections .bills-table thead tr,
+  .worksheet-content .bill-sections .bills-table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(118px, 0.75fr) minmax(120px, 0.8fr) 52px;
+    gap: 8px;
+  }
+
+  .worksheet-content .bill-sections .bills-table.coach-review thead tr,
+  .worksheet-content .bill-sections .bills-table.coach-review tbody tr {
+    grid-template-columns: minmax(0, 1fr) minmax(106px, 0.68fr) minmax(106px, 0.68fr) minmax(124px, 0.84fr) 48px;
+  }
+
+  .worksheet-content .bill-sections .bills-table tbody {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .worksheet-content .bill-sections .bills-table th,
+  .worksheet-content .bill-sections .bills-table td {
+    display: flex;
+    min-width: 0;
+    padding-inline: 0;
+  }
+
+  .worksheet-content .bill-sections .bills-table th {
+    padding-inline: 8px;
+    font-size: 10px;
+  }
+
+  .worksheet-content .bill-sections .bills-table .table-input {
+    min-height: 42px;
+    padding-inline: 9px;
+    font-size: 13px;
+  }
+
+  .worksheet-content .bill-sections .bills-table .money-input-wrap .table-input {
+    padding-left: 30px !important;
+  }
+
+  .worksheet-content .bill-sections .bills-table .bill-selector-wrap .table-input {
+    padding-right: 38px;
+  }
+
+  .worksheet-content .bill-sections .bills-table .bill-selector-button {
+    width: 34px;
+  }
+
+  .worksheet-content .final-budget-panel .budget-remaining-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .worksheet-content .final-budget-panel .data-table thead tr,
+  .worksheet-content .final-budget-panel .data-table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(138px, 0.84fr) 48px;
+  }
+
+  .worksheet-content .final-budget-panel .data-table td {
+    min-height: 64px;
+  }
+
+  .routing-row {
+    grid-template-columns: minmax(0, 1fr) minmax(140px, 0.65fr) 42px;
+    gap: 10px;
+  }
+
+  .profile-jump-nav {
+    display: flex;
+    top: 90px;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .profile-jump-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .asset-chart-wrap,
+  .asset-chart,
+  .asset-chart svg {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .asset-chart-header,
+  .chart-legend {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .chart-legend button {
+    min-width: 0;
+  }
+
+  .upcoming-bill-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .settings-control-row {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+    gap: 16px;
+  }
+}
