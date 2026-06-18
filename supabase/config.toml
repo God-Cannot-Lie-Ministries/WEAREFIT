@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.send-session-summary-sms]
 verify_jwt = true
+
+[functions.notify-fit-event]
+verify_jwt = true

@@ -6657,6 +6657,20 @@ html[data-theme="dark"] .data-table th {
   font-weight: 800;
 }
 
+.settings-check-list {
+  display: grid;
+  gap: 8px;
+  justify-items: stretch;
+}
+
+.settings-check-list .check-control {
+  justify-content: flex-start;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-soft);
+  padding: 9px 10px;
+}
+
 @media (max-width: 840px) {
   .settings-preference-grid {
     grid-template-columns: 1fr;
@@ -7302,6 +7316,11 @@ html[data-theme="dark"] .data-table th {
   color: var(--navy);
 }
 
+.worksheet-jump-nav {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
 .financial-profile-view #profile-savings,
 .financial-profile-view #profile-paystubs,
 .financial-profile-view #profile-housing,
@@ -7309,6 +7328,16 @@ html[data-theme="dark"] .data-table th {
 .financial-profile-view #profile-cards,
 .financial-profile-view #profile-debts,
 .financial-profile-view #profile-student-loans,
+.worksheet-content #overview,
+.worksheet-content #mortgage,
+.worksheet-content #bills,
+.worksheet-content #cards,
+.worksheet-content #savings,
+.worksheet-content #debt,
+.worksheet-content #student-loans,
+.worksheet-content #allocations,
+.worksheet-content #spending,
+.worksheet-content #notes,
 .profile-inventory-card,
 .debt-entry,
 .routing-row,

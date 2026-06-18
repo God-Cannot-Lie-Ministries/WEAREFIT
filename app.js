@@ -282,6 +282,10 @@ function ensureAccountModel(account) {
   ensureFinancialInventory(account);
   account.preferences ||= { theme: "light" };
   account.preferences.theme ||= "light";
+  account.preferences.notifications ||= {};
+  account.preferences.notifications.milestones ??= true;
+  account.preferences.notifications.documents ??= true;
+  account.preferences.notifications.sessions ??= true;
   account.profile ||= {};
   account.profile.maritalStatus ||= "";
   account.profile.spouseName ||= "";
@@ -1845,7 +1849,47 @@ function addMilestoneNotifications(member, milestoneKey, title, message, type) {
       readAt: null,
     });
   });
+  sendMilestoneEmail(member, milestoneKey, title);
   return true;
+}
+
+async function notifyFitEventEmail(payload) {
+  if (!productionBackend.enabled || !productionBackend.notifyFitEvent) return null;
+  try {
+    return await productionBackend.notifyFitEvent(payload);
+  } catch (error) {
+    console.warn("F.I.T. event email could not be sent", error);
+    return null;
+  }
+}
+
+function sendMilestoneEmail(member, milestoneKey, title) {
+  return notifyFitEventEmail({
+    eventType: "milestone_reached",
+    memberEmail: member.email,
+    milestoneName: title,
+    relatedDocumentId: milestoneKey,
+  });
+}
+
+function sendDocumentAvailableEmail(form, documentType = "Worksheet") {
+  return notifyFitEventEmail({
+    eventType: "document_available",
+    memberEmail: form.ownerEmail,
+    relatedDocumentId: form.id,
+    documentTitle: form.title || "F.I.T. worksheet",
+    documentType,
+  });
+}
+
+function sendSessionCompletedEmail(form, sessionReview) {
+  return notifyFitEventEmail({
+    eventType: "fit_session_completed",
+    memberEmail: form.ownerEmail,
+    relatedSessionId: sessionReview.id,
+    relatedDocumentId: form.id,
+    sessionDate: sessionReview.sessionDate || sessionReview.createdAt,
+  });
 }
 
 function notifyFormMilestones(form) {
@@ -3337,6 +3381,14 @@ function renderSettings() {
               <button class="type-choice ${account.financialInventory.housingPaymentType === "rent" ? "active" : ""}" type="button" data-settings-housing-type="rent">Rent</button>
             </div>
           </div>
+          <div class="settings-control-row settings-notification-row">
+            <div><strong>Notifications</strong><span>Choose general update categories. Required security and connected coach/member notices are still sent.</span></div>
+            <div class="settings-check-list" aria-label="Notification preferences">
+              <label class="check-control"><input type="checkbox" data-notification-pref="milestones" ${account.preferences.notifications.milestones ? "checked" : ""}><span>Milestones</span></label>
+              <label class="check-control"><input type="checkbox" data-notification-pref="documents" ${account.preferences.notifications.documents ? "checked" : ""}><span>Documents</span></label>
+              <label class="check-control"><input type="checkbox" data-notification-pref="sessions" ${account.preferences.notifications.sessions ? "checked" : ""}><span>Sessions</span></label>
+            </div>
+          </div>
         </div>
       </section>
       <section class="panel danger-zone">
@@ -3810,6 +3862,24 @@ function emptyState(symbol, title, description, action) {
   `;
 }
 
+function worksheetJumpNav(form) {
+  return `
+    <nav class="profile-jump-nav worksheet-jump-nav" aria-label="Worksheet sections">
+      <span>Jump to section</span>
+      <a href="#overview">Paycheck overview</a>
+      ${form.data.housingPaymentType === "mortgage" ? `<a href="#mortgage">Mortgage</a>` : ""}
+      <a href="#bills">Fixed bills</a>
+      <a href="#cards">Credit cards</a>
+      <a href="#savings">Savings</a>
+      <a href="#debt">Debt</a>
+      <a href="#student-loans">Student loans</a>
+      <a href="#allocations">Rollovers</a>
+      <a href="#spending">Budgeting</a>
+      <a href="#notes">Notes</a>
+    </nav>
+  `;
+}
+
 function renderEditor() {
   const account = currentAccount();
   const form = appState.forms[activeFormId];
@@ -3857,6 +3927,7 @@ function renderEditor() {
           ? `<div class="readonly-banner"><strong>${isCoachReview ? "Coach review required" : "Approved document"}</strong><span>${isCoachReview ? "Choose bill timing, then complete the session with coach notes and action steps." : `This form belongs to ${escapeHtml(form.ownerName)}.`}</span></div>`
           : ""
       }
+      ${worksheetJumpNav(form)}
       <div class="editor-layout" style="margin-top: ${readOnly ? "16px" : "0"}">
         <div class="editor-main">
           ${overviewPanel(form, calc, readOnly)}
@@ -3872,21 +3943,6 @@ function renderEditor() {
         </div>
         <aside class="editor-aside">
           ${summaryPanel(calc)}
-          <div class="summary-panel">
-            <h3>Jump to</h3>
-            <nav class="section-links" aria-label="Worksheet sections">
-              <a href="#overview">Paycheck overview</a>
-              <a href="#bills">Fixed bills</a>
-              ${form.data.housingPaymentType === "mortgage" ? `<a href="#mortgage">Mortgage</a>` : ""}
-              <a href="#cards">Credit cards</a>
-              <a href="#savings">Savings</a>
-              <a href="#debt">Debt</a>
-              <a href="#student-loans">Student loans</a>
-              <a href="#allocations">Rollovers</a>
-              <a href="#spending">Budgeting</a>
-              <a href="#notes">Notes</a>
-            </nav>
-          </div>
         </aside>
       </div>
       ${calculatorPanel(form, readOnly)}
@@ -4960,8 +5016,8 @@ function addWithdrawalNotifications(member, withdrawal) {
       recipientEmail,
       type: "savings_withdrawal",
       title: "Savings withdrawal recorded",
-      message: `${withdrawal.savingsAccountName}: ${money(previousBalance)} to ${money(newBalance)}. Reason: ${normalizedReason}`,
-      createdAt,
+      message: `${withdrawal.savingsAccountName}: ${money(withdrawal.previousBalance)} to ${money(withdrawal.newBalance)}. Reason: ${withdrawal.reason}`,
+      createdAt: withdrawal.createdAt,
       readAt: null,
     });
   });
@@ -5318,6 +5374,7 @@ async function approveForm(formId, coachNotes = "", actionSteps = "", textRecipi
   appState.sessions.push(sessionReview);
   saveState();
   await productionBackend.saveNow?.(appState);
+  await sendSessionCompletedEmail(form, sessionReview);
   let textStatus = "";
   if (textRecipients.length && productionBackend.enabled) {
     try {
@@ -6582,8 +6639,17 @@ document.addEventListener("submit", async (event) => {
       uploadedAt: new Date().toISOString(),
       archiveDate: todayValue(),
     });
+    const submittedPaystub = account.paystubs[0];
     pendingPaystubUpload = null;
     if (saveState()) {
+      await productionBackend.saveNow?.(appState);
+      await notifyFitEventEmail({
+        eventType: "document_available",
+        memberEmail: account.email,
+        relatedDocumentId: submittedPaystub.id,
+        documentTitle: submittedPaystub.name || "Paystub",
+        documentType: "Paystub",
+      });
       renderProfile();
       showToast("Paystub submitted to the archive");
     }
@@ -6652,6 +6718,8 @@ document.addEventListener("submit", async (event) => {
     form.submittedAt = new Date().toISOString();
     form.updatedAt = new Date().toISOString();
     saveState();
+    await productionBackend.saveNow?.(appState);
+    await sendDocumentAvailableEmail(form, "Worksheet");
     modal.remove();
     render();
     showToast(`Finished worksheet sent to ${email}`);
@@ -6781,6 +6849,17 @@ document.addEventListener("focusout", (event) => {
 
 document.addEventListener("change", async (event) => {
   normalizeCurrencyInput(event.target);
+  const notificationPreference = event.target.closest("[data-notification-pref]");
+  if (notificationPreference) {
+    const account = currentAccount();
+    account.preferences.notifications[notificationPreference.dataset.notificationPref] =
+      notificationPreference.checked;
+    saveState();
+    await productionBackend.saveNow?.(appState);
+    showToast("Notification preference saved.");
+    return;
+  }
+
   const assetInput = event.target.closest("[data-asset-path]");
   if (assetInput) {
     const account = currentAccount();

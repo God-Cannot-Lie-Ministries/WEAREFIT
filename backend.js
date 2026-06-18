@@ -627,6 +627,14 @@
     return data;
   }
 
+  async function notifyFitEvent(payload) {
+    const { data, error } = await client.functions.invoke("notify-fit-event", {
+      body: payload,
+    });
+    await throwFunctionError(error, "The F.I.T. event notification email could not be sent.");
+    return data;
+  }
+
   async function unsubscribeFromPortalChanges() {
     realtimeSubscriptionGeneration += 1;
     clearTimeout(realtimeReconnectTimer);
@@ -753,6 +761,7 @@
     connectCoach,
     removeMentee,
     sendSessionSummarySms,
+    notifyFitEvent,
     subscribeToPortalChanges,
     unsubscribeFromPortalChanges,
     requestAccountDeletion,
