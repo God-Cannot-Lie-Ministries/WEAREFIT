@@ -3869,7 +3869,6 @@ function mortgagePanel(form, calc, readOnly) {
         ${dateField("Must pay by", "mortgage.mustPayBy", mortgage.mustPayBy, readOnly)}
         ${moneyField("This check's contribution", "mortgage.contribution", mortgage.contribution, readOnly)}
         ${computedField("Payment still needed", money(paymentRemaining))}
-        ${computedField("Mortgage balance after this check", money(calc.mortgageAfter))}
       </div>
       <div class="savings-progress-block">${progressBar(progress, `${Math.round(progress)}% of mortgage paid`)}</div>
     </section>
