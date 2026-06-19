@@ -120,6 +120,10 @@
     return first;
   }
 
+  function hasStoredPhoto(photo) {
+    return Boolean(photo?.storagePath || photo?.dataUrl);
+  }
+
   function mergeAccountRecords(existing, incoming) {
     if (!existing) return incoming;
     const existingScore = Object.values(existing).filter((value) => value != null && value !== "").length;
@@ -296,30 +300,38 @@
       merged.accounts[presenceEmail].lastActiveAt = presence.last_active_at;
     });
     const currentAccount = merged.accounts[email];
-    if (
-      currentAccount?.role === "user" &&
-      currentAccount.coachEmail &&
-      !(
+    if (currentAccount?.role === "user" && currentAccount.coachEmail) {
+      const connectedCoach = merged.accounts[currentAccount.coachEmail] || null;
+      const coachNameMissing = !(
         usableDisplayName(currentAccount.coachName, currentAccount.coachEmail) ||
-        usableDisplayName(merged.accounts[currentAccount.coachEmail]?.name, currentAccount.coachEmail)
-      )
-    ) {
-      try {
-        const { data: refreshedCoach, error: refreshError } = await client.functions.invoke("connect-coach", {
-          body: { coachEmail: currentAccount.coachEmail, refreshOnly: true },
-        });
-        await throwFunctionError(refreshError, "The connected coach name could not be refreshed.");
-        if (refreshedCoach?.coachName) {
-          currentAccount.coachName = refreshedCoach.coachName;
-          merged.accounts[currentAccount.coachEmail] = {
-            ...(merged.accounts[currentAccount.coachEmail] || {}),
-            name: refreshedCoach.coachName,
-            email: currentAccount.coachEmail,
-            role: "coach",
-          };
+        usableDisplayName(connectedCoach?.name, currentAccount.coachEmail)
+      );
+      const lastCoachPhotoCheck = new Date(currentAccount.coachPhotoCheckedAt || 0).getTime() || 0;
+      const coachPhotoStale = Date.now() - lastCoachPhotoCheck > 5 * 60 * 1000;
+      const coachPhotoMissing = !hasStoredPhoto(connectedCoach?.profilePhoto);
+      if (coachNameMissing || coachPhotoMissing || coachPhotoStale) {
+        try {
+          const { data: refreshedCoach, error: refreshError } = await client.functions.invoke("connect-coach", {
+            body: { coachEmail: currentAccount.coachEmail, refreshOnly: true },
+          });
+          await throwFunctionError(refreshError, "The connected coach name could not be refreshed.");
+          currentAccount.coachPhotoCheckedAt = new Date().toISOString();
+          if (refreshedCoach?.coachName || Object.hasOwn(refreshedCoach || {}, "coachProfilePhoto")) {
+            currentAccount.coachName = refreshedCoach.coachName || currentAccount.coachName;
+            const nextCoach = {
+              ...(merged.accounts[currentAccount.coachEmail] || {}),
+              name: refreshedCoach.coachName || merged.accounts[currentAccount.coachEmail]?.name || "F.I.T. coach",
+              email: currentAccount.coachEmail,
+              role: "coach",
+            };
+            if (Object.hasOwn(refreshedCoach || {}, "coachProfilePhoto")) {
+              nextCoach.profilePhoto = refreshedCoach.coachProfilePhoto || null;
+            }
+            merged.accounts[currentAccount.coachEmail] = nextCoach;
+          }
+        } catch (refreshError) {
+          console.warn("Could not refresh connected coach details", refreshError);
         }
-      } catch (refreshError) {
-        console.warn("Could not refresh connected coach name", refreshError);
       }
     }
     await refreshFileUrls(merged);

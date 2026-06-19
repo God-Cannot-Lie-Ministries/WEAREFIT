@@ -1424,6 +1424,13 @@ async function completePendingCoachInvite() {
   member.coachEmail = result.coachEmail;
   member.coachName = result.coachName || "F.I.T. coach";
   member.coachRequestStatus = "approved";
+  appState.accounts[result.coachEmail] = {
+    ...(appState.accounts[result.coachEmail] || {}),
+    name: member.coachName,
+    email: result.coachEmail,
+    role: "coach",
+    profilePhoto: result.coachProfilePhoto || appState.accounts[result.coachEmail]?.profilePhoto || null,
+  };
   sessionStorage.removeItem("fit-pending-coach-invite");
   window.history.replaceState({}, "", window.location.pathname);
   saveState();
@@ -6683,7 +6690,7 @@ document.addEventListener("submit", async (event) => {
           name: result.coachName || "F.I.T. coach",
           email: result.coachEmail,
           role: "coach",
-          profilePhoto: null,
+          profilePhoto: result.coachProfilePhoto || null,
         };
         appState.accounts[coach.email] = coach;
         member.coachName = coach.name;

@@ -9935,3 +9935,64 @@ html[data-theme="dark"] .upcoming-amount {
     overflow: visible;
   }
 }
+
+/* iPad financial profile guard: keep profile fields from crowding inside cards. */
+@media (min-width: 768px) and (max-width: 1024px),
+  (min-width: 1025px) and (max-width: 1366px) and (pointer: coarse),
+  (min-width: 1025px) and (max-width: 1366px) and (hover: none) {
+  .financial-profile-view .profile-inventory-card,
+  .financial-profile-view .asset-account-card,
+  .financial-profile-view .debt-entry {
+    width: 100%;
+    max-width: 100%;
+    padding: 16px;
+    overflow: visible;
+  }
+
+  .financial-profile-view .profile-inventory-grid,
+  .financial-profile-view .recurring-bill-grid,
+  .financial-profile-view .schedule-fields,
+  .financial-profile-view .promo-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100%;
+    max-width: 100%;
+    gap: 14px;
+  }
+
+  .financial-profile-view .schedule-fields {
+    padding: 14px;
+  }
+
+  .financial-profile-view .schedule-help {
+    grid-column: 1 / -1;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .financial-profile-view .field,
+  .financial-profile-view .profile-inventory-grid > *,
+  .financial-profile-view .schedule-fields > *,
+  .financial-profile-view .promo-fields > *,
+  .financial-profile-view .money-input-wrap,
+  .financial-profile-view .percent-input-wrap {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .financial-profile-view .input,
+  .financial-profile-view textarea,
+  .financial-profile-view select,
+  .financial-profile-view input[type="date"] {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .financial-profile-view input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    padding-inline: 14px 34px;
+  }
+}

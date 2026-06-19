@@ -72,8 +72,17 @@ Deno.serve(async (request) => {
       (stateName && stateName.toLowerCase() !== coachEmail ? stateName : "") ||
       (metadataName && metadataName.toLowerCase() !== coachEmail ? metadataName : "") ||
       "F.I.T. coach";
+    const coachStoredPhoto = coachAccount.profilePhoto || null;
+    const coachProfilePhoto = coachStoredPhoto ? { ...coachStoredPhoto } : null;
+    if (coachProfilePhoto?.storagePath) {
+      const { data: signedPhoto } = await adminClient.storage
+        .from("profile-photos")
+        .createSignedUrl(coachProfilePhoto.storagePath, 86400);
+      if (signedPhoto?.signedUrl) coachProfilePhoto.dataUrl = signedPhoto.signedUrl;
+    }
     member.coachEmail = coachEmail;
     member.coachName = coachName;
+    member.coachPhotoCheckedAt = new Date().toISOString();
     if (!refreshOnly) member.coachRequestStatus = acceptedCoachInvite ? "approved" : "pending";
     state.accounts = {
       ...(state.accounts || {}),
@@ -82,7 +91,7 @@ Deno.serve(async (request) => {
         name: coachName,
         email: coachEmail,
         role: "coach",
-        profilePhoto: coachAccount.profilePhoto || null,
+        profilePhoto: coachStoredPhoto,
       },
     };
     if (!refreshOnly) {
@@ -107,7 +116,7 @@ Deno.serve(async (request) => {
       .eq("owner_id", authData.user.id);
     if (updateError) throw updateError;
 
-    return new Response(JSON.stringify({ ok: true, coachEmail, coachName }), {
+    return new Response(JSON.stringify({ ok: true, coachEmail, coachName, coachProfilePhoto }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
