@@ -394,8 +394,37 @@ function reconcileReportedWithdrawals(state, account) {
   });
 }
 
+function sessionTimestamp(session) {
+  const value = new Date(session.sessionDate || session.createdAt || 0).getTime();
+  return Number.isFinite(value) ? value : 0;
+}
+
+function autoArchivePreviousSessionReviews(state) {
+  const byMember = new Map();
+  (state.sessions || []).forEach((session) => {
+    session.archivedAt ||= null;
+    session.archiveReason ||= "";
+    const memberEmail = normalizeEmail(session.memberEmail || "");
+    if (!memberEmail) return;
+    if (!byMember.has(memberEmail)) byMember.set(memberEmail, []);
+    byMember.get(memberEmail).push(session);
+  });
+
+  byMember.forEach((sessions) => {
+    sessions
+      .sort((a, b) => sessionTimestamp(b) - sessionTimestamp(a))
+      .slice(1)
+      .forEach((session) => {
+        if (session.archivedAt) return;
+        session.archivedAt = session.sessionDate || session.createdAt || new Date().toISOString();
+        session.archiveReason = "auto_previous_review";
+      });
+  });
+}
+
 function normalizeStateModels(state) {
   state.withdrawals ||= [];
+  state.sessions ||= [];
   state.withdrawals = state.withdrawals.filter((withdrawal, index, withdrawals) => {
     const signature = [
       withdrawal.memberEmail,
@@ -451,6 +480,8 @@ function normalizeStateModels(state) {
     }
   });
   Object.values(state.forms || {}).forEach((form) => {
+    form.archivedAt ||= null;
+    form.archivedBy ||= null;
     if (form.assignedPerson === "both") {
       form.assignedName = formAssigneeName(state.accounts?.[form.ownerEmail], "both") || form.assignedName;
     }
@@ -491,6 +522,7 @@ function normalizeStateModels(state) {
     form.data.overview ||= { checkDate: "", thisCheck: "", additionalIncome: "" };
     form.data.notes ||= "";
   });
+  autoArchivePreviousSessionReviews(state);
   return state;
 }
 
@@ -788,6 +820,8 @@ function blankForm(owner, carryForward = owner.carryForward || {}, assignedPerso
     status: "draft",
     approvedAt: null,
     approvedBy: null,
+    archivedAt: null,
+    archivedBy: null,
     assignedPerson,
     assignedName: formAssigneeName(owner, assignedPerson),
     generatedFromProfile: true,
@@ -933,6 +967,8 @@ function loadState() {
         form.status ||= form.sharedWith?.length ? "submitted" : "draft";
         form.approvedAt ||= null;
         form.approvedBy ||= null;
+        form.archivedAt ||= null;
+        form.archivedBy ||= null;
         billGroups.forEach(([key]) => {
           form.data.bills[key] ||= [blankBill(), blankBill(), blankBill()];
           form.data.bills[key] = removePartialNameDuplicates(form.data.bills[key], "name");
@@ -3493,13 +3529,20 @@ function renderSessions() {
         : session.memberEmail === account.email,
     )
     .sort((a, b) => new Date(b.sessionDate) - new Date(a.sessionDate));
+  const activeSessions = sessions.filter((session) => !session.archivedAt);
+  const archivedSessions = sessions.filter((session) => session.archivedAt);
   const content = `
     <div class="content">
       <div class="page-heading"><div><p class="eyebrow">F.I.T. session history</p><h2>Session reviews and next steps</h2><p>Coach notes stay original; the F.I.T. review appears separately as a clear summary.</p></div><span class="badge green">${sessions.length} completed</span></div>
       ${
-        sessions.length
-          ? `<section class="session-list">${sessions.map((session) => sessionReviewCard(session, account)).join("")}</section>`
-          : emptyState("✦", "No completed session reviews yet", account.role === "coach" ? "Approve a submitted worksheet to complete a session and generate its review." : "Your completed F.I.T. sessions will appear here after coach review.", "")
+        activeSessions.length
+          ? `<section class="session-list">${activeSessions.map((session) => sessionReviewCard(session, account)).join("")}</section>`
+          : emptyState("✦", archivedSessions.length ? "No current session reviews" : "No completed session reviews yet", archivedSessions.length ? "Open the archived section below to review previous F.I.T. sessions." : account.role === "coach" ? "Approve a submitted worksheet to complete a session and generate its review." : "Your completed F.I.T. sessions will appear here after coach review.", "")
+      }
+      ${
+        archivedSessions.length
+          ? `<details class="archive-details session-archive-details"><summary><span>Archived session reviews</span><strong>${archivedSessions.length}</strong></summary><section class="session-list">${archivedSessions.map((session) => sessionReviewCard(session, account)).join("")}</section></details>`
+          : ""
       }
     </div>
   `;
@@ -3519,7 +3562,7 @@ function sessionReviewCard(session, viewer) {
     <article class="session-review-card">
       <div class="session-review-top">
         <div><p class="document-label">Completed F.I.T. session</p><h3>${dateLabel(session.sessionDate.slice(0, 10))}</h3><p>${escapeHtml(session.coachName)} with ${escapeHtml(session.memberName)}</p></div>
-        <div class="button-row"><button class="btn btn-secondary btn-small" type="button" data-print-form="${session.formId}">Open summary PDF</button><span class="badge green">Review ready</span></div>
+        <div class="button-row"><button class="btn btn-secondary btn-small" type="button" data-print-form="${session.formId}">Open summary PDF</button><span class="badge green">${session.archivedAt ? "Archived" : "Review ready"}</span></div>
       </div>
       <section class="ai-review">
         <div class="ai-review-heading"><span>✦</span><div><strong>F.I.T. AI session review</strong><small>Generated from the worksheet, bill decisions, coach notes, and action steps.</small></div></div>
@@ -3630,6 +3673,9 @@ function createSessionReview(form, coach, coachNotes, actionSteps) {
     id: uid("session"),
     formId: form.id,
     sessionDate: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    archivedAt: null,
+    archiveReason: "",
     coachEmail: coach.email,
     coachName: coach.name,
     memberEmail: member.email,
@@ -3660,8 +3706,9 @@ function renderDashboard() {
     const sharedForms = Object.values(appState.forms)
       .filter((form) => appState.accounts[form.ownerEmail]?.coachEmail === account.email)
       .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-    const reviewForms = sharedForms.filter((form) => form.status !== "approved");
-    const approvedForms = sharedForms.filter((form) => form.status === "approved");
+    const reviewForms = sharedForms.filter((form) => form.status !== "approved" && !form.archivedAt);
+    const approvedForms = sharedForms.filter((form) => form.status === "approved" && !form.archivedAt);
+    const archivedApprovedForms = sharedForms.filter((form) => form.status === "approved" && form.archivedAt);
     const mentees = Object.values(appState.accounts).filter(
       (member) =>
         member.role === "user" &&
@@ -3711,6 +3758,11 @@ function renderDashboard() {
         <section class="dashboard-band">
           <div class="page-heading"><div><h2>Approved documents</h2><p>Previously reviewed worksheets.</p></div></div>
           ${approvedForms.length ? `<section class="inbox-grid">${approvedForms.map(coachFormCard).join("")}</section>` : `<p class="quiet-message">No approved documents yet.</p>`}
+          ${
+            archivedApprovedForms.length
+              ? `<details class="archive-details form-archive-details"><summary><span>Archived approved documents</span><strong>${archivedApprovedForms.length}</strong></summary><section class="inbox-grid">${archivedApprovedForms.map(coachFormCard).join("")}</section></details>`
+              : ""
+          }
         </section>
       </div>
     `;
@@ -3718,16 +3770,18 @@ function renderDashboard() {
     return;
   }
 
-  const forms = Object.values(appState.forms)
+  const allForms = Object.values(appState.forms)
     .filter((form) => form.ownerEmail === account.email)
     .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-  const latest = forms[0];
+  const forms = allForms.filter((form) => !form.archivedAt);
+  const archivedForms = allForms.filter((form) => form.archivedAt);
+  const latest = allForms[0];
   const latestCalc = latest ? calculate(latest) : null;
   const content = `
     <div class="content">
       ${dashboardBanner(account, false)}
       <section class="metric-grid" aria-label="Financial overview">
-        ${metric("Saved forms", forms.length)}
+        ${metric("Saved forms", allForms.length)}
         ${metric("Latest paycheck", latestCalc ? money(latestCalc.thisCheck) : "$0")}
         ${metric("Latest total debt", money(profileDebtTotal(account)))}
         ${metric("Milestone alerts", unreadNotifications.length)}
@@ -3743,7 +3797,12 @@ function renderDashboard() {
       ${
         forms.length
           ? `<section class="form-grid">${forms.map(memberFormCard).join("")}</section>`
-          : emptyState("▤", "No financial worksheets yet", "Create your first form to begin planning this paycheck.", `<button class="btn btn-primary" type="button" data-new-form>New form</button>`)
+          : emptyState("▤", archivedForms.length ? "All completed worksheets are archived" : "No financial worksheets yet", archivedForms.length ? "Open the archived section below to review completed worksheets." : "Create your first form to begin planning this paycheck.", archivedForms.length ? "" : `<button class="btn btn-primary" type="button" data-new-form>New form</button>`)
+      }
+      ${
+        archivedForms.length
+          ? `<details class="archive-details form-archive-details"><summary><span>Archived completed forms</span><strong>${archivedForms.length}</strong></summary><section class="form-grid">${archivedForms.map(memberFormCard).join("")}</section></details>`
+          : ""
       }
     </div>
   `;
@@ -3795,6 +3854,11 @@ function memberFormCard(form) {
         <button class="btn btn-secondary btn-small" type="button" data-save-form="${form.id}">Save</button>
         ${currentAccount()?.coachEmail && currentAccount()?.coachRequestStatus === "approved" ? `<button class="btn btn-secondary btn-small" type="button" data-share-form="${form.id}"><span aria-hidden="true">↗</span> Send to coach</button>` : ""}
         <button class="btn btn-secondary btn-small" type="button" data-print-form="${form.id}">Print PDF</button>
+        ${
+          form.archivedAt
+            ? `<span class="badge">Archived</span>`
+            : `<button class="btn btn-secondary btn-small" type="button" ${form.status === "approved" ? "" : 'disabled title="Available after coach approval"'} data-archive-form="${form.id}">Archive</button>`
+        }
         <button class="icon-btn danger" type="button" title="Delete form" aria-label="Delete form" data-delete-form="${form.id}">×</button>
       </div>
     </article>
@@ -3820,6 +3884,11 @@ function coachFormCard(form) {
       </div>
       <div class="button-row">
         <button class="btn btn-primary btn-small" type="button" data-open-form="${form.id}">${form.status === "approved" ? "View approved form" : "Review form"}</button>
+        ${
+          form.archivedAt
+            ? `<span class="badge">Archived</span>`
+            : `<button class="btn btn-secondary btn-small" type="button" ${form.status === "approved" ? "" : 'disabled title="Available after approval"'} data-archive-form="${form.id}">Archive</button>`
+        }
         <span class="autosave">${form.status === "approved" ? "Approved" : "Sent"} ${updatedLabel(form.approvedAt || form.submittedAt || form.updatedAt)}</span>
       </div>
     </article>
@@ -3827,6 +3896,7 @@ function coachFormCard(form) {
 }
 
 function formStatusBadge(form) {
+  if (form.archivedAt) return `<span class="badge">Archived</span>`;
   if (form.status === "approved") return `<span class="badge green">Approved</span>`;
   if (form.status === "submitted") return `<span class="badge">Awaiting review</span>`;
   return `<span class="badge">Draft</span>`;
@@ -5413,6 +5483,7 @@ async function approveForm(formId, coachNotes = "", actionSteps = "") {
   member.financialInventory.mortgage = clone(member.carryForward.mortgage || {});
   const sessionReview = createSessionReview(form, coach, coachNotes, actionSteps);
   appState.sessions.push(sessionReview);
+  autoArchivePreviousSessionReviews(appState);
   saveState();
   await productionBackend.saveNow?.(appState);
   const emailResult = await sendSessionCompletedEmail(form, sessionReview);
@@ -6316,6 +6387,43 @@ document.addEventListener("click", async (event) => {
       } catch (error) {
         showToast(error.message || "Form could not be saved.");
       }
+    }
+    return;
+  }
+
+  const archiveButton = event.target.closest("[data-archive-form]");
+  if (archiveButton) {
+    const account = currentAccount();
+    const form = appState.forms[archiveButton.dataset.archiveForm];
+    const member = form ? appState.accounts[form.ownerEmail] : null;
+    const canArchive =
+      form &&
+      (normalizeEmail(form.ownerEmail) === normalizeEmail(account?.email) ||
+        (account?.role === "coach" &&
+          normalizeEmail(member?.coachEmail) === normalizeEmail(account.email) &&
+          member?.coachRequestStatus === "approved"));
+    if (!canArchive) {
+      showToast("This worksheet is not available to archive.");
+      return;
+    }
+    if (form.status !== "approved") {
+      showToast("Archive is available after the session is approved.");
+      return;
+    }
+    if (form.archivedAt) {
+      showToast("This worksheet is already archived.");
+      return;
+    }
+    form.archivedAt = new Date().toISOString();
+    form.archivedBy = account.email;
+    form.updatedAt = new Date().toISOString();
+    saveState();
+    try {
+      await productionBackend.saveNow?.(appState);
+      render();
+      showToast("Completed worksheet archived.");
+    } catch (error) {
+      showToast(error.message || "Worksheet could not be archived.");
     }
     return;
   }

@@ -3553,6 +3553,27 @@ html[data-theme="dark"] .chart-legend button strong {
   color: var(--muted);
 }
 
+.archive-details summary strong {
+  min-width: 34px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 9px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--navy);
+}
+
+.form-archive-details,
+.session-archive-details {
+  margin-top: 22px;
+}
+
+.form-archive-details .form-grid,
+.form-archive-details .inbox-grid,
+.session-archive-details .session-list {
+  margin-top: 14px;
+}
+
 .invite-panel {
   margin-bottom: 18px;
 }
@@ -4151,6 +4172,7 @@ html[data-theme="dark"] .milestone-notification strong,
 html[data-theme="dark"] .inline-empty strong,
 html[data-theme="dark"] .schedule-toggle,
 html[data-theme="dark"] .archive-details summary,
+html[data-theme="dark"] .archive-details summary strong,
 html[data-theme="dark"] .invite-card strong,
 html[data-theme="dark"] .theme-choice strong,
 html[data-theme="dark"] .session-review-top h3,
