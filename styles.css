@@ -5116,6 +5116,12 @@ html[data-theme="dark"] .onboarding-banner strong {
   font-size: 11px;
 }
 
+.email-recipient-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .profile-heading-person > div,
 .person-row > div,
 .connection-current > div {

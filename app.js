@@ -1849,7 +1849,10 @@ function addMilestoneNotifications(member, milestoneKey, title, message, type) {
       readAt: null,
     });
   });
-  sendMilestoneEmail(member, milestoneKey, title);
+  sendMilestoneEmail(member, milestoneKey, title).then((emailResult) => {
+    const emailStatus = emailDeliveryMessage(emailResult, notificationEmailsForMember(member));
+    if (emailStatus) showToast(`Milestone notification sent.${emailStatus}`);
+  });
   return true;
 }
 
@@ -1861,6 +1864,42 @@ async function notifyFitEventEmail(payload) {
     console.warn("F.I.T. event email could not be sent", error);
     return null;
   }
+}
+
+function notificationEmailsForMember(member) {
+  if (!member) return [];
+  const emails = [member.email];
+  if (member.coachEmail && member.coachRequestStatus === "approved") {
+    emails.push(member.coachEmail);
+  }
+  return [...new Set(emails.map(normalizeEmail).filter(validEmail))];
+}
+
+function notificationEmailsForForm(form) {
+  return notificationEmailsForMember(appState.accounts[form?.ownerEmail] || { email: form?.ownerEmail });
+}
+
+function formatEmailList(emails = []) {
+  const cleanEmails = [...new Set(emails.map(normalizeEmail).filter(validEmail))];
+  if (!cleanEmails.length) return "";
+  if (cleanEmails.length === 1) return cleanEmails[0];
+  if (cleanEmails.length === 2) return `${cleanEmails[0]} and ${cleanEmails[1]}`;
+  return `${cleanEmails.slice(0, -1).join(", ")}, and ${cleanEmails.at(-1)}`;
+}
+
+function emailDeliveryMessage(result, emails = []) {
+  if (!productionBackend.enabled) return "";
+  const cleanEmails = [...new Set(emails.map(normalizeEmail).filter(validEmail))];
+  if (!cleanEmails.length) return "";
+  const results = Array.isArray(result?.results) ? result.results : [];
+  if (results.length && results.every((item) => item?.ok)) {
+    return ` Email sent to ${formatEmailList(cleanEmails)}.`;
+  }
+  const sentEmails = cleanEmails.filter((_, index) => results[index]?.ok);
+  if (sentEmails.length) {
+    return ` Email sent to ${formatEmailList(sentEmails)}. Some recipients may need a retry.`;
+  }
+  return " Email notification could not be confirmed.";
 }
 
 function sendMilestoneEmail(member, milestoneKey, title) {
@@ -1889,6 +1928,21 @@ function sendSessionCompletedEmail(form, sessionReview) {
     relatedSessionId: sessionReview.id,
     relatedDocumentId: form.id,
     sessionDate: dateLabel((sessionReview.sessionDate || sessionReview.createdAt || new Date().toISOString()).slice(0, 10)),
+  });
+}
+
+function sendWorksheetOpenedEmail(form) {
+  const actor = currentAccount();
+  if (!form || !actor) return null;
+  return notifyFitEventEmail({
+    eventType: "worksheet_opened",
+    memberEmail: form.ownerEmail,
+    relatedDocumentId: form.id,
+    documentTitle: form.title || "F.I.T. worksheet",
+    documentType: "Worksheet",
+    openedByEmail: actor.email,
+    openedByName: actor.name || actor.email,
+    openedByRole: actor.role === "coach" ? "coach" : "member",
   });
 }
 
@@ -3525,8 +3579,7 @@ function showSessionCompletionModal(formId) {
   const coach = currentAccount();
   if (!form || coach.role !== "coach" || appState.accounts[form.ownerEmail]?.coachEmail !== coach.email) return;
   const member = appState.accounts[form.ownerEmail];
-  const memberPhone = String(member?.profile?.phone || "").trim();
-  const coachPhone = String(coach?.profile?.phone || "").trim();
+  const notificationEmails = notificationEmailsForMember(member);
   const modal = document.createElement("div");
   modal.className = "modal-backdrop";
   modal.dataset.formId = formId;
@@ -3538,9 +3591,10 @@ function showSessionCompletionModal(formId) {
         <form id="session-completion-form" class="form-stack">
           <div class="field"><label for="coach-session-notes">Add notes for your mentee (optional)</label><textarea id="coach-session-notes" class="input notes-area compact-notes" name="coachNotes" placeholder="Feedback, patterns noticed, and encouragement"></textarea></div>
           <div class="field"><label for="session-action-steps">Action steps before the next session (optional)</label><textarea id="session-action-steps" class="input notes-area compact-notes" name="actionSteps" placeholder="Specific next steps for the member"></textarea></div>
-          <fieldset class="summary-delivery-options"><legend>Text the completed F.I.T. summary</legend>
-            <label class="check-control"><input type="checkbox" name="textMember" ${memberPhone ? "checked" : "disabled"}><span>Text member${memberPhone ? ` at ${escapeHtml(memberPhone)}` : " (phone number needed)"}</span></label>
-            <label class="check-control"><input type="checkbox" name="textCoach" ${coachPhone ? "checked" : "disabled"}><span>Text coach${coachPhone ? ` at ${escapeHtml(coachPhone)}` : " (phone number needed)"}</span></label>
+          <fieldset class="summary-delivery-options"><legend>Email the completed F.I.T. summary</legend>
+            <div class="email-recipient-list">
+              ${notificationEmails.map((email) => `<span class="badge">${escapeHtml(email)}</span>`).join("")}
+            </div>
             <p>The message contains a secure sign-in link to the completed summary and printable PDF.</p>
           </fieldset>
           <button class="btn btn-gold" type="submit">Approve and complete F.I.T. session</button>
@@ -5264,7 +5318,7 @@ function showProfileWithdrawalModal(index) {
   document.body.appendChild(modal);
 }
 
-async function approveForm(formId, coachNotes = "", actionSteps = "", textRecipients = []) {
+async function approveForm(formId, coachNotes = "", actionSteps = "") {
   const coach = currentAccount();
   const form = appState.forms[formId];
   if (!form || coach.role !== "coach" || appState.accounts[form.ownerEmail]?.coachEmail !== coach.email) return;
@@ -5361,25 +5415,12 @@ async function approveForm(formId, coachNotes = "", actionSteps = "", textRecipi
   appState.sessions.push(sessionReview);
   saveState();
   await productionBackend.saveNow?.(appState);
-  await sendSessionCompletedEmail(form, sessionReview);
-  let textStatus = "";
-  if (textRecipients.length && productionBackend.enabled) {
-    try {
-      const result = await productionBackend.sendSessionSummarySms?.({
-        sessionId: sessionReview.id,
-        formId: form.id,
-        recipients: textRecipients,
-      });
-      textStatus = result?.sent ? ` ${result.sent} summary text${result.sent === 1 ? "" : "s"} sent.` : "";
-    } catch (error) {
-      console.warn("Session summary text could not be delivered", error);
-      textStatus = " The session was saved, but summary text delivery could not be completed.";
-    }
-  }
+  const emailResult = await sendSessionCompletedEmail(form, sessionReview);
+  const emailStatus = emailDeliveryMessage(emailResult, notificationEmailsForForm(form));
   activeFormId = null;
   activeView = "dashboard";
   render();
-  showToast(`Session completed. Review generated and balances carried forward.${textStatus}`);
+  showToast(`Session completed. Review generated and balances carried forward.${emailStatus}`);
 }
 
 function showToast(message) {
@@ -6238,9 +6279,15 @@ document.addEventListener("click", async (event) => {
 
   const openButton = event.target.closest("[data-open-form]");
   if (openButton) {
+    const form = appState.forms[openButton.dataset.openForm];
     activeFormId = openButton.dataset.openForm;
     activeView = "editor";
     render();
+    if (form) {
+      const emailResult = await sendWorksheetOpenedEmail(form);
+      const emailStatus = emailDeliveryMessage(emailResult, notificationEmailsForForm(form));
+      if (emailStatus) showToast(`Worksheet opened.${emailStatus}`);
+    }
     return;
   }
 
@@ -6630,7 +6677,7 @@ document.addEventListener("submit", async (event) => {
     pendingPaystubUpload = null;
     if (saveState()) {
       await productionBackend.saveNow?.(appState);
-      await notifyFitEventEmail({
+      const emailResult = await notifyFitEventEmail({
         eventType: "document_available",
         memberEmail: account.email,
         relatedDocumentId: submittedPaystub.id,
@@ -6638,7 +6685,7 @@ document.addEventListener("submit", async (event) => {
         documentType: "Paystub",
       });
       renderProfile();
-      showToast("Paystub submitted to the archive");
+      showToast(`Paystub submitted to the archive.${emailDeliveryMessage(emailResult, notificationEmailsForMember(account))}`);
     }
     return;
   }
@@ -6647,15 +6694,10 @@ document.addEventListener("submit", async (event) => {
     event.preventDefault();
     const modal = event.target.closest(".modal-backdrop");
     const data = new FormData(event.target);
-    const textRecipients = [
-      ...(data.get("textMember") ? ["member"] : []),
-      ...(data.get("textCoach") ? ["coach"] : []),
-    ];
     await approveForm(
       modal.dataset.formId,
       data.get("coachNotes").trim(),
       data.get("actionSteps").trim(),
-      textRecipients,
     );
     modal.remove();
     return;
@@ -6706,10 +6748,10 @@ document.addEventListener("submit", async (event) => {
     form.updatedAt = new Date().toISOString();
     saveState();
     await productionBackend.saveNow?.(appState);
-    await sendDocumentAvailableEmail(form, "Worksheet");
+    const emailResult = await sendDocumentAvailableEmail(form, "Worksheet");
     modal.remove();
     render();
-    showToast(`Finished worksheet sent to ${email}`);
+    showToast(`Finished worksheet sent for coach review.${emailDeliveryMessage(emailResult, notificationEmailsForForm(form))}`);
     return;
   }
 

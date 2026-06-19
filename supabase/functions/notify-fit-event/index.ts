@@ -6,6 +6,10 @@ const corsHeaders = {
 };
 
 const eventSubjects: Record<string, { member: string; coach: string }> = {
+  worksheet_opened: {
+    member: "Your F.I.T. worksheet was opened",
+    coach: "A member's F.I.T. worksheet was opened",
+  },
   milestone_reached: {
     member: "Your F.I.T. milestone was reached",
     coach: "A member reached a F.I.T. milestone",
@@ -49,10 +53,25 @@ function readableDate(value: unknown) {
 
 function eventCopy(eventType: string, role: "member" | "coach", payload: Record<string, unknown>) {
   const memberName = escapeHtml(payload.memberName || "your member");
+  const openedByName = escapeHtml(payload.openedByName || payload.actorName || "an authorized user");
+  const openedByRole = escapeHtml(payload.openedByRole || "user");
   const milestoneName = escapeHtml(payload.milestoneName || "Financial milestone");
   const documentTitle = escapeHtml(payload.documentTitle || "F.I.T. document");
   const documentType = escapeHtml(payload.documentType || "Document");
   const sessionDate = escapeHtml(readableDate(payload.sessionDate));
+  if (eventType === "worksheet_opened") {
+    return role === "member"
+      ? {
+          headline: "Your F.I.T. worksheet was opened",
+          body: `${documentTitle} was opened by ${openedByName} (${openedByRole}). Sign in to F.I.T. to view the worksheet securely.`,
+          cta: "Open worksheet",
+        }
+      : {
+          headline: "A member worksheet was opened",
+          body: `${memberName}'s ${documentTitle} was opened by ${openedByName} (${openedByRole}). Sign in to review the worksheet through your coach access.`,
+          cta: "Open worksheet",
+        };
+  }
   if (eventType === "milestone_reached") {
     return role === "member"
       ? {
@@ -228,12 +247,16 @@ Deno.serve(async (request) => {
     const memberProfile = profileByEmail.get(memberEmail);
     const viewUrl = new URL(appUrl);
     if (eventType === "fit_session_completed") viewUrl.searchParams.set("session", String(body.relatedSessionId || body.sessionId || ""));
-    if (eventType === "document_available") viewUrl.searchParams.set("document", String(body.relatedDocumentId || body.documentId || ""));
+    if (eventType === "document_available" || eventType === "worksheet_opened") {
+      viewUrl.searchParams.set("document", String(body.relatedDocumentId || body.documentId || ""));
+    }
     if (eventType === "milestone_reached") viewUrl.searchParams.set("notifications", "1");
 
     const payload = {
       ...body,
       memberName: accountName(memberAccount, memberEmail),
+      openedByName: body.openedByName || (actorEmail === memberEmail ? accountName(memberAccount, memberEmail) : actorEmail),
+      openedByRole: body.openedByRole || (actorEmail === memberEmail ? "member" : "coach"),
       sessionDate: readableDate(body.sessionDate || new Date()),
     };
     const recipients = [
