@@ -72,12 +72,13 @@ Deno.serve(async (request) => {
       body: JSON.stringify({
         from: emailFrom,
         to: [email],
-        subject: "F.I.T Verification Link",
-        text: `You recently requested to delete your F.I.T. account. For your security, please verify this request before your account can be deleted. If you did not request this, you can safely ignore this email and your account will remain active.\n\n${verifyUrl.toString()}`,
+        subject: "Confirm your F.I.T. account deletion",
+        text: `You asked to delete your F.I.T. account. Open this secure link to confirm. If you did not request this, ignore this email and your account will remain active.\n\n${verifyUrl.toString()}`,
         html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#172033;line-height:1.6">
-          <h1 style="font-size:22px;color:#0d2859">F.I.T Verification Link</h1>
-          <p>You recently requested to delete your F.I.T. account. For your security, please verify this request before your account can be deleted. If you did not request this, you can safely ignore this email and your account will remain active.</p>
-          <p><a href="${safeUrl}">Verify account deletion request</a></p>
+          <h1 style="font-size:22px;color:#0d2859">Confirm account deletion</h1>
+          <p>You asked to delete your F.I.T. account. Open the secure link below to confirm.</p>
+          <p><a href="${safeUrl}" style="display:inline-block;background:#0d2859;color:#ffffff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:700">Confirm deletion</a></p>
+          <p style="font-size:12px;color:#647084">If you did not request this, ignore this email and your account will remain active.</p>
           <p style="font-size:12px;color:#647084">This one-time link expires in 30 minutes.</p>
         </div>`,
       }),

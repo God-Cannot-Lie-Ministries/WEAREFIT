@@ -29,12 +29,13 @@ async function sendDeletionEmail(email: string, token: string) {
     body: JSON.stringify({
       from: emailFrom,
       to: [email],
-      subject: "F.I.T Verification Link",
-      text: `Use this new secure link to confirm deletion of your F.I.T. account. If you did not request this, you can safely ignore this email.\n\n${verifyUrl.toString()}`,
+      subject: "Confirm your F.I.T. account deletion",
+      text: `Use this secure link to confirm deletion of your F.I.T. account. If you did not request this, ignore this email and your account will remain active.\n\n${verifyUrl.toString()}`,
       html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#172033;line-height:1.6">
-        <h1 style="font-size:22px;color:#0d2859">F.I.T Verification Link</h1>
-        <p>Use this new secure link to confirm deletion of your F.I.T. account. If you did not request this, you can safely ignore this email.</p>
-        <p><a href="${safeUrl}">Verify account deletion request</a></p>
+        <h1 style="font-size:22px;color:#0d2859">Confirm account deletion</h1>
+        <p>Use this secure link to confirm deletion of your F.I.T. account.</p>
+        <p><a href="${safeUrl}" style="display:inline-block;background:#0d2859;color:#ffffff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:700">Confirm deletion</a></p>
+        <p style="font-size:12px;color:#647084">If you did not request this, ignore this email and your account will remain active.</p>
         <p style="font-size:12px;color:#647084">Only the newest link will work. This link expires in 30 minutes.</p>
       </div>`,
     }),

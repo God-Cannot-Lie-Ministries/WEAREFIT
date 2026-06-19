@@ -1888,7 +1888,7 @@ function sendSessionCompletedEmail(form, sessionReview) {
     memberEmail: form.ownerEmail,
     relatedSessionId: sessionReview.id,
     relatedDocumentId: form.id,
-    sessionDate: sessionReview.sessionDate || sessionReview.createdAt,
+    sessionDate: dateLabel((sessionReview.sessionDate || sessionReview.createdAt || new Date().toISOString()).slice(0, 10)),
   });
 }
 
@@ -4120,7 +4120,7 @@ function variablePanel(form, calc, readOnly) {
         ${readOnly ? "" : `<button class="btn btn-secondary btn-small" type="button" data-add-row="variableSpending"><span aria-hidden="true">＋</span> Add category</button>`}
       </div>
       <div class="budget-remaining-strip">
-        ${computedField("Ready to budget", money(calc.remainingBeforeBudget), "remaining-before-budget")}
+        ${computedField("Ready to budget", money(calc.available), "remaining-before-budget")}
         ${computedField("Budgeted", money(calc.variableBudget), "variable-budget")}
         ${computedField("Left to budget", money(calc.available), "available")}
       </div>
@@ -4680,7 +4680,7 @@ function summaryPanel(calc) {
         ${summaryRow("Mortgage contribution", money(calc.mortgageContribution))}
         ${summaryRow("Savings contribution", money(calc.savingsContribution))}
         ${summaryRow("Rollovers", money(calc.allocationTotal), false, "allocation-total")}
-        ${summaryRow("Ready to budget", money(calc.remainingBeforeBudget))}
+        ${summaryRow("Ready to budget", money(calc.available))}
         ${summaryRow("Budgeted", money(calc.variableBudget))}
         ${summaryRow("Total planned outflow", money(calc.totalPlanned))}
         ${calc.approvedBills ? summaryRow("Coach selected this check", money(calc.approvedBills)) : ""}
@@ -4883,7 +4883,7 @@ function refreshLiveAvailable(form) {
     element.textContent = titheMoney(calc.tithe);
   });
   document.querySelectorAll("[data-live-remaining-before-budget]").forEach((element) => {
-    element.textContent = money(calc.remainingBeforeBudget);
+    element.textContent = money(calc.available);
   });
   document.querySelectorAll("[data-live-variable-budget]").forEach((element) => {
     element.textContent = money(calc.variableBudget);
@@ -5170,11 +5170,9 @@ function printWorksheetSummary(formId) {
   const billsRemaining = bills
     .filter((bill) => bill.coachDecision !== "this_check")
     .map((bill) => `${bill.name} - ${money(bill.amount)}`);
-  const savingsAccounts = member.savingsInvestmentAccounts.filter((item) => item.type === "savings");
-  const investments = member.savingsInvestmentAccounts.filter((item) => item.type === "investment");
-  const debts = form.data.debts.filter((debt) => debt.account);
-  const studentLoans = (form.data.studentLoans || []).filter((loan) => loan.account);
-  const cards = form.data.creditCards.filter((card) => card.account);
+  const budgetRows = (form.data.variableSpending || [])
+    .filter((item) => item.category || Number(item.budgeted))
+    .map((item) => `${item.category || "Budget item"} - ${money(item.budgeted)}`);
   const allocations = (form.data.allocations || [])
     .filter((item) => item.account || Number(item.amount))
     .map((item) => `${item.account || item.type.replaceAll("_", " ")} - ${money(item.amount)}`);
@@ -5190,38 +5188,27 @@ function printWorksheetSummary(formId) {
   report.document.open();
   report.document.write(`<!doctype html><html><head><title>F.I.T. Summary - ${escapeHtml(form.assignedName || member.name)}</title>
     <style>
-      @page{size:letter;margin:.55in}*{box-sizing:border-box}html,body{background:#fff!important}body{margin:0;color:#17233a;font:11pt Arial,sans-serif;line-height:1.45;-webkit-print-color-adjust:exact;print-color-adjust:exact}h1,h2,h3{color:#0d2859;margin:0}h1{font-size:22pt}h2{margin:22px 0 9px;border-bottom:2px solid #c99a27;padding-bottom:5px;font-size:15pt}h3{font-size:11pt}.header{display:flex;justify-content:space-between;gap:20px;border-bottom:4px solid #0d2859;padding-bottom:16px}.brand{color:#a87913;font-weight:800;letter-spacing:.08em}.people{display:flex;gap:32px;margin-top:18px}.person strong{display:block;color:#0d2859}.person span{color:#68758a;font-size:9pt}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.fact{border:1px solid #d8dee8;background:#fff;padding:9px;break-inside:avoid}.fact span{display:block;color:#68758a;font-size:8pt;text-transform:uppercase}.fact strong{display:block;margin-top:3px}.two{display:grid;grid-template-columns:1fr 1fr;gap:18px}.section{break-inside:avoid}.list{margin:0;padding-left:18px}.note{border-left:4px solid #c99a27;background:#f7f4ec;padding:10px;white-space:pre-wrap}.footer{margin-top:24px;border-top:1px solid #d8dee8;padding-top:8px;color:#68758a;font-size:8pt}@media print{html,body{background:#fff!important}button{display:none}.page-break{break-before:page}}
+      @page{size:letter;margin:.55in}*{box-sizing:border-box}html,body{background:#fff!important}body{margin:0;color:#17233a;font:10.5pt Arial,sans-serif;line-height:1.42;-webkit-print-color-adjust:exact;print-color-adjust:exact}h1,h2,h3{color:#0d2859;margin:0}h1{font-size:21pt}h2{margin:18px 0 8px;border-bottom:2px solid #c99a27;padding-bottom:5px;font-size:14pt}.header{display:flex;justify-content:space-between;gap:20px;border-bottom:4px solid #0d2859;padding-bottom:14px}.brand{color:#a87913;font-weight:800;letter-spacing:.08em}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.fact{border:1px solid #d8dee8;background:#fff;padding:8px;break-inside:avoid}.fact span{display:block;color:#68758a;font-size:7.5pt;font-weight:700;text-transform:uppercase}.fact strong{display:block;margin-top:3px;font-size:10.5pt}.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}.three{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.section{break-inside:avoid}.section ul{margin:0;padding-left:18px}.note{border-left:4px solid #c99a27;background:#f7f4ec;padding:9px;white-space:pre-wrap}.footer{margin-top:22px;border-top:1px solid #d8dee8;padding-top:8px;color:#68758a;font-size:8pt}@media print{html,body{background:#fff!important}button{display:none}}
     </style></head><body>
-    <header class="header"><div><div class="brand">F.I.T. FINANCIAL INTEGRITY TRAINING</div><h1>Financial Summary</h1><p>${escapeHtml(form.title)}</p></div><div><strong>Created</strong><br>${escapeHtml(dateLabel(form.createdAt.slice(0,10)))}</div></header>
-    <div class="people"><div class="person"><strong>${escapeHtml(member.name)}</strong><span>Account holder</span></div>${member.profile.spouseName ? `<div class="person"><strong>${escapeHtml(member.profile.spouseName)}</strong><span>Spouse</span></div>` : ""}</div>
-    <h2>Household and income</h2><div class="grid">
-      <div class="fact"><span>Assigned person</span><strong>${escapeHtml(form.assignedName || member.name)}</strong></div>
-      <div class="fact"><span>Employer</span><strong>${escapeHtml(member.profile.employer || "Not provided")}</strong></div>
-      <div class="fact"><span>Pay frequency</span><strong>${escapeHtml(member.profile.payFrequency || "Not provided")}</strong></div>
-      ${member.profile.spouseName ? `<div class="fact"><span>Spouse employer</span><strong>${escapeHtml(member.profile.spouseEmployer || "Not provided")}</strong></div><div class="fact"><span>Spouse Phone Number</span><strong>${escapeHtml(member.profile.spousePhone || "Not provided")}</strong></div><div class="fact"><span>Spouse pay frequency</span><strong>${escapeHtml(member.profile.spousePayFrequency || "Not provided")}</strong></div>` : ""}
+    <header class="header"><div><div class="brand">F.I.T. FINANCIAL INTEGRITY TRAINING</div><h1>Session Summary</h1><p>${escapeHtml(form.title)}</p></div><div><strong>Prepared</strong><br>${escapeHtml(dateLabel((latestSession?.sessionDate || form.updatedAt || form.createdAt).slice(0,10)))}</div></header>
+    <h2>Paycheck details</h2><div class="grid">
+      <div class="fact"><span>Name</span><strong>${escapeHtml(form.assignedName || member.name)}</strong></div>
       <div class="fact"><span>Check date</span><strong>${escapeHtml(dateLabel(form.data.overview.checkDate))}</strong></div>
-      <div class="fact"><span>This check</span><strong>${money(calc.thisCheck)}</strong></div>
+      <div class="fact"><span>Paycheck amount</span><strong>${money(calc.thisCheck)}</strong></div>
       <div class="fact"><span>Additional income</span><strong>${money(calc.additionalIncome)}</strong></div>
       <div class="fact"><span>Total income</span><strong>${money(calc.totalIncome)}</strong></div>
       <div class="fact"><span>Tithe</span><strong>${titheMoney(calc.tithe)}</strong></div>
-      <div class="fact"><span>Planned outflow</span><strong>${money(calc.totalPlanned)}</strong></div>
-      <div class="fact"><span>Available after plan</span><strong>${money(calc.available)}</strong></div>
-      <div class="fact"><span>Remaining debt</span><strong>${money(calc.totalDebt)}</strong></div>
+      <div class="fact"><span>Budgeted</span><strong>${money(calc.variableBudget)}</strong></div>
+      <div class="fact"><span>Ready to budget</span><strong>${money(calc.available)}</strong></div>
     </div>
     <div class="two"><section class="section"><h2>Bills to Pay This Check</h2>${printList(billsPaid)}</section><section class="section"><h2>Future Bills / Waiting for Next Check</h2>${printList(billsRemaining)}</section></div>
-    <div class="two"><section class="section"><h2>Rollovers</h2>${printList(allocations)}</section><section class="section"><h2>Savings withdrawals</h2>${printList(savingsWithdrawals)}</section></div>
-    <h2>Savings and assets</h2><div class="grid">
-      <div class="fact"><span>Worksheet savings</span><strong>${money(calc.savingsAfter)}</strong></div>
-      <div class="fact"><span>Profile savings</span><strong>${money(profileSavingsTotal(member))}</strong></div>
-      <div class="fact"><span>Investment assets</span><strong>${money(profileInvestmentTotal(member))}</strong></div>
+    <section class="section"><h2>Budget layout</h2>${printList(budgetRows, "No budget categories recorded")}</section>
+    <div class="two"><section class="section"><h2>Rollovers</h2>${printList(allocations)}</section><section class="section"><h2>Savings Withdrawals</h2>${printList(savingsWithdrawals)}</section></div>
+    <h2>Session notes</h2><div class="three">
+      <section class="section"><h3>Coach notes</h3><div class="note">${escapeHtml(latestSession?.coachNotes || "N/A")}</div></section>
+      <section class="section"><h3>Next steps</h3><div class="note">${escapeHtml(latestSession?.actionSteps || "N/A")}</div></section>
+      <section class="section"><h3>Worksheet notes</h3><div class="note">${escapeHtml(form.data.notes || "N/A")}</div></section>
     </div>
-    <div class="two"><section class="section"><h2>Savings accounts</h2>${printList(savingsAccounts.map((item) => `${item.name || "Savings"} - ${money(item.balance)}`))}</section><section class="section"><h2>Investment accounts</h2>${printList(investments.map((item) => `${item.name || "Investment"} - ${money(item.balance)}`))}</section></div>
-    ${form.data.housingPaymentType === "mortgage" ? `<h2>Mortgage progress</h2><div class="grid"><div class="fact"><span>Total mortgage amount</span><strong>${money(form.data.mortgage.totalAmount)}</strong></div><div class="fact"><span>Interest rate</span><strong>${escapeHtml(form.data.mortgage.interestRate || "Not provided")}${form.data.mortgage.interestRate ? "%" : ""}</strong></div><div class="fact"><span>Current balance</span><strong>${money(calc.mortgageAfter)}</strong></div></div>` : `<h2>Housing</h2><p>Rent selected. Mortgage calculations are excluded from this report.</p>`}
-    <section class="section"><h2>Remaining debt</h2>${printList(debts.map((debt) => `${debt.account} - ${money(debt.totalOwed)}${debt.apr ? ` at ${debt.apr}% APR` : ""}`))}</section>
-    <section class="section"><h2>Student loans</h2>${printList(studentLoans.map((loan) => `${loan.account}${loan.loanType ? ` (${loan.loanType.replaceAll("_", " ")})` : ""} - ${money(loan.totalOwed)} balance; ${money(loan.paymentDue)} due${loan.dueDate ? ` on ${dateLabel(loan.dueDate)}` : ""}`))}</section>
-    <section class="section"><h2>Credit cards</h2>${printList(cards.map((card) => `${card.account} - ${money(card.totalBalance)} total balance; ${money(card.lastStatementBalance)} last statement; ${money(card.paymentDue)} due; ${money(card.allowance)} allowance${card.dueDate ? ` on ${dateLabel(card.dueDate)}` : ""}`))}</section>
-    <section class="section"><h2>Worksheet notes</h2><div class="note">${escapeHtml(form.data.notes || "No worksheet notes.")}</div></section>
-    ${latestSession ? `<section class="page-break"><h2>Coach notes</h2><div class="note">${escapeHtml(latestSession.coachNotes || "N/A")}</div><h2>F.I.T. session review</h2><div class="note">${escapeHtml(latestSession.aiSummary || "No session review.")}</div><h2>Next steps</h2><div class="note">${escapeHtml(latestSession.actionSteps || "No action steps recorded.")}</div></section>` : ""}
     <footer class="footer">F.I.T. was created by Pastor A. Griffith of God Cannot Lie Ministries.</footer>
     <script>window.addEventListener("load",()=>setTimeout(()=>window.print(),300));<\/script></body></html>`);
   report.document.close();

@@ -39,12 +39,20 @@ function accountName(account: Record<string, unknown> | null | undefined, fallba
   return name || fallbackEmail.split("@")[0] || "F.I.T. member";
 }
 
+function readableDate(value: unknown) {
+  const raw = String(value || "").trim();
+  if (!raw) return new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const date = raw.includes("T") ? new Date(raw) : new Date(`${raw}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return raw;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 function eventCopy(eventType: string, role: "member" | "coach", payload: Record<string, unknown>) {
   const memberName = escapeHtml(payload.memberName || "your member");
   const milestoneName = escapeHtml(payload.milestoneName || "Financial milestone");
   const documentTitle = escapeHtml(payload.documentTitle || "F.I.T. document");
   const documentType = escapeHtml(payload.documentType || "Document");
-  const sessionDate = escapeHtml(payload.sessionDate || new Date().toLocaleDateString("en-US"));
+  const sessionDate = escapeHtml(readableDate(payload.sessionDate));
   if (eventType === "milestone_reached") {
     return role === "member"
       ? {
@@ -74,12 +82,12 @@ function eventCopy(eventType: string, role: "member" | "coach", payload: Record<
   return role === "member"
     ? {
         headline: "Your F.I.T. session is complete",
-        body: `Your session from ${sessionDate} is complete. Sign in to view the session review and next steps.`,
+        body: `Your ${sessionDate} F.I.T. session is complete. Sign in to view the review and next steps.`,
         cta: "View session review",
       }
     : {
         headline: "A member's F.I.T. session is complete",
-        body: `${memberName}'s session from ${sessionDate} is complete. Sign in to view the review and follow-up notes.`,
+        body: `${memberName}'s ${sessionDate} F.I.T. session is complete. Sign in to view the review and follow-up notes.`,
         cta: "View session review",
       };
 }
@@ -226,7 +234,7 @@ Deno.serve(async (request) => {
     const payload = {
       ...body,
       memberName: accountName(memberAccount, memberEmail),
-      sessionDate: body.sessionDate || new Date().toLocaleDateString("en-US"),
+      sessionDate: readableDate(body.sessionDate || new Date()),
     };
     const recipients = [
       { email: memberEmail, role: "member" as const, profile: memberProfile },
