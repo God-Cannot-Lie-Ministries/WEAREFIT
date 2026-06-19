@@ -9500,3 +9500,145 @@ html[data-theme="dark"] .upcoming-amount {
     gap: 16px;
   }
 }
+
+/* iPad clipping fix: keep tablet form controls inside their cards without touching phone or desktop. */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .content,
+  .panel,
+  .summary-panel,
+  .form-card,
+  .profile-inventory,
+  .profile-inventory-list,
+  .profile-inventory-card,
+  .asset-account-card,
+  .debt-entry,
+  .routing-row,
+  .worksheet-content .subpanel,
+  .worksheet-content .data-table-wrap,
+  .worksheet-content .bill-sections .data-table-wrap,
+  .worksheet-content .final-budget-panel .data-table-wrap {
+    overflow: visible;
+  }
+
+  .topbar {
+    max-width: 100vw;
+    overflow: visible;
+  }
+
+  .topbar > div:first-child {
+    min-width: 0;
+  }
+
+  .topbar-actions {
+    width: auto;
+    max-width: 100%;
+    margin-left: auto;
+    flex: 0 1 auto;
+    justify-content: flex-end;
+    overflow: visible;
+  }
+
+  .topbar-signout {
+    flex: 0 0 auto;
+  }
+
+  .panel,
+  .summary-panel,
+  .form-card,
+  .profile-inventory-card,
+  .asset-account-card,
+  .debt-entry,
+  .routing-row,
+  .worksheet-content .subpanel,
+  .worksheet-content .data-table tr,
+  .worksheet-content .bill-sections .bills-table tr,
+  .worksheet-content .final-budget-panel .data-table tr {
+    contain: none;
+  }
+
+  .panel-body,
+  .profile-inventory-list,
+  .debt-card-list,
+  .routing-list,
+  .worksheet-content .bill-sections,
+  .worksheet-content .subpanel,
+  .worksheet-content .final-budget-panel {
+    padding-inline: max(14px, 1.6vw);
+  }
+
+  .profile-inventory-card,
+  .asset-account-card,
+  .debt-entry,
+  .routing-row {
+    width: calc(100% - 4px);
+    max-width: calc(100% - 4px);
+    margin-inline: auto;
+  }
+
+  .profile-inventory-grid,
+  .recurring-bill-grid,
+  .debt-entry-grid,
+  .schedule-fields,
+  .promo-fields,
+  .overview-grid,
+  .tracker-grid,
+  .savings-grid {
+    gap: 14px;
+  }
+
+  .field,
+  .money-input-wrap,
+  .percent-input-wrap,
+  .bill-selector-wrap,
+  .selection-field-button {
+    min-width: 0;
+    max-width: 100%;
+    overflow: visible;
+  }
+
+  .input,
+  .table-input,
+  textarea,
+  select,
+  .selection-field-button {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-height: 44px;
+  }
+
+  .worksheet-content .bill-sections .bills-table tbody,
+  .worksheet-content .final-budget-panel .data-table tbody {
+    gap: 12px;
+  }
+
+  .worksheet-content .bill-sections .bills-table thead tr,
+  .worksheet-content .bill-sections .bills-table tbody tr {
+    grid-template-columns: minmax(0, 1.1fr) minmax(132px, 0.8fr) minmax(132px, 0.8fr) 52px;
+    overflow: visible;
+  }
+
+  .worksheet-content .bill-sections .bills-table.coach-review thead tr,
+  .worksheet-content .bill-sections .bills-table.coach-review tbody tr {
+    grid-template-columns: minmax(0, 1fr) minmax(118px, 0.72fr) minmax(118px, 0.72fr) minmax(150px, 0.9fr) 48px;
+  }
+
+  .worksheet-content .final-budget-panel .data-table thead tr,
+  .worksheet-content .final-budget-panel .data-table tbody tr {
+    grid-template-columns: minmax(0, 1.2fr) minmax(154px, 0.86fr) 48px;
+    overflow: visible;
+  }
+
+  .worksheet-content .bill-sections .bills-table th,
+  .worksheet-content .bill-sections .bills-table td,
+  .worksheet-content .final-budget-panel .data-table th,
+  .worksheet-content .final-budget-panel .data-table td {
+    min-width: 0;
+    overflow: visible;
+  }
+
+  .worksheet-content .bill-sections .bills-table .table-input,
+  .worksheet-content .final-budget-panel .table-input {
+    min-height: 44px;
+  }
+}
