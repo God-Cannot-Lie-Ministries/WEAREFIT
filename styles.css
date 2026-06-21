@@ -9169,6 +9169,17 @@ html[data-theme="dark"] .worksheet-content .final-budget-panel .table-input {
   text-align: right;
 }
 
+.upcoming-bill-actions {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.upcoming-bill-actions .btn {
+  min-height: 38px;
+  white-space: nowrap;
+}
+
 html[data-theme="dark"] .upcoming-date-badge {
   background: rgba(239, 195, 83, 0.09);
   color: #ffffff;
@@ -9197,6 +9208,10 @@ html[data-theme="dark"] .upcoming-amount {
 
   .upcoming-amount {
     text-align: left;
+  }
+
+  .upcoming-bill-actions {
+    justify-items: start;
   }
 }
 

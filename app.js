@@ -183,6 +183,7 @@ function blankRecurringBill(category = "other") {
     scheduleEnabled: false,
     dueDay: "",
     nextDueDate: "",
+    paidDueDate: "",
     amount: "",
     monthlyAmount: "",
   };
@@ -332,6 +333,7 @@ function ensureAccountModel(account) {
     if (!bill.dueDay && bill.dueDate) bill.dueDay = String(Number(bill.dueDate.slice(-2)));
     bill.dueDay ||= "";
     bill.nextDueDate ||= "";
+    bill.paidDueDate ||= "";
     bill.monthlyAmount ||= bill.amount || "";
     delete bill.dueDate;
   });
@@ -652,6 +654,15 @@ function recurringBillNextDueDate(bill) {
   return bill?.dueDay ? nextMonthlyDueDate(bill.dueDay) : bill?.nextDueDate || "";
 }
 
+function recurringBillIsPaidForDueDate(bill, dueDate = recurringBillNextDueDate(bill)) {
+  return Boolean(dueDate && bill?.paidDueDate === dueDate);
+}
+
+function recurringBillDisplayDueDate(bill) {
+  const dueDate = recurringBillNextDueDate(bill);
+  return recurringBillIsPaidForDueDate(bill, dueDate) ? "" : dueDate;
+}
+
 function upcomingProfilePayment(row, amountKey, dueDateKey = "dueDate") {
   const amount = currencyValue(row?.[amountKey]);
   return amount && isDateWithinNextMonth(row?.[dueDateKey]) ? amount.toFixed(2) : "";
@@ -660,7 +671,12 @@ function upcomingProfilePayment(row, amountKey, dueDateKey = "dueDate") {
 function isUpcomingRecurringBill(bill) {
   if (!bill?.name) return false;
   const dueDate = recurringBillNextDueDate(bill);
-  return Boolean(dueDate && currencyValue(bill.amount) && isDateWithinNextMonth(dueDate));
+  return Boolean(
+    dueDate &&
+      currencyValue(bill.amount) &&
+      isDateWithinNextMonth(dueDate) &&
+      !recurringBillIsPaidForDueDate(bill, dueDate),
+  );
 }
 
 function worksheetBillsFromUpcomingProfile(profileBills = []) {
@@ -1318,6 +1334,9 @@ function commitFinancialProfileInputs(account = currentAccount()) {
 
 function syncRecurringBillScheduleState(bill, changedField = "") {
   if (!bill) return;
+  if (["amount", "dueDay", "monthlyAmount", "nextDueDate"].includes(changedField)) {
+    bill.paidDueDate = "";
+  }
   if (bill.dueDay) bill.nextDueDate = nextMonthlyDueDate(bill.dueDay);
   if (bill.scheduleEnabled && bill.monthlyAmount && changedField !== "amount") {
     bill.amount = bill.monthlyAmount;
@@ -2485,6 +2504,7 @@ function upcomingBillItems(account) {
       dueDate: item.dueDate,
       type: item.type,
       source: item.source,
+      targetType: item.targetType,
     });
   };
   const items = [];
@@ -2499,6 +2519,7 @@ function upcomingBillItems(account) {
       dueDate,
       type: "Recurring bill",
       source: categoryLabel[bill.category] || "Other Bills",
+      targetType: "recurringBills",
     });
   });
 
@@ -2510,6 +2531,7 @@ function upcomingBillItems(account) {
       dueDate: card.dueDate,
       type: "Credit card",
       source: "Card payment",
+      targetType: "creditCards",
     });
   });
 
@@ -2521,6 +2543,7 @@ function upcomingBillItems(account) {
       dueDate: debt.dueDate,
       type: "Debt",
       source: "Minimum payment",
+      targetType: "debts",
     });
   });
 
@@ -2532,6 +2555,7 @@ function upcomingBillItems(account) {
       dueDate: loan.dueDate,
       type: "Student loan",
       source: loan.loanType ? loan.loanType.replaceAll("_", " ") : "Student loan payment",
+      targetType: "studentLoans",
     });
   });
 
@@ -2544,6 +2568,7 @@ function upcomingBillItems(account) {
       dueDate: mortgage.nextDueDate,
       type: "Mortgage",
       source: "Housing",
+      targetType: "mortgage",
     });
   }
 
@@ -2604,9 +2629,57 @@ function upcomingBillCard(item) {
         <div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(item.type)} · ${escapeHtml(item.source)}</p></div>
         <span class="badge">${daysUntilLabel(item.dueDate)}</span>
       </div>
-      <strong class="upcoming-amount">${money(item.amount)}</strong>
+      <div class="upcoming-bill-actions">
+        <strong class="upcoming-amount">${money(item.amount)}</strong>
+        <button class="btn btn-secondary btn-small" type="button" data-mark-upcoming-paid="${escapeHtml(item.targetType)}:${escapeHtml(item.id)}" data-upcoming-due-date="${escapeHtml(item.dueDate)}">Mark paid</button>
+      </div>
     </article>
   `;
+}
+
+function markUpcomingBillPaid(account, targetType, targetId, dueDate) {
+  ensureFinancialInventory(account);
+  const paidAt = new Date().toISOString();
+  if (targetType === "recurringBills") {
+    const bill = account.financialInventory.recurringBills.find((item) => item.id === targetId);
+    if (!bill) return null;
+    bill.paidDueDate = dueDate || recurringBillNextDueDate(bill);
+    bill.nextDueDate = "";
+    bill.lastPaidAt = paidAt;
+    return bill.name || "Recurring bill";
+  }
+  if (targetType === "creditCards") {
+    const card = account.financialInventory.creditCards.find((item) => item.id === targetId);
+    if (!card) return null;
+    card.lastPaidDueDate = card.dueDate || dueDate;
+    card.dueDate = "";
+    card.lastPaidAt = paidAt;
+    return card.account || "Credit card";
+  }
+  if (targetType === "debts") {
+    const debt = account.financialInventory.debts.find((item) => item.id === targetId);
+    if (!debt) return null;
+    debt.lastPaidDueDate = debt.dueDate || dueDate;
+    debt.dueDate = "";
+    debt.lastPaidAt = paidAt;
+    return debt.account || "Debt";
+  }
+  if (targetType === "studentLoans") {
+    const loan = account.financialInventory.studentLoans.find((item) => item.id === targetId);
+    if (!loan) return null;
+    loan.lastPaidDueDate = loan.dueDate || dueDate;
+    loan.dueDate = "";
+    loan.lastPaidAt = paidAt;
+    return loan.account || "Student loan";
+  }
+  if (targetType === "mortgage") {
+    const mortgage = account.financialInventory.mortgage;
+    mortgage.lastPaidDueDate = mortgage.nextDueDate || dueDate;
+    mortgage.nextDueDate = "";
+    mortgage.lastPaidAt = paidAt;
+    return "Mortgage payment";
+  }
+  return null;
 }
 
 function renderProfile() {
@@ -3067,7 +3140,7 @@ function formatFileSize(bytes) {
 }
 
 function recurringBillProfileCard(bill, index) {
-  const nextDueDate = recurringBillNextDueDate(bill);
+  const nextDueDate = recurringBillDisplayDueDate(bill);
   return `
     <article class="profile-inventory-card">
       <div class="profile-inventory-grid recurring-bill-grid">
@@ -5734,6 +5807,7 @@ document.addEventListener("click", (event) => {
     [
       "[data-save-form]",
       "[data-save-financial-profile]",
+      "[data-mark-upcoming-paid]",
       "[data-confirm-remove-mentee]",
       "[data-coach-request-action]",
       "[data-invite-action]",
@@ -6128,6 +6202,30 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
+  const markUpcomingPaid = event.target.closest("[data-mark-upcoming-paid]");
+  if (markUpcomingPaid) {
+    const account = currentAccount();
+    if (!account) return;
+    const [targetType, ...targetIdParts] = markUpcomingPaid.dataset.markUpcomingPaid.split(":");
+    const targetId = targetIdParts.join(":");
+    const paidName = markUpcomingBillPaid(account, targetType, targetId, markUpcomingPaid.dataset.upcomingDueDate);
+    if (!paidName) {
+      showToast("That upcoming bill could not be found.");
+      return;
+    }
+    markUpcomingPaid.disabled = true;
+    try {
+      saveFinancialProfileMutation(account);
+      await productionBackend.saveNow?.(appState);
+      renderUpcomingBills();
+      showToast(`${paidName} marked paid and removed from upcoming bills.`);
+    } catch (error) {
+      markUpcomingPaid.disabled = false;
+      showToast(error.message || "Could not mark this bill paid.");
+    }
+    return;
+  }
+
   const scheduleToggle = event.target.closest("[data-recurring-schedule-toggle]");
   if (scheduleToggle) {
     const account = currentAccount();
@@ -6139,6 +6237,7 @@ document.addEventListener("click", async (event) => {
     } else {
       bill.dueDay = "";
       bill.monthlyAmount = "";
+      bill.paidDueDate = "";
     }
     saveFinancialProfileMutation(account);
     renderProfile();
@@ -6185,7 +6284,7 @@ document.addEventListener("click", async (event) => {
     if (suggestion && bill) {
       bill.name = suggestion.name;
       bill.profileBillId = suggestion.id || "";
-      bill.dueDate = recurringBillNextDueDate(suggestion);
+      bill.dueDate = recurringBillDisplayDueDate(suggestion);
       bill.amount = bill.dueDate ? suggestion.amount : "";
       form.updatedAt = new Date().toISOString();
       saveState();
