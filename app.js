@@ -452,6 +452,13 @@ function normalizeStateModels(state) {
   state.notifications = state.notifications.filter(
     (notification) => !notification.withdrawalId || validWithdrawalIds.has(notification.withdrawalId),
   );
+  state.notifications.forEach((notification) => {
+    if (notification.type !== "savings_withdrawal" || !notification.withdrawalId) return;
+    const withdrawal = state.withdrawals.find((item) => item.id === notification.withdrawalId);
+    if (!withdrawal) return;
+    notification.title = "Savings withdrawal recorded";
+    notification.message = `${money(withdrawal.amount)} withdrawn from ${withdrawal.savingsAccountName || "Savings"}. Reason: ${withdrawal.reason || "Reason not provided"}`;
+  });
   state.dismissedMilestoneKeys ||= [];
   const resetMilestones = state.notifications.filter(
     (notification) =>
@@ -1904,7 +1911,7 @@ async function notifyFitEventEmail(payload) {
   try {
     return await productionBackend.notifyFitEvent(payload);
   } catch (error) {
-    console.warn("F.I.T. event email could not be sent", error);
+    console.warn("F.I.T. event notification could not be sent", error);
     return null;
   }
 }
@@ -1935,14 +1942,18 @@ function emailDeliveryMessage(result, emails = []) {
   const cleanEmails = [...new Set(emails.map(normalizeEmail).filter(validEmail))];
   if (!cleanEmails.length) return "";
   const results = Array.isArray(result?.results) ? result.results : [];
+  const textCount = results.filter((item) => item?.textOk).length;
+  const textMessage = textCount
+    ? ` Text sent to ${textCount === 1 ? "1 saved phone number" : `${textCount} saved phone numbers`}.`
+    : "";
   if (results.length && results.every((item) => item?.ok)) {
-    return ` Email sent to ${formatEmailList(cleanEmails)}.`;
+    return ` Email sent to ${formatEmailList(cleanEmails)}.${textMessage}`;
   }
   const sentEmails = cleanEmails.filter((_, index) => results[index]?.ok);
   if (sentEmails.length) {
-    return ` Email sent to ${formatEmailList(sentEmails)}. Some recipients may need a retry.`;
+    return ` Email sent to ${formatEmailList(sentEmails)}.${textMessage} Some recipients may need a retry.`;
   }
-  return " Email notification could not be confirmed.";
+  return textMessage || " Email notification could not be confirmed.";
 }
 
 function sendMilestoneEmail(member, milestoneKey, title) {
@@ -1986,6 +1997,16 @@ function sendWorksheetOpenedEmail(form) {
     openedByEmail: actor.email,
     openedByName: actor.name || actor.email,
     openedByRole: actor.role === "coach" ? "coach" : "member",
+  });
+}
+
+function sendSavingsWithdrawalNotification(member, withdrawal) {
+  return notifyFitEventEmail({
+    eventType: "savings_withdrawal",
+    memberEmail: member.email,
+    relatedDocumentId: withdrawal.id,
+    documentTitle: withdrawal.savingsAccountName || "Savings withdrawal",
+    documentType: "Savings withdrawal",
   });
 }
 
@@ -3479,7 +3500,7 @@ function renderSettings() {
             </div>
           </div>
           <div class="settings-control-row settings-notification-row">
-            <div><strong>Notifications</strong><span>Choose general update categories. Required security and connected coach/member notices are still sent.</span></div>
+            <div><strong>Notifications</strong><span>Choose general update categories. Notices are sent by email and to saved phone numbers when available.</span></div>
             <div class="settings-check-list" aria-label="Notification preferences">
               <label class="check-control"><input type="checkbox" data-notification-pref="milestones" ${account.preferences.notifications.milestones ? "checked" : ""}><span>Milestones</span></label>
               <label class="check-control"><input type="checkbox" data-notification-pref="documents" ${account.preferences.notifications.documents ? "checked" : ""}><span>Documents</span></label>
@@ -3939,15 +3960,11 @@ function menteeSavingsCard(member) {
 
 function withdrawalCard(withdrawal) {
   const member = appState.accounts[withdrawal.memberEmail];
-  const newBalance = currencyValue(withdrawal.newBalance ?? withdrawal.updatedSavings);
-  const previousBalance = Number.isFinite(Number(withdrawal.previousBalance))
-    ? currencyValue(withdrawal.previousBalance)
-    : currencyValue(newBalance + currencyValue(withdrawal.amount));
   return `
     <article class="withdrawal-card">
       <div>
         <strong>${escapeHtml(member?.name || withdrawal.memberEmail)}</strong>
-        <span>${updatedLabel(withdrawal.createdAt)} · ${escapeHtml(withdrawal.savingsAccountName || "Savings")} · ${money(previousBalance)} → ${money(newBalance)}</span>
+        <span>${updatedLabel(withdrawal.createdAt)} · ${escapeHtml(withdrawal.savingsAccountName || "Savings")} · ${money(withdrawal.amount)} withdrawn</span>
         <p>${escapeHtml(withdrawal.reason)}</p>
       </div>
       <strong class="withdrawal-amount">-${money(withdrawal.amount)}</strong>
@@ -3961,13 +3978,13 @@ function notificationCenter(account, notifications = visibleNotifications(accoun
   return `
     <section class="panel milestone-center">
       <div class="panel-heading">
-        <div><h3>Milestones</h3><p>Savings goals and paid-off cards shared with the right F.I.T. team.</p></div>
+        <div><h3>Notifications</h3><p>Milestones, savings withdrawals, and important F.I.T. updates.</p></div>
         <span class="badge green">${notifications.filter((notification) => !notification.readAt).length} new</span>
       </div>
       <div class="milestone-list">
         ${recent.map((notification) => `
           <article class="milestone-notification ${notification.readAt ? "" : "unread"}">
-            <span class="milestone-icon" aria-hidden="true">${notification.type === "card_paid" ? "✓" : "★"}</span>
+            <span class="milestone-icon" aria-hidden="true">${notificationIcon(notification.type)}</span>
             <div><strong>${escapeHtml(notification.title)}</strong><p>${escapeHtml(notification.message)}</p><small>${updatedLabel(notification.createdAt)}</small></div>
             <div class="milestone-actions">
               ${notification.readAt ? `<span class="badge green">Seen</span>` : `<button class="btn btn-secondary btn-small" type="button" data-read-notification="${notification.id}">Mark seen</button>`}
@@ -3978,6 +3995,12 @@ function notificationCenter(account, notifications = visibleNotifications(accoun
       </div>
     </section>
   `;
+}
+
+function notificationIcon(type) {
+  if (type === "card_paid") return "✓";
+  if (type === "savings_withdrawal") return "$";
+  return "★";
 }
 
 function emptyState(symbol, title, description, action) {
@@ -5147,10 +5170,13 @@ function addWithdrawalNotifications(member, withdrawal) {
       recipientEmail,
       type: "savings_withdrawal",
       title: "Savings withdrawal recorded",
-      message: `${withdrawal.savingsAccountName}: ${money(withdrawal.previousBalance)} to ${money(withdrawal.newBalance)}. Reason: ${withdrawal.reason}`,
+      message: `${money(withdrawal.amount)} withdrawn from ${withdrawal.savingsAccountName}. Reason: ${withdrawal.reason}`,
       createdAt: withdrawal.createdAt,
       readAt: null,
     });
+  });
+  sendSavingsWithdrawalNotification(member, withdrawal).catch((error) => {
+    console.warn("Savings withdrawal notification could not be sent", error);
   });
 }
 

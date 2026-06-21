@@ -9940,6 +9940,23 @@ html[data-theme="dark"] .upcoming-amount {
 @media (min-width: 768px) and (max-width: 1024px),
   (min-width: 1025px) and (max-width: 1366px) and (pointer: coarse),
   (min-width: 1025px) and (max-width: 1366px) and (hover: none) {
+  .profile-jump-nav,
+  .worksheet-jump-nav {
+    position: sticky !important;
+    top: calc(env(safe-area-inset-top, 0px) + 86px);
+    z-index: 72;
+    max-width: 100%;
+    overflow-x: auto;
+    background: color-mix(in srgb, var(--surface) 96%, transparent);
+    box-shadow: 0 8px 22px rgba(7, 26, 58, 0.16);
+    backdrop-filter: blur(14px);
+  }
+
+  .profile-jump-nav::-webkit-scrollbar,
+  .worksheet-jump-nav::-webkit-scrollbar {
+    display: none;
+  }
+
   .financial-profile-view .profile-inventory-card,
   .financial-profile-view .asset-account-card,
   .financial-profile-view .debt-entry {

@@ -643,7 +643,7 @@
     const { data, error } = await client.functions.invoke("notify-fit-event", {
       body: payload,
     });
-    await throwFunctionError(error, "The F.I.T. event notification email could not be sent.");
+    await throwFunctionError(error, "The F.I.T. event notification could not be sent.");
     return data;
   }
 

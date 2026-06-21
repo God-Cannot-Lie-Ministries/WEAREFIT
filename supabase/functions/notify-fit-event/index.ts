@@ -14,6 +14,10 @@ const eventSubjects: Record<string, { member: string; coach: string }> = {
     member: "Your F.I.T. milestone was reached",
     coach: "A member reached a F.I.T. milestone",
   },
+  savings_withdrawal: {
+    member: "Your F.I.T. savings withdrawal was recorded",
+    coach: "A member recorded a savings withdrawal",
+  },
   document_available: {
     member: "A F.I.T. document is ready to view",
     coach: "A member's F.I.T. document is ready",
@@ -25,6 +29,13 @@ const eventSubjects: Record<string, { member: string; coach: string }> = {
 };
 
 const normalizeEmail = (value: unknown) => String(value || "").trim().toLowerCase();
+const normalizePhone = (value: unknown) => {
+  const raw = String(value || "").trim();
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length >= 11 && digits.length <= 15) return `+${digits}`;
+  return "";
+};
 const escapeHtml = (value: unknown) =>
   String(value || "")
     .replaceAll("&", "&amp;")
@@ -85,6 +96,19 @@ function eventCopy(eventType: string, role: "member" | "coach", payload: Record<
           cta: "Review member progress",
         };
   }
+  if (eventType === "savings_withdrawal") {
+    return role === "member"
+      ? {
+          headline: "Your F.I.T. savings withdrawal was recorded",
+          body: "A savings withdrawal was recorded in your F.I.T. account. Sign in to view the amount, reason, and related account details securely.",
+          cta: "View notification",
+        }
+      : {
+          headline: "A member recorded a savings withdrawal",
+          body: `${memberName} recorded a savings withdrawal in F.I.T. Sign in through your secure coach access to review the amount, reason, and account context.`,
+          cta: "Review withdrawal",
+        };
+  }
   if (eventType === "document_available") {
     return role === "member"
       ? {
@@ -109,6 +133,10 @@ function eventCopy(eventType: string, role: "member" | "coach", payload: Record<
         body: `${memberName}'s ${sessionDate} F.I.T. session is complete. Sign in to view the review and follow-up notes.`,
         cta: "View session review",
       };
+}
+
+function textBody(copy: { headline: string; body: string; cta: string }, url: string) {
+  return `F.I.T.: ${copy.headline}. Sign in to view details: ${url}`;
 }
 
 function emailHtml(copy: { headline: string; body: string; cta: string }, url: string) {
@@ -197,6 +225,91 @@ async function sendAndLog(
   }
 }
 
+async function sendTextAndLog(
+  adminClient: ReturnType<typeof createClient>,
+  twilioConfig: { accountSid: string; authToken: string; from: string },
+  logPayload: Record<string, unknown>,
+  toPhone: string,
+  message: string,
+) {
+  if (!toPhone) return { ok: false, skipped: true, reason: "no_phone" };
+  let logTable = "fit_email_logs";
+  let { data: log, error: logError } = await adminClient
+    .from("fit_email_logs")
+    .insert({
+      ...logPayload,
+      recipient_email: toPhone,
+      subject: `Text: ${logPayload.subject || "F.I.T. notification"}`,
+      status: "pending",
+    })
+    .select("id")
+    .single();
+  if (logError) {
+    logTable = "email_audit";
+    const fallback = await adminClient
+      .from("email_audit")
+      .insert({
+        actor_id: logPayload.user_id || null,
+        email_type: `${logPayload.event_type}_text`,
+        recipient: toPhone,
+        status: "pending",
+      })
+      .select("id")
+      .single();
+    if (fallback.error) return { ok: false, error: logError.message || "Text log failed" };
+    log = fallback.data;
+  }
+
+  const markFailed = async (errorMessage: string) => {
+    if (logTable === "fit_email_logs") {
+      await adminClient
+        .from("fit_email_logs")
+        .update({ status: "failed", error_message: errorMessage })
+        .eq("id", log.id);
+    } else {
+      await adminClient.from("email_audit").update({ status: "failed" }).eq("id", log.id);
+    }
+  };
+
+  if (!twilioConfig.accountSid || !twilioConfig.authToken || !twilioConfig.from) {
+    const messageText = "Secure text delivery is not configured yet.";
+    await markFailed(messageText);
+    return { ok: false, error: messageText };
+  }
+
+  try {
+    const payload = new URLSearchParams({ To: toPhone, From: twilioConfig.from, Body: message });
+    const response = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${twilioConfig.accountSid}/Messages.json`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${btoa(`${twilioConfig.accountSid}:${twilioConfig.authToken}`)}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: payload,
+      },
+    );
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || "Text provider rejected the message.");
+    if (logTable === "fit_email_logs") {
+      await adminClient
+        .from("fit_email_logs")
+        .update({ status: "sent", resend_email_id: result.sid || null, sent_at: new Date().toISOString() })
+        .eq("id", log.id);
+    } else {
+      await adminClient
+        .from("email_audit")
+        .update({ status: "sent", provider_id: result.sid || null })
+        .eq("id", log.id);
+    }
+    return { ok: true, id: result.sid || null };
+  } catch (error) {
+    await markFailed(error.message || "Text failed");
+    return { ok: false, error: error.message || "Text failed" };
+  }
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
@@ -209,6 +322,11 @@ Deno.serve(async (request) => {
     const resendApiKey = Deno.env.get("RESEND_API_KEY")!;
     const emailFrom = Deno.env.get("EMAIL_FROM") || "WEAREFIT <notifications@notifications.fit-training.org>";
     const appUrl = Deno.env.get("APP_URL") || "https://fit-training.org/";
+    const twilioConfig = {
+      accountSid: Deno.env.get("TWILIO_ACCOUNT_SID") || "",
+      authToken: Deno.env.get("TWILIO_AUTH_TOKEN") || "",
+      from: normalizePhone(Deno.env.get("TWILIO_FROM_NUMBER")),
+    };
     const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authorization } } });
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
     const { data: authData, error: authError } = await userClient.auth.getUser();
@@ -232,6 +350,19 @@ Deno.serve(async (request) => {
     const connectedCoachEmail = normalizeEmail(
       memberAccount.coachRequestStatus === "approved" ? memberAccount.coachEmail || memberRow.coach_email : "",
     );
+    let coachAccount: Record<string, unknown> = {};
+    if (connectedCoachEmail) {
+      const { data: coachRow, error: coachRowError } = await adminClient
+        .from("portal_states")
+        .select("state")
+        .eq("owner_email", connectedCoachEmail)
+        .maybeSingle();
+      if (coachRowError) throw coachRowError;
+      coachAccount =
+        coachRow?.state?.accounts?.[connectedCoachEmail] ||
+        memberRow.state?.accounts?.[connectedCoachEmail] ||
+        {};
+    }
     const actorIsMember = actorEmail === memberEmail;
     const actorIsCoach = connectedCoachEmail && actorEmail === connectedCoachEmail;
     if (!actorIsMember && !actorIsCoach) throw new Error("You do not have permission to send this notification.");
@@ -260,36 +391,64 @@ Deno.serve(async (request) => {
       sessionDate: readableDate(body.sessionDate || new Date()),
     };
     const recipients = [
-      { email: memberEmail, role: "member" as const, profile: memberProfile },
-      ...(connectedCoachEmail ? [{ email: connectedCoachEmail, role: "coach" as const, profile: coachProfile }] : []),
+      {
+        email: memberEmail,
+        role: "member" as const,
+        profile: memberProfile,
+        phone: normalizePhone((memberAccount as any)?.profile?.phone),
+      },
+      ...(connectedCoachEmail
+        ? [
+            {
+              email: connectedCoachEmail,
+              role: "coach" as const,
+              profile: coachProfile,
+              phone: normalizePhone((coachAccount as any)?.profile?.phone),
+            },
+          ]
+        : []),
     ];
     const results = [];
     for (const recipient of recipients) {
       const copy = eventCopy(eventType, recipient.role, payload);
       const subject = eventSubjects[eventType][recipient.role];
-      results.push(await sendAndLog(
+      const logPayload = {
+        user_id: memberRow.owner_id,
+        coach_id: coachProfile?.id || null,
+        recipient_user_id: recipient.profile?.id || null,
+        recipient_role: recipient.role,
+        event_type: eventType,
+        recipient_email: recipient.email,
+        subject,
+        status: "pending",
+        related_session_id: body.relatedSessionId || body.sessionId || null,
+        related_document_id: body.relatedDocumentId || body.documentId || null,
+      };
+      const emailResult = await sendAndLog(
         adminClient,
         resendApiKey,
         emailFrom,
-        {
-          user_id: memberRow.owner_id,
-          coach_id: coachProfile?.id || null,
-          recipient_user_id: recipient.profile?.id || null,
-          recipient_role: recipient.role,
-          event_type: eventType,
-          recipient_email: recipient.email,
-          subject,
-          status: "pending",
-          related_session_id: body.relatedSessionId || body.sessionId || null,
-          related_document_id: body.relatedDocumentId || body.documentId || null,
-        },
+        logPayload,
         {
           to: [recipient.email],
           subject,
           text: `${copy.headline}\n\n${copy.body}\n\n${copy.cta}: ${viewUrl.toString()}\n\nFor your privacy, financial details are not included in this email.`,
           html: emailHtml(copy, viewUrl.toString()),
         },
-      ));
+      );
+      const textResult = await sendTextAndLog(
+        adminClient,
+        twilioConfig,
+        logPayload,
+        recipient.phone,
+        textBody(copy, viewUrl.toString()),
+      );
+      results.push({
+        ...emailResult,
+        textOk: textResult.ok,
+        textSkipped: textResult.skipped || false,
+        textError: textResult.error || "",
+      });
     }
 
     return new Response(JSON.stringify({ ok: true, results }), {
