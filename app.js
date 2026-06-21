@@ -2511,7 +2511,7 @@ function upcomingBillItems(account) {
 
   account.financialInventory.recurringBills.forEach((bill) => {
     const dueDate = recurringBillNextDueDate(bill);
-    if (!dueDate) return;
+    if (!dueDate || recurringBillIsPaidForDueDate(bill, dueDate)) return;
     addItem(items, {
       id: bill.id,
       name: bill.name,
