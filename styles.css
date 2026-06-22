@@ -10799,3 +10799,392 @@ html[data-theme="dark"] .final-budget-table td {
   color: #ffffff !important;
   box-shadow: none !important;
 }
+
+/* Full F.I.T. polish pass: calmer surfaces, clearer actions, and stronger app feel. */
+:root {
+  --fit-focus: rgba(217, 166, 46, 0.34);
+  --fit-button-shadow: 0 10px 22px rgba(13, 40, 89, 0.16);
+  --fit-card-shadow: 0 18px 38px rgba(13, 40, 89, 0.10);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn {
+  border-radius: 10px !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,.12) inset;
+  letter-spacing: 0;
+  transition:
+    transform .16s ease,
+    box-shadow .16s ease,
+    border-color .16s ease,
+    background .16s ease,
+    color .16s ease !important;
+}
+
+.btn:hover {
+  box-shadow: var(--fit-button-shadow);
+  transform: translateY(-1px);
+}
+
+.btn:active {
+  box-shadow: none;
+  transform: translateY(0);
+}
+
+.btn:focus-visible,
+.nav-btn:focus-visible,
+.icon-btn:focus-visible,
+.input:focus,
+.table-input:focus,
+select:focus,
+textarea:focus {
+  outline: 3px solid var(--fit-focus) !important;
+  outline-offset: 2px;
+}
+
+.btn-primary,
+.btn-gold {
+  border-color: rgba(217, 166, 46, .55) !important;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0) 42%),
+    linear-gradient(135deg, #f3c94d, #c89422) !important;
+  color: #081a37 !important;
+}
+
+.btn-secondary {
+  border-color: color-mix(in srgb, var(--gold) 38%, var(--line)) !important;
+  background: color-mix(in srgb, var(--surface) 92%, var(--gold-soft) 8%) !important;
+  color: var(--navy) !important;
+}
+
+html[data-theme="dark"] .btn-secondary {
+  background: rgba(255,255,255,.055) !important;
+  color: #fff !important;
+}
+
+.btn-danger {
+  border-color: rgba(255, 156, 172, .45) !important;
+  background: rgba(136, 40, 60, .20) !important;
+  color: #ffd5dc !important;
+}
+
+.panel,
+.form-card,
+.metric,
+.subpanel,
+.profile-photo-panel,
+.spouse-photo-panel,
+.withdrawal-card,
+.upcoming-bill-card,
+.milestone-notification {
+  box-shadow: var(--fit-card-shadow);
+}
+
+html[data-theme="dark"] .panel,
+html[data-theme="dark"] .form-card,
+html[data-theme="dark"] .metric,
+html[data-theme="dark"] .subpanel,
+html[data-theme="dark"] .profile-photo-panel,
+html[data-theme="dark"] .spouse-photo-panel,
+html[data-theme="dark"] .withdrawal-card,
+html[data-theme="dark"] .upcoming-bill-card,
+html[data-theme="dark"] .milestone-notification {
+  box-shadow: 0 18px 42px rgba(0,0,0,.18);
+}
+
+.metric {
+  position: relative;
+  overflow: hidden;
+}
+
+.metric::after {
+  content: "";
+  position: absolute;
+  inset: auto 14px 0 14px;
+  height: 3px;
+  border-radius: 999px 999px 0 0;
+  background: linear-gradient(90deg, transparent, rgba(217,166,46,.76), transparent);
+  opacity: .8;
+}
+
+.fit-dashboard-banner {
+  border-radius: 18px !important;
+  background:
+    radial-gradient(circle at 88% 14%, rgba(217,166,46,.24), transparent 22rem),
+    linear-gradient(135deg, color-mix(in srgb, var(--navy) 95%, #fff 5%), color-mix(in srgb, var(--navy-deep) 96%, #000 4%)) !important;
+}
+
+.fit-dashboard-banner h2 {
+  text-wrap: balance;
+}
+
+.empty-state,
+.inline-empty,
+.quiet-message,
+.empty-connection {
+  border-style: solid !important;
+  border-color: color-mix(in srgb, var(--gold) 28%, var(--line)) !important;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,0)),
+    color-mix(in srgb, var(--surface) 95%, var(--gold-soft) 5%) !important;
+}
+
+.empty-state-symbol {
+  background: linear-gradient(135deg, var(--gold), #f5d66e) !important;
+  box-shadow: 0 12px 26px rgba(217,166,46,.20);
+}
+
+.milestone-center .panel-heading {
+  align-items: center;
+}
+
+.milestone-notification {
+  border: 1px solid color-mix(in srgb, var(--line) 86%, var(--gold) 14%);
+  border-radius: 14px;
+  margin-bottom: 10px;
+}
+
+.milestone-icon {
+  background: color-mix(in srgb, var(--navy) 84%, var(--gold) 16%) !important;
+  color: #fff !important;
+}
+
+.notification-milestone .milestone-icon {
+  background: linear-gradient(135deg, #f4ca53, #c89524) !important;
+  color: #081a37 !important;
+}
+
+.notification-document .milestone-icon,
+.notification-session .milestone-icon {
+  background: linear-gradient(135deg, #1d63b7, #103d78) !important;
+}
+
+.notification-coach .milestone-icon {
+  background: linear-gradient(135deg, #0f8e6f, #075d4a) !important;
+}
+
+.notification-type {
+  display: inline-flex !important;
+  width: fit-content;
+  margin-bottom: 5px;
+  border: 1px solid rgba(217,166,46,.24);
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: var(--gold);
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.submit-review-modal .modal-body {
+  display: grid;
+  gap: 16px;
+}
+
+.submit-review-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.submit-review-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.submit-review-list {
+  border: 1px solid color-mix(in srgb, var(--gold) 24%, var(--line));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 92%, var(--navy) 8%);
+  padding: 14px;
+}
+
+.submit-review-list h4 {
+  margin: 0 0 10px;
+  color: var(--gold);
+  font-size: 12px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.submit-review-list ul {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.submit-review-list p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.share-person {
+  border-radius: 14px !important;
+}
+
+.archive-details > summary {
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+.archive-details > summary::after {
+  content: "Open";
+  border: 1px solid color-mix(in srgb, var(--gold) 38%, var(--line));
+  border-radius: 999px;
+  padding: 3px 10px;
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.archive-details[open] > summary::after {
+  content: "Close";
+}
+
+.upcoming-bill-card {
+  border-left: 5px solid #2f6dbb !important;
+}
+
+.upcoming-bill-card.soon {
+  border-left-color: #d9a62e !important;
+}
+
+.upcoming-bill-card.urgent {
+  border-left-color: #ff8fa3 !important;
+}
+
+.upcoming-date-badge {
+  box-shadow: 0 10px 24px rgba(13,40,89,.12);
+}
+
+.side-nav {
+  gap: 8px;
+}
+
+.nav-btn {
+  border-radius: 12px !important;
+  transition: background .16s ease, color .16s ease, transform .16s ease, border-color .16s ease;
+}
+
+.nav-btn:hover {
+  transform: translateX(2px);
+}
+
+.nav-btn.active,
+.nav-btn[aria-current="page"] {
+  border-color: rgba(217,166,46,.62) !important;
+  background: linear-gradient(135deg, rgba(217,166,46,.20), rgba(255,255,255,.05)) !important;
+}
+
+.nav-glyph {
+  opacity: .86;
+}
+
+.profile-jump-nav,
+.worksheet-jump-nav {
+  box-shadow: 0 12px 28px rgba(13,40,89,.10);
+}
+
+.data-table tr,
+.final-budget-panel .data-table tr {
+  transition: background .16s ease, transform .16s ease;
+}
+
+.data-table tr:focus-within,
+.final-budget-panel .data-table tr:focus-within {
+  background: color-mix(in srgb, var(--gold-soft) 35%, transparent) !important;
+}
+
+.input,
+.table-input,
+select,
+textarea,
+.money-input-wrap {
+  transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+}
+
+.money-input-wrap:focus-within,
+.field:focus-within .input,
+.field:focus-within select,
+.field:focus-within textarea {
+  border-color: color-mix(in srgb, var(--gold) 70%, var(--line)) !important;
+  box-shadow: 0 0 0 3px rgba(217,166,46,.16);
+}
+
+.draggable-calculator {
+  box-shadow: 0 28px 70px rgba(0,0,0,.34) !important;
+}
+
+.draggable-calculator.minimized {
+  box-shadow: 0 18px 34px rgba(0,0,0,.28) !important;
+}
+
+@media (max-width: 768px) {
+  .main {
+    padding-bottom: 142px;
+  }
+
+  .side-nav {
+    position: fixed;
+    z-index: 45;
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    border: 1px solid rgba(217,166,46,.28);
+    border-radius: 18px;
+    background: rgba(8, 26, 55, .94);
+    box-shadow: 0 16px 36px rgba(0,0,0,.32);
+    padding: 7px;
+    backdrop-filter: blur(14px);
+  }
+
+  .nav-btn {
+    min-height: 50px;
+    padding: 6px 3px !important;
+    border: 0 !important;
+    color: rgba(255,255,255,.72) !important;
+  }
+
+  .nav-btn:hover {
+    transform: none;
+  }
+
+  .nav-btn.active,
+  .nav-btn[aria-current="page"] {
+    background: rgba(217,166,46,.18) !important;
+    color: #fff !important;
+  }
+
+  .nav-label {
+    font-size: 9px;
+    line-height: 1.05;
+  }
+
+  .nav-glyph {
+    font-size: 17px;
+  }
+
+  .submit-review-grid,
+  .submit-review-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar-actions {
+    gap: 8px;
+  }
+
+  .btn {
+    min-height: 44px;
+  }
+
+  .metric::after {
+    inset-inline: 12px;
+  }
+}

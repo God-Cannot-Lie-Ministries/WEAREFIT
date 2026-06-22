@@ -5355,18 +5355,33 @@ function showShareModal(formId) {
   const coach = account.coachEmail ? appState.accounts[account.coachEmail] : null;
   const coachName = coachDisplayName(account, coach);
   const canSend = account.coachEmail && account.coachRequestStatus === "approved";
+  const review = worksheetSubmitReview(form, calc);
 
   const modal = document.createElement("div");
   modal.className = "modal-backdrop";
   modal.dataset.modal = "share";
   modal.innerHTML = `
-    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="share-title">
+    <section class="modal modal-wide submit-review-modal" role="dialog" aria-modal="true" aria-labelledby="share-title">
       <div class="modal-header">
-        <h3 id="share-title">Send finished worksheet</h3>
+        <div><p class="document-label">Final review</p><h3 id="share-title">Review before sending</h3></div>
         <button class="icon-btn" type="button" aria-label="Close" data-close-modal>×</button>
       </div>
       <div class="modal-body">
-        <p>The coach will receive this finished worksheet in their read-only account inbox. They will immediately see your name, check date, amount paid, and tithe.</p>
+        <p>Confirm the main numbers below before this worksheet is sent to your coach for review.</p>
+        <section class="submit-review-grid" aria-label="Worksheet summary">
+          ${metric("Assigned to", form.assignedName || form.ownerName)}
+          ${metric("Check date", dateLabel(form.data.overview.checkDate))}
+          ${metric("Paycheck", money(calc.thisCheck))}
+          ${metric("Tithe", titheMoney(calc.tithe))}
+          ${metric("Bills this check", money(review.payNowTotal))}
+          ${metric("Left to budget", money(calc.available))}
+        </section>
+        <div class="submit-review-columns">
+          <div class="submit-review-list"><h4>Bills to pay this check</h4>${reviewList(review.payNow, "No bills selected for this check.")}</div>
+          <div class="submit-review-list"><h4>Waiting for next check</h4>${reviewList(review.waiting, "No bills are waiting for the next check.")}</div>
+          <div class="submit-review-list"><h4>Budget layout</h4>${reviewList(review.budget, "No budget categories entered.")}</div>
+          <div class="submit-review-list"><h4>Rollovers</h4>${reviewList(review.rollovers, "No rollovers entered.")}</div>
+        </div>
         ${
           canSend
             ? `<div class="share-person designated-coach">
@@ -5375,7 +5390,7 @@ function showShareModal(formId) {
               </div>
               <form id="share-form" class="form-stack">
                 <input type="hidden" name="email" value="${escapeHtml(account.coachEmail)}">
-                <button class="btn btn-primary" type="submit">Send for coach review <span aria-hidden="true">↗</span></button>
+                <button class="btn btn-primary" type="submit">Confirm and send to coach <span aria-hidden="true">↗</span></button>
               </form>`
             : `<div class="empty-connection">
                 <h3>Designate a coach first</h3>
@@ -5388,6 +5403,38 @@ function showShareModal(formId) {
   `;
   modal.dataset.formId = formId;
   document.body.appendChild(modal);
+}
+
+function reviewList(items, emptyText) {
+  return items.length
+    ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+    : `<p>${escapeHtml(emptyText)}</p>`;
+}
+
+function worksheetSubmitReview(form, calc) {
+  const bills = Object.values(form.data.bills || {}).flat().filter((bill) => bill.name);
+  const payNow = bills
+    .filter((bill) => bill.coachDecision === "this_check")
+    .map((bill) => `${bill.name} - ${money(bill.amount)}${bill.dueDate ? ` due ${dateLabel(bill.dueDate)}` : ""}`);
+  const waiting = bills
+    .filter((bill) => bill.coachDecision !== "this_check")
+    .map((bill) => `${bill.name} - ${money(bill.amount)}${bill.dueDate ? ` due ${dateLabel(bill.dueDate)}` : ""}`);
+  const budget = (form.data.variableSpending || [])
+    .filter((item) => item.category || currencyValue(item.budgeted))
+    .map((item) => `${item.category || "Budget item"} - ${money(item.budgeted)}`);
+  const rollovers = (form.data.allocations || [])
+    .filter((item) => item.account || currencyValue(item.amount))
+    .map((item) => `${item.account || item.type?.replaceAll("_", " ") || "Rollover"} - ${money(item.amount)}`);
+  return {
+    payNow,
+    waiting,
+    budget,
+    rollovers,
+    payNowTotal: bills
+      .filter((bill) => bill.coachDecision === "this_check")
+      .reduce((sum, bill) => sum + currencyValue(bill.amount), 0),
+    totalPlanned: calc.totalPlanned,
+  };
 }
 
 function showOverBudgetDialog(calc) {
