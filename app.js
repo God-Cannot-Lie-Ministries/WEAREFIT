@@ -2512,6 +2512,16 @@ function daysUntilLabel(value) {
   return `Due in ${difference} days`;
 }
 
+function dueUrgencyClass(value) {
+  if (!value) return "no-date";
+  const today = new Date(`${todayValue()}T00:00:00`);
+  const dueDate = new Date(`${value}T12:00:00`);
+  const difference = Math.round((dueDate - today) / 86400000);
+  if (difference <= 3) return "urgent";
+  if (difference <= 10) return "soon";
+  return "steady";
+}
+
 function upcomingBillItems(account) {
   ensureFinancialInventory(account);
   const categoryLabel = Object.fromEntries(billGroups);
@@ -2644,7 +2654,7 @@ function renderUpcomingBills() {
 
 function upcomingBillCard(item) {
   return `
-    <article class="upcoming-bill-card">
+    <article class="upcoming-bill-card ${dueUrgencyClass(item.dueDate)}">
       <div class="upcoming-date-badge"><strong>${new Date(`${item.dueDate}T12:00:00`).getDate()}</strong><span>${new Intl.DateTimeFormat("en-US", { month: "short" }).format(new Date(`${item.dueDate}T12:00:00`))}</span></div>
       <div class="upcoming-bill-main">
         <div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(item.type)} · ${escapeHtml(item.source)}</p></div>
@@ -4077,9 +4087,9 @@ function notificationCenter(account, notifications = visibleNotifications(accoun
       </div>
       <div class="milestone-list">
         ${recent.map((notification) => `
-          <article class="milestone-notification ${notification.readAt ? "" : "unread"}">
+          <article class="milestone-notification ${notification.readAt ? "" : "unread"} notification-${notificationCategory(notification.type).key}">
             <span class="milestone-icon" aria-hidden="true">${notificationIcon(notification.type)}</span>
-            <div><strong>${escapeHtml(notification.title)}</strong><p>${escapeHtml(notification.message)}</p><small>${updatedLabel(notification.createdAt)}</small></div>
+            <div><span class="notification-type">${escapeHtml(notificationCategory(notification.type).label)}</span><strong>${escapeHtml(notification.title)}</strong><p>${escapeHtml(notification.message)}</p><small>${updatedLabel(notification.createdAt)}</small></div>
             <div class="milestone-actions">
               ${notification.readAt ? `<span class="badge green">Seen</span>` : `<button class="btn btn-secondary btn-small" type="button" data-read-notification="${notification.id}">Mark seen</button>`}
               <button class="icon-btn danger milestone-delete" type="button" title="Delete notification" aria-label="Delete notification" data-delete-notification="${notification.id}">×</button>
@@ -4095,6 +4105,14 @@ function notificationIcon(type) {
   if (type === "card_paid") return "✓";
   if (type === "savings_withdrawal") return "$";
   return "★";
+}
+
+function notificationCategory(type) {
+  if (type === "card_paid" || type === "savings_goal") return { key: "milestone", label: "Milestone" };
+  if (type === "savings_withdrawal") return { key: "coach", label: "Coach update" };
+  if (type === "document_available") return { key: "document", label: "Document" };
+  if (type === "fit_session_completed") return { key: "session", label: "Session" };
+  return { key: "account", label: "F.I.T. update" };
 }
 
 function emptyState(symbol, title, description, action) {

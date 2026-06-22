@@ -10028,3 +10028,760 @@ html[data-theme="dark"] .upcoming-amount {
     padding-inline: 14px 34px;
   }
 }
+
+/* Final UI refresh: premium F.I.T. polish across coach/member surfaces. */
+:root {
+  --fit-radius: 18px;
+  --fit-radius-sm: 12px;
+  --fit-border: color-mix(in srgb, var(--line) 72%, var(--gold) 28%);
+  --fit-glass: color-mix(in srgb, var(--surface) 92%, var(--navy) 8%);
+  --fit-soft-navy: color-mix(in srgb, var(--navy) 10%, var(--surface) 90%);
+  --fit-focus: 0 0 0 4px color-mix(in srgb, var(--gold) 28%, transparent);
+  --fit-lift: 0 18px 44px rgba(7, 26, 58, 0.12);
+}
+
+html[data-theme="dark"] {
+  --fit-border: color-mix(in srgb, var(--gold) 45%, rgba(255,255,255,.12));
+  --fit-glass: color-mix(in srgb, var(--navy) 82%, white 4%);
+  --fit-soft-navy: color-mix(in srgb, var(--navy-deep) 78%, var(--navy) 22%);
+  --fit-lift: 0 18px 44px rgba(0, 0, 0, 0.28);
+}
+
+.main {
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--gold) 11%, transparent), transparent 34rem),
+    linear-gradient(180deg, color-mix(in srgb, var(--canvas) 96%, var(--gold) 4%), var(--canvas));
+}
+
+html[data-theme="dark"] .main {
+  background:
+    radial-gradient(circle at top right, rgba(217,166,46,.13), transparent 34rem),
+    linear-gradient(180deg, #081c3d 0%, #06152f 100%);
+}
+
+.content,
+.dashboard-band,
+.panel,
+.summary-panel,
+.form-card,
+.request-card,
+.profile-inventory-card,
+.asset-account-card,
+.debt-entry,
+.subpanel,
+.empty-state,
+.archive-details,
+.settings-card,
+.login-box,
+.upcoming-bill-card,
+.milestone-notification {
+  border-radius: var(--fit-radius);
+}
+
+.panel,
+.summary-panel,
+.form-card,
+.request-card,
+.profile-inventory-card,
+.asset-account-card,
+.debt-entry,
+.subpanel,
+.dashboard-band,
+.archive-details,
+.settings-card,
+.login-box,
+.upcoming-bill-card,
+.milestone-notification {
+  border-color: var(--fit-border) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,.38) inset, 0 10px 26px rgba(7,26,58,.06);
+}
+
+.panel:hover,
+.form-card:hover,
+.request-card:hover,
+.profile-inventory-card:hover,
+.asset-account-card:hover,
+.debt-entry:hover,
+.upcoming-bill-card:hover,
+.milestone-notification:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--fit-lift);
+}
+
+.panel,
+.form-card,
+.request-card,
+.profile-inventory-card,
+.asset-account-card,
+.debt-entry,
+.upcoming-bill-card,
+.milestone-notification {
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;
+}
+
+.btn,
+.icon-btn,
+.nav-btn,
+.role-option,
+.type-choice,
+.profile-jump-nav a,
+.bill-selector-button,
+.calculator-key,
+.calculator-history-toggle,
+.calculator-minimize {
+  transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease, background .14s ease, color .14s ease;
+}
+
+.btn:hover,
+.icon-btn:hover,
+.nav-btn:hover,
+.role-option:hover,
+.type-choice:hover,
+.profile-jump-nav a:hover,
+.bill-selector-button:hover,
+.calculator-key:hover,
+.calculator-history-toggle:hover,
+.calculator-minimize:hover {
+  transform: translateY(-1px);
+}
+
+.btn:active,
+.icon-btn:active,
+.nav-btn:active,
+.role-option:active,
+.type-choice:active,
+.profile-jump-nav a:active,
+.bill-selector-button:active,
+.calculator-key:active {
+  transform: translateY(0) scale(.985);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #f7ca58 0%, var(--gold) 45%, #b9841d 100%) !important;
+  border-color: color-mix(in srgb, var(--gold) 80%, #fff 20%) !important;
+  color: var(--navy-deep) !important;
+  box-shadow: 0 12px 24px rgba(217,166,46,.24);
+}
+
+.btn-secondary,
+.btn-quiet {
+  background: color-mix(in srgb, var(--surface) 88%, var(--navy) 12%) !important;
+  border-color: var(--fit-border) !important;
+  color: color-mix(in srgb, var(--navy) 80%, var(--ink) 20%) !important;
+}
+
+html[data-theme="dark"] .btn-secondary,
+html[data-theme="dark"] .btn-quiet {
+  background: rgba(255,255,255,.055) !important;
+  color: #fff !important;
+}
+
+.icon-btn.danger,
+.milestone-delete,
+.profile-remove,
+.mobile-row-action .icon-btn {
+  border-radius: 999px !important;
+  background: color-mix(in srgb, var(--red-soft) 68%, var(--surface) 32%) !important;
+  border-color: color-mix(in srgb, var(--red) 45%, var(--line) 55%) !important;
+}
+
+.sidebar {
+  border-right: 1px solid rgba(217,166,46,.28);
+}
+
+.sidebar-brand {
+  justify-content: center;
+  padding-block: 18px 12px;
+}
+
+.sidebar-brand img {
+  filter: drop-shadow(0 12px 20px rgba(0,0,0,.22));
+}
+
+.side-nav {
+  gap: 7px;
+}
+
+.nav-btn {
+  min-height: 46px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  color: rgba(255,255,255,.76);
+}
+
+.nav-btn.active {
+  background: linear-gradient(135deg, rgba(217,166,46,.24), rgba(255,255,255,.08)) !important;
+  border-color: rgba(217,166,46,.46);
+  box-shadow: inset 3px 0 0 var(--gold), 0 12px 24px rgba(0,0,0,.18);
+  color: #fff;
+}
+
+.nav-glyph {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 9px;
+  background: rgba(255,255,255,.07);
+}
+
+.nav-btn.active .nav-glyph {
+  background: var(--gold);
+  color: var(--navy-deep);
+}
+
+.topbar {
+  backdrop-filter: blur(16px);
+  background: color-mix(in srgb, var(--surface) 88%, transparent) !important;
+  border-bottom-color: var(--fit-border) !important;
+}
+
+html[data-theme="dark"] .topbar {
+  background: rgba(7, 26, 58, .84) !important;
+}
+
+.page-heading {
+  gap: 18px;
+  align-items: center;
+}
+
+.page-heading h2,
+.panel-heading h3,
+.subpanel-heading h4,
+.login-box h2,
+.metric strong,
+.computed-field strong {
+  letter-spacing: 0;
+}
+
+.metric-grid,
+.upcoming-summary-grid,
+.profile-overview-metrics {
+  gap: 14px;
+}
+
+.metric,
+.computed-field {
+  border-radius: var(--fit-radius-sm);
+  border-color: var(--fit-border) !important;
+  background: linear-gradient(180deg, var(--fit-glass), color-mix(in srgb, var(--surface) 88%, var(--navy) 12%));
+}
+
+html[data-theme="dark"] .metric,
+html[data-theme="dark"] .computed-field {
+  background: linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.025));
+}
+
+.connection-panel {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--surface) 94%, var(--navy) 6%), color-mix(in srgb, var(--surface) 90%, var(--gold) 10%));
+  border-radius: 24px;
+  box-shadow: var(--fit-lift);
+}
+
+html[data-theme="dark"] .connection-panel {
+  background: linear-gradient(135deg, rgba(18,48,93,.92), rgba(8,28,61,.96));
+}
+
+.connection-current {
+  align-items: center;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid var(--fit-border);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--surface) 82%, var(--navy) 18%);
+}
+
+html[data-theme="dark"] .connection-current {
+  background: rgba(255,255,255,.045);
+}
+
+.connection-current .avatar {
+  width: 76px !important;
+  height: 76px !important;
+  flex-basis: 76px !important;
+  border: 3px solid var(--gold);
+  box-shadow: 0 12px 26px rgba(7,26,58,.18);
+}
+
+.connection-current > .badge {
+  margin-left: auto;
+}
+
+.coach-request-form {
+  align-items: end;
+  gap: 14px;
+}
+
+.profile-overview {
+  gap: 18px;
+  align-items: stretch;
+}
+
+.profile-photo-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+}
+
+.profile-photo-panel {
+  width: min(100%, 260px) !important;
+  padding: 14px !important;
+  border-radius: 20px !important;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, var(--navy) 4%), color-mix(in srgb, var(--surface) 92%, var(--gold) 8%));
+}
+
+html[data-theme="dark"] .profile-photo-panel {
+  background: rgba(255,255,255,.045);
+}
+
+.profile-photo-panel .avatar,
+.profile-overview .avatar-xl {
+  width: 66px !important;
+  height: 66px !important;
+  flex-basis: 66px !important;
+  border: 2px solid var(--gold);
+  box-shadow: 0 10px 22px rgba(7,26,58,.16);
+}
+
+.profile-photo-panel .profile-photo-button {
+  padding-inline: 12px !important;
+  min-height: 34px;
+  border-radius: 999px !important;
+}
+
+.profile-jump-nav {
+  border-radius: 18px;
+  box-shadow: 0 10px 24px rgba(7,26,58,.07);
+}
+
+.profile-jump-nav span {
+  color: var(--gold) !important;
+}
+
+.profile-jump-nav a {
+  border-radius: 999px;
+}
+
+.profile-jump-nav a:hover,
+.profile-jump-nav a:focus-visible {
+  background: var(--gold-soft);
+}
+
+.profile-inventory > .panel-heading,
+.panel > .panel-heading,
+.subpanel-heading {
+  border-bottom-color: color-mix(in srgb, var(--fit-border) 75%, transparent) !important;
+}
+
+.profile-inventory-card,
+.asset-account-card,
+.debt-entry {
+  position: relative;
+  overflow: visible;
+  padding: 18px !important;
+}
+
+.profile-inventory-card .profile-remove,
+.asset-account-card .profile-remove,
+.debt-entry .profile-remove {
+  top: 12px !important;
+  right: 12px !important;
+  width: 34px !important;
+  height: 34px !important;
+}
+
+.profile-inventory-grid,
+.debt-entry-grid,
+.tracker-grid,
+.overview-grid,
+.savings-grid {
+  gap: 14px !important;
+}
+
+.field label,
+.table-input,
+.input,
+.selection-field-button {
+  letter-spacing: 0;
+}
+
+.input,
+.table-input,
+textarea,
+select,
+.selection-field-button,
+.bill-selector-button {
+  border-radius: 13px !important;
+  border-color: color-mix(in srgb, var(--fit-border) 82%, var(--navy) 18%) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.22);
+}
+
+.input:focus,
+.table-input:focus,
+textarea:focus,
+select:focus,
+.selection-field-button:focus,
+.bill-selector-button:focus-visible {
+  outline: none;
+  border-color: var(--gold) !important;
+  box-shadow: var(--fit-focus), inset 0 1px 0 rgba(255,255,255,.28) !important;
+}
+
+.asset-chart-wrap {
+  border-radius: 22px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, var(--navy) 6%), color-mix(in srgb, var(--surface) 96%, var(--gold) 4%));
+  border: 1px solid var(--fit-border);
+}
+
+html[data-theme="dark"] .asset-chart-wrap {
+  background: linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.025));
+}
+
+.asset-chart svg {
+  filter: drop-shadow(0 10px 20px rgba(7,26,58,.08));
+}
+
+.chart-legend button {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 86%, var(--navy) 14%);
+}
+
+.upcoming-bills-panel {
+  overflow: hidden;
+}
+
+.upcoming-bill-list {
+  gap: 12px;
+}
+
+.upcoming-bill-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  border-left: 5px solid var(--gold) !important;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--surface) 94%, var(--navy) 6%), var(--surface));
+}
+
+html[data-theme="dark"] .upcoming-bill-card {
+  background: linear-gradient(90deg, rgba(255,255,255,.06), rgba(255,255,255,.025));
+}
+
+.upcoming-bill-card.urgent {
+  border-left-color: var(--red) !important;
+}
+
+.upcoming-bill-card.soon {
+  border-left-color: var(--gold) !important;
+}
+
+.upcoming-bill-card.steady {
+  border-left-color: var(--green) !important;
+}
+
+.upcoming-date-badge {
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.3);
+}
+
+.upcoming-bill-main h3,
+.upcoming-bill-main p {
+  overflow-wrap: anywhere;
+}
+
+.upcoming-bill-actions {
+  justify-self: end;
+}
+
+.milestone-center .panel-heading {
+  align-items: center;
+}
+
+.milestone-list {
+  gap: 10px;
+}
+
+.milestone-notification {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  border-left: 4px solid var(--gold);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--surface) 94%, var(--navy) 6%), var(--surface));
+}
+
+html[data-theme="dark"] .milestone-notification {
+  background: linear-gradient(90deg, rgba(255,255,255,.06), rgba(255,255,255,.025));
+}
+
+.notification-type {
+  display: inline-flex;
+  width: fit-content;
+  margin-bottom: 4px;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: color-mix(in srgb, var(--gold) 20%, transparent);
+  color: color-mix(in srgb, var(--navy) 75%, var(--gold) 25%);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.notification-document { border-left-color: #315fc4 !important; }
+.notification-session { border-left-color: #7b4bb7 !important; }
+.notification-coach { border-left-color: #008aa6 !important; }
+.notification-milestone { border-left-color: var(--green) !important; }
+
+.final-budget-panel {
+  overflow: hidden;
+}
+
+.final-budget-panel .panel-heading {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--navy) 8%, transparent), color-mix(in srgb, var(--gold) 8%, transparent));
+}
+
+.budget-remaining-strip {
+  padding: 14px !important;
+  gap: 12px !important;
+}
+
+.final-budget-table tr {
+  border-radius: 14px;
+}
+
+.final-budget-table td {
+  background: color-mix(in srgb, var(--surface) 94%, var(--navy) 6%) !important;
+}
+
+html[data-theme="dark"] .final-budget-table td {
+  background: rgba(255,255,255,.045) !important;
+}
+
+.draggable-calculator {
+  border: 1px solid rgba(255,255,255,.08) !important;
+  box-shadow: 0 28px 60px rgba(0,0,0,.32) !important;
+}
+
+.draggable-calculator .calculator-heading {
+  cursor: grab;
+}
+
+.draggable-calculator .calculator-heading:active {
+  cursor: grabbing;
+}
+
+.calculator-title::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 0 4px rgba(217,166,46,.16);
+  vertical-align: middle;
+}
+
+.draggable-calculator.minimized {
+  border-radius: 999px !important;
+}
+
+.login-shell {
+  background:
+    radial-gradient(circle at top left, rgba(217,166,46,.22), transparent 32rem),
+    linear-gradient(135deg, #06152f 0%, #0d2859 55%, #14386f 100%);
+}
+
+.login-brand img,
+.login-brand .brand-lockup img {
+  filter: drop-shadow(0 18px 30px rgba(0,0,0,.3));
+}
+
+.login-box {
+  backdrop-filter: blur(18px);
+  box-shadow: 0 24px 70px rgba(7,26,58,.18);
+}
+
+.role-option.active {
+  background: var(--gold) !important;
+  color: var(--navy-deep) !important;
+  box-shadow: 0 10px 22px rgba(217,166,46,.24);
+}
+
+.form-grid,
+.inbox-grid,
+.profile-list,
+.request-list,
+.withdrawal-list {
+  gap: 14px;
+}
+
+.form-card-top,
+.debt-entry-heading,
+.asset-chart-header,
+.panel-heading,
+.subpanel-heading {
+  gap: 14px;
+}
+
+@media (min-width: 769px) and (max-width: 1180px) {
+  .app-shell {
+    grid-template-columns: 214px minmax(0, 1fr);
+  }
+
+  .editor-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .summary-panel {
+    position: static !important;
+    width: 100%;
+  }
+
+  .connection-current,
+  .upcoming-bill-card,
+  .milestone-notification {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .connection-current > .badge,
+  .upcoming-bill-actions,
+  .milestone-actions {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .profile-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-overview-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .profile-inventory-grid,
+  .debt-entry-grid,
+  .tracker-grid,
+  .overview-grid,
+  .savings-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 768px) {
+  html,
+  body,
+  .app-shell,
+  .main,
+  .content {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  html,
+  body,
+  .app-shell {
+    width: 100vw;
+  }
+
+  .financial-profile-view,
+  .financial-profile-view * {
+    min-width: 0;
+  }
+
+  .content {
+    gap: 16px;
+  }
+
+  .topbar {
+    padding-inline: 16px !important;
+  }
+
+  .page-heading {
+    align-items: stretch;
+  }
+
+  .page-heading .btn,
+  .panel-heading .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .connection-current {
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .connection-current > .badge {
+    margin-left: 0;
+  }
+
+  .coach-request-form {
+    grid-template-columns: 1fr !important;
+  }
+
+  .profile-photo-panel {
+    width: min(100%, 240px) !important;
+    margin-inline: auto;
+  }
+
+  .profile-inventory-card,
+  .asset-account-card,
+  .debt-entry,
+  .panel,
+  .subpanel,
+  .data-table-wrap {
+    max-width: 100%;
+  }
+
+  .profile-photo-row {
+    justify-content: center;
+  }
+
+  .profile-overview-metrics,
+  .metric-grid,
+  .upcoming-summary-grid,
+  .budget-remaining-strip {
+    grid-template-columns: 1fr !important;
+  }
+
+  .upcoming-bill-card,
+  .milestone-notification {
+    grid-template-columns: 1fr;
+    justify-items: stretch;
+  }
+
+  .upcoming-date-badge {
+    width: 64px;
+  }
+
+  .upcoming-bill-actions,
+  .milestone-actions {
+    align-items: stretch;
+    justify-self: stretch;
+  }
+
+  .upcoming-bill-actions .btn,
+  .milestone-actions .btn {
+    width: 100%;
+  }
+
+  .final-budget-panel .data-table tr {
+    background: color-mix(in srgb, var(--surface) 94%, var(--navy) 6%);
+    border-radius: 16px;
+    padding: 10px;
+  }
+
+  html[data-theme="dark"] .final-budget-panel .data-table tr {
+    background: rgba(255,255,255,.045);
+  }
+
+  .final-budget-panel .data-table td {
+    background: transparent !important;
+  }
+
+  .login-shell {
+    min-height: 100dvh;
+  }
+}
