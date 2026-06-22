@@ -29,5 +29,8 @@ test("member coach cards preserve secure signed coach photo urls", () => {
   assert.match(backend, /function\s+needsSignedPhotoUrl/);
   assert.match(backend, /coachPhotoNeedsSignedUrl/);
   assert.match(backend, /if\s*\(!photo\.dataUrl\)\s*delete\s+photo\.dataUrl/);
+  assert.match(app, /function\s+stabilizeMediaUrls/);
+  assert.match(app, /"dataUrl",\s*"lastActiveAt",\s*"sessionEmail",\s*"coachPhotoCheckedAt"/);
+  assert.match(app, /if\s*\(currentPhoto\.dataUrl\)\s*{\s*nextPhoto\.dataUrl\s*=\s*currentPhoto\.dataUrl/);
   assert.doesNotMatch(app, /catch\s*\(error\)\s*{\s*coach\s*=\s*{\s*name:\s*"F\.I\.T\. coach"/);
 });

@@ -60,9 +60,30 @@ function normalizeEmail(value) {
 
 function portalContentSignature(state) {
   return JSON.stringify(state, (key, value) => {
-    if (key === "lastActiveAt" || key === "sessionEmail") return undefined;
+    if (["dataUrl", "lastActiveAt", "sessionEmail", "coachPhotoCheckedAt"].includes(key)) return undefined;
     return value;
   });
+}
+
+function stabilizeMediaUrls(currentState, nextState) {
+  let mediaBecameAvailable = false;
+  Object.entries(nextState.accounts || {}).forEach(([email, nextAccount]) => {
+    const currentAccount = currentState.accounts?.[email];
+    if (!currentAccount) return;
+    ["profilePhoto", "spousePhoto"].forEach((field) => {
+      const currentPhoto = currentAccount[field];
+      const nextPhoto = nextAccount[field];
+      if (!currentPhoto?.storagePath || !nextPhoto?.storagePath) return;
+      if (currentPhoto.storagePath !== nextPhoto.storagePath) return;
+      if (currentPhoto.dataUrl) {
+        nextPhoto.dataUrl = currentPhoto.dataUrl;
+      } else if (nextPhoto.dataUrl) {
+        currentPhoto.dataUrl = nextPhoto.dataUrl;
+        mediaBecameAvailable = true;
+      }
+    });
+  });
+  return mediaBecameAvailable;
 }
 
 function usableDisplayName(value, email = "") {
@@ -7375,6 +7396,7 @@ async function refreshPortalFromBackend() {
     if (activeView === "editor" && activeFormId && appState.forms[activeFormId] && !refreshedState.forms[activeFormId]) {
       throw new Error("The current worksheet has not finished loading.");
     }
+    const mediaBecameAvailable = stabilizeMediaUrls(appState, refreshedState);
     const contentChanged = portalContentSignature(appState) !== portalContentSignature(refreshedState);
     if (!contentChanged) {
       Object.entries(refreshedState.accounts || {}).forEach(([email, account]) => {
@@ -7382,6 +7404,7 @@ async function refreshPortalFromBackend() {
       });
       portalDataReady = true;
       removePortalRetryBanner();
+      if (mediaBecameAvailable) render();
       return;
     }
     appState = refreshedState;
