@@ -6820,13 +6820,8 @@ document.addEventListener("submit", async (event) => {
         appState.accounts[coach.email] = coach;
         member.coachName = coach.name;
       } catch (error) {
-        coach = {
-          name: "F.I.T. coach",
-          email: coachEmail,
-          role: "coach",
-          profilePhoto: null,
-        };
-        member.coachName = coach.name;
+        showToast(error.message || "That coach account could not be found.");
+        return;
       }
     } else if (!coach || coach.role !== "coach") {
       showToast("No coach account exists for that email yet.");

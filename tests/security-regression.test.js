@@ -22,3 +22,12 @@ test("production backend removes private inline file data before database persis
   assert.match(backend, /delete\s+photo\.dataUrl/);
   assert.match(backend, /delete\s+paystub\.dataUrl/);
 });
+
+test("member coach cards preserve secure signed coach photo urls", () => {
+  const backend = fs.readFileSync(path.join(root, "backend.js"), "utf8");
+  const app = fs.readFileSync(path.join(root, "app.js"), "utf8");
+  assert.match(backend, /function\s+needsSignedPhotoUrl/);
+  assert.match(backend, /coachPhotoNeedsSignedUrl/);
+  assert.match(backend, /if\s*\(!photo\.dataUrl\)\s*delete\s+photo\.dataUrl/);
+  assert.doesNotMatch(app, /catch\s*\(error\)\s*{\s*coach\s*=\s*{\s*name:\s*"F\.I\.T\. coach"/);
+});

@@ -124,6 +124,10 @@
     return Boolean(photo?.storagePath || photo?.dataUrl);
   }
 
+  function needsSignedPhotoUrl(photo) {
+    return Boolean(photo?.storagePath && !photo?.dataUrl);
+  }
+
   function mergeAccountRecords(existing, incoming) {
     if (!existing) return incoming;
     const existingScore = Object.values(existing).filter((value) => value != null && value !== "").length;
@@ -309,7 +313,8 @@
       const lastCoachPhotoCheck = new Date(currentAccount.coachPhotoCheckedAt || 0).getTime() || 0;
       const coachPhotoStale = Date.now() - lastCoachPhotoCheck > 5 * 60 * 1000;
       const coachPhotoMissing = !hasStoredPhoto(connectedCoach?.profilePhoto);
-      if (coachNameMissing || coachPhotoMissing || coachPhotoStale) {
+      const coachPhotoNeedsSignedUrl = needsSignedPhotoUrl(connectedCoach?.profilePhoto);
+      if (coachNameMissing || coachPhotoMissing || coachPhotoNeedsSignedUrl || coachPhotoStale) {
         try {
           const { data: refreshedCoach, error: refreshError } = await client.functions.invoke("connect-coach", {
             body: { coachEmail: currentAccount.coachEmail, refreshOnly: true },
@@ -367,13 +372,20 @@
     for (const account of Object.values(state.accounts || {})) {
       for (const photo of [account.profilePhoto, account.spousePhoto]) {
         if (!photo?.storagePath) continue;
+        if (
+          account.role === "coach" &&
+          normalizeEmail(account.email) !== normalizeEmail(state.sessionEmail) &&
+          photo.dataUrl
+        ) {
+          continue;
+        }
         tasks.push(
           signedUrl("profile-photos", photo.storagePath, 86400)
             .then((url) => {
               if (url) photo.dataUrl = url;
             })
             .catch((error) => {
-              delete photo.dataUrl;
+              if (!photo.dataUrl) delete photo.dataUrl;
               console.warn("Could not refresh a profile photo", error);
             }),
         );
