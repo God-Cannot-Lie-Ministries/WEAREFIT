@@ -15,7 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1
+      - name: Link Supabase project
+        run: supabase link --project-ref jrkxltypsvapusybroyp
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       - name: Push migrations
-        run: supabase db push --project-ref jrkxltypsvapusybroyp
+        run: supabase db push --yes
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
