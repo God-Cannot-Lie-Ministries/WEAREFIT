@@ -10785,3 +10785,17 @@ html[data-theme="dark"] .final-budget-table td {
     min-height: 100dvh;
   }
 }
+
+/* Calculator cleanup: remove decorative gold circles from the header controls. */
+.calculator-title::before {
+  content: none !important;
+}
+
+.calculator-history-toggle:hover,
+.calculator-minimize:hover,
+.calculator-history-toggle[aria-expanded="true"] {
+  border-color: #39393d !important;
+  background: #1a1a1c !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
