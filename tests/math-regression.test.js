@@ -154,6 +154,23 @@ test("worksheet math includes additional income in tithe and keeps cents everywh
   assert.equal(calc.available, 106.15);
 });
 
+test("currency helper accepts comma-formatted values and keeps two-decimal math", () => {
+  assert.equal(currencyValue("1,522.05"), 1522.05);
+  assert.equal(currencyValue("1,000.105"), 1000.11);
+  assert.equal(currencyValue(""), 0);
+});
+
+test("budgeted categories reduce left-to-budget without rounding to whole dollars", () => {
+  const form = sampleForm();
+  form.data.variableSpending = [
+    { category: "Groceries", budgeted: "50.25" },
+    { category: "Gas", budgeted: "25.10" },
+  ];
+  const calc = calculate(form);
+  assert.equal(calc.variableBudget, 75.35);
+  assert.equal(calc.available, 231.35);
+});
+
 test("wait-for-next-check skips the regular card payment but still honors rollover payment", () => {
   const form = sampleForm();
   const calc = calculate(form);
@@ -173,4 +190,13 @@ test("mortgage and savings balances calculate after this check", () => {
   const calc = calculate(sampleForm());
   assert.equal(calc.mortgageAfter, 199750);
   assert.equal(calc.savingsAfter, 1130);
+});
+
+test("rent selection excludes mortgage from planned outflow and balance changes", () => {
+  const form = sampleForm();
+  form.data.housingPaymentType = "rent";
+  const calc = calculate(form);
+  assert.equal(calc.mortgageContribution, 0);
+  assert.equal(calc.mortgageAfter, 200000);
+  assert.equal(calc.available, 356.15);
 });

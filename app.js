@@ -5022,7 +5022,7 @@ function applyRecurringBillSuggestion(input, form) {
   const bill = form.data.bills[category][Number(index)];
   bill.profileBillId = suggestion.id || "";
   bill.name = suggestion.name;
-  bill.dueDate = recurringBillNextDueDate(suggestion);
+  bill.dueDate = recurringBillDisplayDueDate(suggestion);
   bill.amount = bill.dueDate ? suggestion.amount : "";
   const dueDateInput = document.querySelector(
     `input[data-path="bills.${category}.${index}.dueDate"]`,
