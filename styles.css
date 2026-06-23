@@ -11450,3 +11450,37 @@ html[data-theme="dark"] .login-brand img {
     drop-shadow(0 10px 20px rgba(239, 195, 83, .30))
     drop-shadow(0 16px 28px rgba(0, 0, 0, .28)) !important;
 }
+
+/* Financial profile remove controls belong in the bottom-right of each pill. */
+.financial-profile-view .profile-inventory-card,
+.financial-profile-view .asset-account-card,
+.financial-profile-view .debt-entry {
+  padding: 18px 18px 62px !important;
+}
+
+.financial-profile-view .profile-inventory-card .profile-remove,
+.financial-profile-view .asset-account-card .profile-remove,
+.financial-profile-view .debt-entry .profile-remove {
+  position: absolute !important;
+  top: auto !important;
+  right: 16px !important;
+  bottom: 16px !important;
+  left: auto !important;
+  margin: 0 !important;
+  z-index: 2;
+}
+
+@media (max-width: 768px) {
+  .financial-profile-view .profile-inventory-card,
+  .financial-profile-view .asset-account-card,
+  .financial-profile-view .debt-entry {
+    padding: 16px 16px 60px !important;
+  }
+
+  .financial-profile-view .profile-inventory-card .profile-remove,
+  .financial-profile-view .asset-account-card .profile-remove,
+  .financial-profile-view .debt-entry .profile-remove {
+    right: 14px !important;
+    bottom: 14px !important;
+  }
+}
