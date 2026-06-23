@@ -11428,17 +11428,25 @@ button,
   }
 }
 
-/* Login logo cleanup: keep the transparent mark crisp without a heavy glow. */
+/* Login logo lift: visible on navy without turning into a fuzzy halo. */
 .login-brand .brand-lockup {
   overflow: visible !important;
 }
 
 .login-brand .brand-lockup img,
 .login-brand img {
-  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .18)) !important;
+  filter:
+    drop-shadow(0 0 1px rgba(255, 255, 255, .96))
+    drop-shadow(0 0 6px rgba(255, 255, 255, .36))
+    drop-shadow(0 10px 18px rgba(217, 166, 46, .22))
+    drop-shadow(0 16px 28px rgba(0, 0, 0, .24)) !important;
 }
 
 html[data-theme="dark"] .login-brand .brand-lockup img,
 html[data-theme="dark"] .login-brand img {
-  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .22)) !important;
+  filter:
+    drop-shadow(0 0 1px rgba(255, 255, 255, .98))
+    drop-shadow(0 0 7px rgba(255, 255, 255, .42))
+    drop-shadow(0 10px 20px rgba(239, 195, 83, .30))
+    drop-shadow(0 16px 28px rgba(0, 0, 0, .28)) !important;
 }
