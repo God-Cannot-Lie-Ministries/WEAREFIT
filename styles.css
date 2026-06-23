@@ -11188,3 +11188,257 @@ textarea,
     inset-inline: 12px;
   }
 }
+
+/* Button refinement pass: precise round controls, centered icons, and tactile press color. */
+:root {
+  --fit-press-gold: #ffd869;
+  --fit-press-blue: #25599b;
+  --fit-press-red: #a43a52;
+  --fit-round-size: 42px;
+}
+
+button,
+.btn,
+.icon-btn,
+.nav-btn,
+.type-choice,
+.asset-type-choice,
+.bill-selector-button,
+.selection-field-button,
+.calculator-history-toggle,
+.calculator-minimize,
+.chart-legend button {
+  touch-action: manipulation;
+}
+
+.btn {
+  min-height: 42px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  border-radius: 12px !important;
+  padding: 10px 16px !important;
+  line-height: 1.12 !important;
+}
+
+.btn-small {
+  min-height: 36px !important;
+  border-radius: 10px !important;
+  padding: 7px 12px !important;
+  font-size: 13px !important;
+}
+
+.btn:active,
+.nav-btn:active,
+.type-choice:active,
+.asset-type-choice:active,
+.selection-field-button:active,
+.chart-legend button:active {
+  filter: saturate(1.12) brightness(1.05);
+  transform: translateY(1px) scale(.985) !important;
+}
+
+.btn-primary:active,
+.btn-gold:active {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.24), rgba(255,255,255,0) 42%),
+    linear-gradient(135deg, var(--fit-press-gold), #d69d1f) !important;
+  border-color: rgba(255,216,105,.84) !important;
+  color: #071832 !important;
+}
+
+.btn-secondary:active,
+.nav-btn:active,
+.selection-field-button:active,
+.type-choice:active,
+.asset-type-choice:active,
+.chart-legend button:active {
+  background: color-mix(in srgb, var(--navy) 76%, var(--gold) 24%) !important;
+  border-color: rgba(239,195,83,.62) !important;
+  color: #fff !important;
+}
+
+.btn-danger:active {
+  background: var(--fit-press-red) !important;
+  border-color: rgba(255,172,186,.72) !important;
+  color: #fff !important;
+}
+
+.icon-btn,
+.calculator-history-toggle,
+.calculator-minimize,
+.bill-selector-button,
+.milestone-icon,
+.empty-state-symbol,
+.upcoming-date-badge,
+.autosave-dot,
+.assignment-solo-grid .individual-assignment-choice i {
+  aspect-ratio: 1 / 1 !important;
+  display: inline-grid !important;
+  flex: 0 0 auto !important;
+  place-items: center !important;
+  text-align: center !important;
+  line-height: 1 !important;
+}
+
+.icon-btn,
+.calculator-history-toggle,
+.calculator-minimize {
+  width: var(--fit-round-size) !important;
+  min-width: var(--fit-round-size) !important;
+  height: var(--fit-round-size) !important;
+  min-height: var(--fit-round-size) !important;
+  max-width: var(--fit-round-size) !important;
+  max-height: var(--fit-round-size) !important;
+  border-radius: 50% !important;
+  padding: 0 !important;
+  font-size: 18px !important;
+}
+
+.icon-btn.btn-small,
+.btn-small.icon-btn,
+.mobile-row-action .icon-btn,
+.milestone-delete {
+  --fit-round-size: 34px;
+}
+
+.subpanel-heading .icon-btn,
+.panel-heading .icon-btn {
+  --fit-round-size: 40px;
+}
+
+.icon-btn:hover,
+.calculator-history-toggle:hover,
+.calculator-minimize:hover {
+  box-shadow: 0 10px 22px rgba(13,40,89,.16);
+  transform: translateY(-1px);
+}
+
+.icon-btn:active,
+.calculator-history-toggle:active,
+.calculator-minimize:active,
+.bill-selector-button:active {
+  background: var(--fit-press-gold) !important;
+  border-color: rgba(255,216,105,.84) !important;
+  color: #071832 !important;
+  box-shadow: 0 0 0 4px rgba(255,216,105,.20) !important;
+  transform: translateY(1px) scale(.94) !important;
+}
+
+.icon-btn.danger:active,
+.mobile-row-action .icon-btn.danger:active {
+  background: var(--fit-press-red) !important;
+  border-color: rgba(255,172,186,.72) !important;
+  color: #fff !important;
+  box-shadow: 0 0 0 4px rgba(255,143,163,.18) !important;
+}
+
+.calculator-clock-symbol {
+  display: grid !important;
+  width: 100% !important;
+  height: 100% !important;
+  place-items: center !important;
+  padding: 0 !important;
+  line-height: 1 !important;
+}
+
+.draggable-calculator .calculator-key {
+  display: grid !important;
+  width: var(--calculator-key-size) !important;
+  height: var(--calculator-key-size) !important;
+  min-width: var(--calculator-key-size) !important;
+  min-height: var(--calculator-key-size) !important;
+  max-width: var(--calculator-key-size) !important;
+  max-height: var(--calculator-key-size) !important;
+  place-items: center !important;
+  border-radius: 50% !important;
+  padding: 0 !important;
+  line-height: 1 !important;
+}
+
+.draggable-calculator .calculator-key.wide {
+  width: var(--calculator-key-size) !important;
+  min-width: var(--calculator-key-size) !important;
+  max-width: var(--calculator-key-size) !important;
+  border-radius: 50% !important;
+}
+
+.draggable-calculator .calculator-key:active {
+  background: #d8d8d8 !important;
+  color: #000 !important;
+  transform: scale(.94) !important;
+}
+
+.draggable-calculator .calculator-key.operator:active {
+  background: var(--fit-press-gold) !important;
+  color: #111 !important;
+}
+
+.draggable-calculator .calculator-key.utility:active {
+  background: #858585 !important;
+  color: #fff !important;
+}
+
+.bill-selector-button {
+  width: 42px !important;
+  min-width: 42px !important;
+  height: 100% !important;
+  min-height: 42px !important;
+  border-radius: 0 10px 10px 0 !important;
+  padding: 0 !important;
+  font-size: 17px !important;
+}
+
+.button-row {
+  align-items: center !important;
+}
+
+.topbar-actions .btn,
+.form-card .button-row .btn,
+.modal-body .btn,
+.page-heading .btn,
+.panel-heading > .btn {
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --fit-round-size: 40px;
+  }
+
+  .btn {
+    min-height: 44px !important;
+    border-radius: 12px !important;
+  }
+
+  .btn-small {
+    min-height: 40px !important;
+  }
+
+  .icon-btn.btn-small,
+  .btn-small.icon-btn,
+  .mobile-row-action .icon-btn,
+  .milestone-delete {
+    --fit-round-size: 38px;
+  }
+
+  .nav-btn {
+    align-items: center !important;
+    justify-content: center !important;
+  }
+}
+
+/* Login logo cleanup: keep the transparent mark crisp without a heavy glow. */
+.login-brand .brand-lockup {
+  overflow: visible !important;
+}
+
+.login-brand .brand-lockup img,
+.login-brand img {
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .18)) !important;
+}
+
+html[data-theme="dark"] .login-brand .brand-lockup img,
+html[data-theme="dark"] .login-brand img {
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .22)) !important;
+}
