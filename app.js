@@ -43,16 +43,103 @@ const urlParameters = new URLSearchParams(window.location.search);
 const inviteCoachFromUrl = urlParameters.get("coachInvite");
 const passwordResetFromUrl = urlParameters.get("passwordReset") === "1";
 const verifyDeleteAccountFromUrl = urlParameters.get("verifyDeleteAccount") === "1";
+const clearSiteDataFromUrl =
+  urlParameters.get("clearFitSiteData") === "1" || urlParameters.get("clearSiteData") === "1";
 const deleteVerificationEmail = normalizeEmail(urlParameters.get("email"));
 const deleteVerificationToken = String(urlParameters.get("token") || "");
 if (inviteCoachFromUrl) sessionStorage.setItem("fit-pending-coach-invite", normalizeEmail(inviteCoachFromUrl));
-if (passwordResetFromUrl) loginMode = "reset";
-if (verifyDeleteAccountFromUrl) loginMode = "delete-verify";
+if (!clearSiteDataFromUrl && passwordResetFromUrl) loginMode = "reset";
+if (!clearSiteDataFromUrl && verifyDeleteAccountFromUrl) loginMode = "delete-verify";
 
 const app = document.getElementById("app");
 const toast = document.getElementById("toast");
 
 applyTheme();
+
+async function clearFitSiteDataFromBrowser() {
+  try {
+    await productionBackend.signOut?.();
+  } catch (error) {
+    console.warn("Could not sign out while clearing F.I.T. browser data", error);
+  }
+
+  try {
+    localStorage.clear();
+  } catch (error) {
+    console.warn("Could not clear local F.I.T. browser data", error);
+  }
+
+  try {
+    sessionStorage.clear();
+  } catch (error) {
+    console.warn("Could not clear temporary F.I.T. browser data", error);
+  }
+
+  try {
+    if ("caches" in window) {
+      const cacheKeys = await caches.keys();
+      await Promise.all(cacheKeys.map((key) => caches.delete(key)));
+    }
+  } catch (error) {
+    console.warn("Could not clear F.I.T. cache data", error);
+  }
+
+  try {
+    if ("serviceWorker" in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+    }
+  } catch (error) {
+    console.warn("Could not clear F.I.T. service workers", error);
+  }
+
+  try {
+    if ("indexedDB" in window && indexedDB.databases) {
+      const databases = await indexedDB.databases();
+      await Promise.all(
+        databases
+          .map((database) => database.name)
+          .filter(Boolean)
+          .map(
+            (name) =>
+              new Promise((resolve) => {
+                const request = indexedDB.deleteDatabase(name);
+                request.onsuccess = request.onerror = request.onblocked = resolve;
+              }),
+          ),
+      );
+    }
+  } catch (error) {
+    console.warn("Could not clear F.I.T. indexed browser data", error);
+  }
+
+  appState = loadState();
+  activeView = "dashboard";
+  activeFormId = null;
+  loginRole = "user";
+  loginMode = "signin";
+  pendingVerificationEmail = null;
+  confirmationResendNeeded = false;
+  pendingPaystubUpload = null;
+  portalDataReady = !productionBackend.enabled;
+  portalLoadError = null;
+
+  const cleanUrl = `${window.location.origin}${window.location.pathname}`;
+  window.history.replaceState({}, "", cleanUrl);
+  app.innerHTML = `
+    <main class="login-shell">
+      <section class="auth-panel fit-data-cleared-panel">
+        <div class="auth-logo-wrap">
+          <img class="auth-logo" src="assets/fit-logo-exact-transparent.png" alt="F.I.T. Financial Integrity Training" />
+        </div>
+        <p class="eyebrow">Browser data cleared</p>
+        <h1>F.I.T. is ready for a fresh sign in.</h1>
+        <p class="muted">Saved website data for this browser was cleared. Your secure account data is still protected on the server.</p>
+        <button class="primary-action" type="button" data-clear-data-signin>Go to sign in</button>
+      </section>
+    </main>
+  `;
+}
 
 function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
@@ -5936,6 +6023,11 @@ function revealNewEntry(path, profile = false) {
 }
 
 document.addEventListener("click", async (event) => {
+  if (event.target.closest("[data-clear-data-signin]")) {
+    initializePortal();
+    return;
+  }
+
   if (event.target.closest("[data-retry-page]")) {
     portalDataReady = false;
     await initializePortal();
@@ -7524,7 +7616,23 @@ async function validateCurrentAccount() {
   }
 }
 
-initializePortal();
+if (clearSiteDataFromUrl) {
+  clearFitSiteDataFromBrowser().catch((error) => {
+    console.error("Could not clear F.I.T. browser data", error);
+    app.innerHTML = `
+      <main class="login-shell">
+        <section class="auth-panel">
+          <p class="eyebrow">Browser data</p>
+          <h1>We had trouble clearing this browser.</h1>
+          <p class="muted">Refresh this page and try again, or sign out normally from F.I.T.</p>
+          <button class="primary-action" type="button" data-clear-data-signin>Go to sign in</button>
+        </section>
+      </main>
+    `;
+  });
+} else {
+  initializePortal();
+}
 document.addEventListener(
   "error",
   (event) => {
