@@ -1,1 +1,29 @@
-{"name":"Deploy secure functions","on":{"workflow_dispatch":{},"push":{"branches":["main"],"paths":["supabase/functions/**",".github/workflows/deploy-secure-functions.yml"]}},"jobs":{"deploy":{"runs-on":"ubuntu-latest","steps":[{"uses":"actions/checkout@v4"},{"uses":"supabase/setup-cli@v1"},{"run":"supabase functions deploy request-account-deletion --project-ref jrkxltypsvapusybroyp && supabase functions deploy complete-account-deletion --project-ref jrkxltypsvapusybroyp --no-verify-jwt && supabase functions deploy connect-coach --project-ref jrkxltypsvapusybroyp && supabase functions deploy remove-mentee --project-ref jrkxltypsvapusybroyp && supabase functions deploy send-session-summary-sms --project-ref jrkxltypsvapusybroyp && supabase functions deploy notify-fit-event --project-ref jrkxltypsvapusybroyp","env":{"SUPABASE_ACCESS_TOKEN":"${{ secrets.SUPABASE_ACCESS_TOKEN }}"}}]}}}
+name: Deploy secure functions
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "supabase/functions/**"
+      - "supabase/config.toml"
+      - ".github/workflows/deploy-secure-functions.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+      - name: Deploy Supabase Edge Functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase functions deploy request-account-deletion --project-ref jrkxltypsvapusybroyp
+          supabase functions deploy complete-account-deletion --project-ref jrkxltypsvapusybroyp --no-verify-jwt
+          supabase functions deploy connect-coach --project-ref jrkxltypsvapusybroyp
+          supabase functions deploy remove-mentee --project-ref jrkxltypsvapusybroyp
+          supabase functions deploy send-session-summary-sms --project-ref jrkxltypsvapusybroyp
+          supabase functions deploy notify-fit-event --project-ref jrkxltypsvapusybroyp
+          supabase functions deploy send-bill-reminders --project-ref jrkxltypsvapusybroyp

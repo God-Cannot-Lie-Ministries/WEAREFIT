@@ -116,6 +116,16 @@ supabase functions deploy send-session-summary-sms
 
 Never place Twilio credentials in frontend code or repository variables.
 
+Bill reminders are sent by the `send-bill-reminders` Edge Function. A GitHub Actions schedule calls it daily and the function emails members, plus their connected coach, when a saved bill is due in 5 days. Reminder emails do not include bill amounts; users sign in to view financial details securely.
+
+For stronger protection, set the same cron secret in both Supabase and GitHub:
+
+```bash
+supabase secrets set BILL_REMINDER_CRON_SECRET=YOUR_LONG_RANDOM_SECRET
+```
+
+Then add `BILL_REMINDER_CRON_SECRET` as a GitHub repository secret. If this secret is set in Supabase, reminder requests must include the matching header. The workflow file is `.github/workflows/send-bill-reminders.yml`.
+
 Supabase provides `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` automatically to Edge Functions. Never place the service-role key in the website or GitHub repository. Supabase's function deployment and secrets docs are here:
 
 - https://supabase.com/docs/guides/functions/deploy

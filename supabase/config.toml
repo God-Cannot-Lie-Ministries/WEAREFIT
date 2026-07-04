@@ -17,3 +17,6 @@ verify_jwt = true
 
 [functions.notify-fit-event]
 verify_jwt = true
+
+[functions.send-bill-reminders]
+verify_jwt = true

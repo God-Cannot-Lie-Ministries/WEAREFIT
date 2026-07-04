@@ -1,0 +1,30 @@
+name: Send bill reminders
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "42 12 * * *"
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+      BILL_REMINDER_CRON_SECRET: ${{ secrets.BILL_REMINDER_CRON_SECRET }}
+    steps:
+      - name: Verify reminder configuration
+        run: |
+          test -n "$SUPABASE_URL" || (echo "Missing SUPABASE_URL repository variable" && exit 1)
+          test -n "$SUPABASE_PUBLISHABLE_KEY" || (echo "Missing SUPABASE_PUBLISHABLE_KEY repository variable" && exit 1)
+
+      - name: Send due-in-5-days reminders
+        run: |
+          curl --retry 3 --retry-delay 5 --show-error --silent --fail \
+            --request POST \
+            --header "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+            --header "Authorization: Bearer $SUPABASE_PUBLISHABLE_KEY" \
+            --header "Content-Type: application/json" \
+            --header "x-fit-cron-secret: $BILL_REMINDER_CRON_SECRET" \
+            --data '{"daysAhead":5}' \
+            "$SUPABASE_URL/functions/v1/send-bill-reminders"
