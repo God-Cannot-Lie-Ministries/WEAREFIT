@@ -102,7 +102,17 @@ function recurringBillDueDate(bill: Record<string, any>, fromDate: Date) {
 }
 
 function recurringBillIsPaidForDueDate(bill: Record<string, any>, dueDate: string) {
-  return Boolean(dueDate && bill?.paidDueDate === dueDate);
+  return wasPaidForDueDate(bill, dueDate);
+}
+
+function wasPaidForDueDate(item: Record<string, any>, dueDate: string) {
+  if (!dueDate) return false;
+  const paidDueDates = Array.isArray(item?.paidDueDates) ? item.paidDueDates.map(dateValue) : [];
+  return Boolean(
+    dateValue(item?.paidDueDate) === dueDate ||
+      dateValue(item?.lastPaidDueDate) === dueDate ||
+      paidDueDates.includes(dueDate),
+  );
 }
 
 function billRemindersForAccount(account: Record<string, any>, targetDate: string, fromDate: Date): BillReminder[] {
@@ -144,10 +154,12 @@ function billRemindersForAccount(account: Record<string, any>, targetDate: strin
   });
 
   (financialInventory.creditCards || []).forEach((card: Record<string, any>) => {
+    const dueDate = dateValue(card.dueDate);
+    if (wasPaidForDueDate(card, dueDate)) return;
     addReminder({
       id: card.id,
       name: card.account,
-      dueDate: card.dueDate,
+      dueDate,
       amount: card.paymentDue,
       type: "Credit card",
       source: "Card payment",
@@ -156,10 +168,12 @@ function billRemindersForAccount(account: Record<string, any>, targetDate: strin
   });
 
   (financialInventory.debts || []).forEach((debt: Record<string, any>) => {
+    const dueDate = dateValue(debt.dueDate);
+    if (wasPaidForDueDate(debt, dueDate)) return;
     addReminder({
       id: debt.id,
       name: debt.account,
-      dueDate: debt.dueDate,
+      dueDate,
       amount: debt.minimumPayment,
       type: "Debt",
       source: "Minimum payment",
@@ -168,10 +182,12 @@ function billRemindersForAccount(account: Record<string, any>, targetDate: strin
   });
 
   (financialInventory.studentLoans || []).forEach((loan: Record<string, any>) => {
+    const dueDate = dateValue(loan.dueDate);
+    if (wasPaidForDueDate(loan, dueDate)) return;
     addReminder({
       id: loan.id,
       name: loan.account,
-      dueDate: loan.dueDate,
+      dueDate,
       amount: loan.paymentDue,
       type: "Student loan",
       source: loan.loanType ? String(loan.loanType).replaceAll("_", " ") : "Student loan payment",
@@ -181,15 +197,18 @@ function billRemindersForAccount(account: Record<string, any>, targetDate: strin
 
   const mortgage = financialInventory.mortgage || {};
   if (financialInventory.housingPaymentType !== "rent") {
-    addReminder({
-      id: "mortgage-payment",
-      name: "Mortgage payment",
-      dueDate: mortgage.nextDueDate,
-      amount: mortgage.paymentAmount,
-      type: "Mortgage",
-      source: "Housing",
-      targetType: "mortgage",
-    });
+    const dueDate = dateValue(mortgage.nextDueDate);
+    if (!wasPaidForDueDate(mortgage, dueDate)) {
+      addReminder({
+        id: "mortgage-payment",
+        name: "Mortgage payment",
+        dueDate,
+        amount: mortgage.paymentAmount,
+        type: "Mortgage",
+        source: "Housing",
+        targetType: "mortgage",
+      });
+    }
   }
 
   return reminders.sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.name.localeCompare(b.name));
@@ -338,7 +357,8 @@ Deno.serve(async (request) => {
     const appUrl = Deno.env.get("APP_URL") || "https://fit-training.org/";
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
     const fromDate = body.fromDate ? new Date(`${dateValue(body.fromDate)}T00:00:00Z`) : new Date();
-    const daysAhead = Number(body.daysAhead || 5);
+    const defaultDaysAhead = Number(Deno.env.get("BILL_REMINDER_DAYS_AHEAD") || 5);
+    const daysAhead = Number(body.daysAhead || defaultDaysAhead || 5);
     const targetDate = body.targetDate ? dateValue(body.targetDate) : dateOnly(addDays(fromDate, daysAhead));
     if (!targetDate) throw new Error("A valid target date is required.");
 

@@ -12,6 +12,7 @@ jobs:
       SUPABASE_URL: ${{ vars.SUPABASE_URL }}
       SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
       BILL_REMINDER_CRON_SECRET: ${{ secrets.BILL_REMINDER_CRON_SECRET }}
+      BILL_REMINDER_DAYS_AHEAD: ${{ vars.BILL_REMINDER_DAYS_AHEAD }}
     steps:
       - name: Verify reminder configuration
         run: |
@@ -20,11 +21,12 @@ jobs:
 
       - name: Send due-in-5-days reminders
         run: |
+          reminder_days="${BILL_REMINDER_DAYS_AHEAD:-5}"
           curl --retry 3 --retry-delay 5 --show-error --silent --fail \
             --request POST \
             --header "apikey: $SUPABASE_PUBLISHABLE_KEY" \
             --header "Authorization: Bearer $SUPABASE_PUBLISHABLE_KEY" \
             --header "Content-Type: application/json" \
             --header "x-fit-cron-secret: $BILL_REMINDER_CRON_SECRET" \
-            --data '{"daysAhead":5}' \
+            --data "{\"daysAhead\":$reminder_days}" \
             "$SUPABASE_URL/functions/v1/send-bill-reminders"

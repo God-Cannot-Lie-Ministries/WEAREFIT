@@ -24,7 +24,8 @@ test("bill reminders scan profile due dates and send due-in-five-day notificatio
   assert.match(reminderFunction, /studentLoans/);
   assert.match(reminderFunction, /mortgage/);
   assert.match(reminderFunction, /"bill_due_soon"/);
-  assert.match(reminderFunction, /daysAhead \|\| 5/);
+  assert.match(reminderFunction, /BILL_REMINDER_DAYS_AHEAD/);
+  assert.match(reminderFunction, /body\.daysAhead \|\| defaultDaysAhead \|\| 5/);
 });
 
 test("bill reminders notify members and connected coaches without exposing amounts", () => {
@@ -42,10 +43,22 @@ test("bill reminders are deduped and logged per recipient", () => {
   assert.match(reminderFunction, /\.in\("status", \["pending", "sent"\]\)/);
 });
 
+test("paid bills are suppressed even when old due dates remain in profile data", () => {
+  assert.match(reminderFunction, /function wasPaidForDueDate/);
+  assert.match(reminderFunction, /paidDueDate/);
+  assert.match(reminderFunction, /lastPaidDueDate/);
+  assert.match(reminderFunction, /paidDueDates/);
+  assert.match(reminderFunction, /if \(wasPaidForDueDate\(card, dueDate\)\) return/);
+  assert.match(reminderFunction, /if \(wasPaidForDueDate\(debt, dueDate\)\) return/);
+  assert.match(reminderFunction, /if \(wasPaidForDueDate\(loan, dueDate\)\) return/);
+  assert.match(reminderFunction, /if \(!wasPaidForDueDate\(mortgage, dueDate\)\)/);
+});
+
 test("bill reminder function deploys and runs from the daily workflow", () => {
   assert.match(deployWorkflow, /supabase functions deploy send-bill-reminders/);
   assert.match(reminderWorkflow, /send-bill-reminders/);
-  assert.match(reminderWorkflow, /"daysAhead":5/);
+  assert.match(reminderWorkflow, /BILL_REMINDER_DAYS_AHEAD/);
+  assert.match(reminderWorkflow, /reminder_days="\$\{BILL_REMINDER_DAYS_AHEAD:-5\}"/);
   assert.match(reminderWorkflow, /x-fit-cron-secret/);
   assert.match(reminderWorkflow, /schedule:/);
 });
