@@ -298,6 +298,11 @@ function blankRecurringBill(category = "other") {
   };
 }
 
+function recurringScheduleEnabledFromBill(bill = {}, dueDay = bill.dueDay || "", monthlyAmount = bill.monthlyAmount || "") {
+  if (Object.hasOwn(bill, "scheduleEnabled")) return Boolean(bill.scheduleEnabled);
+  return Boolean(dueDay || monthlyAmount);
+}
+
 function blankProfileCard() {
   return {
     id: uid("profile-card"),
@@ -459,14 +464,13 @@ function ensureAccountModel(account) {
     }
   });
   account.financialInventory.recurringBills.forEach((bill) => {
-    if (!Object.hasOwn(bill, "scheduleEnabled")) {
-      bill.scheduleEnabled = Boolean(bill.dueDate || bill.nextDueDate || bill.amount);
-    }
     if (!bill.dueDay && bill.dueDate) bill.dueDay = String(Number(bill.dueDate.slice(-2)));
+    bill.scheduleEnabled = recurringScheduleEnabledFromBill(bill);
     bill.dueDay ||= "";
     bill.nextDueDate ||= "";
     bill.paidDueDate ||= "";
-    bill.monthlyAmount ||= bill.amount || "";
+    if (bill.scheduleEnabled) bill.monthlyAmount ||= bill.amount || "";
+    else bill.monthlyAmount ||= "";
     delete bill.dueDate;
   });
   account.financialInventory.creditCards.forEach(migratePromoCard);
@@ -567,6 +571,7 @@ function normalizeRestoredRecurringBill(bill = {}, category = bill.category || "
   const nextDueDate = bill.nextDueDate || bill.dueDate || "";
   const dueDay = bill.dueDay || (bill.dueDate ? String(Number(bill.dueDate.slice(-2))) : "");
   const amount = bill.amount || bill.monthlyAmount || "";
+  const scheduleEnabled = recurringScheduleEnabledFromBill(bill, dueDay, bill.monthlyAmount || "");
   return {
     ...blankRecurringBill(category),
     ...clone(bill),
@@ -576,8 +581,8 @@ function normalizeRestoredRecurringBill(bill = {}, category = bill.category || "
     amount,
     nextDueDate,
     dueDay,
-    monthlyAmount: bill.monthlyAmount || amount,
-    scheduleEnabled: Boolean(bill.scheduleEnabled || amount || dueDay || nextDueDate),
+    monthlyAmount: scheduleEnabled ? bill.monthlyAmount || amount : bill.monthlyAmount || "",
+    scheduleEnabled,
     paidDueDate: bill.paidDueDate || "",
   };
 }
@@ -602,14 +607,7 @@ function mergeRecurringBills(existingBills = [], candidateBills = []) {
     existing.nextDueDate ||= bill.nextDueDate;
     existing.paidDueDate ||= bill.paidDueDate;
     existing.lastPaidAt ||= bill.lastPaidAt;
-    existing.scheduleEnabled = Boolean(
-      existing.scheduleEnabled ||
-        bill.scheduleEnabled ||
-        existing.amount ||
-        existing.monthlyAmount ||
-        existing.dueDay ||
-        existing.nextDueDate,
-    );
+    existing.scheduleEnabled = Boolean(existing.scheduleEnabled || bill.scheduleEnabled || existing.dueDay || bill.dueDay);
   };
   existingBills.forEach(addOrMerge);
   candidateBills.forEach(addOrMerge);
@@ -634,7 +632,7 @@ function recurringBillCandidatesFromState(state, account) {
               {
                 ...bill,
                 id: bill.profileBillId || bill.id || "",
-                scheduleEnabled: Boolean(bill.amount || bill.dueDate),
+                scheduleEnabled: Boolean(bill.scheduleEnabled || bill.dueDay || bill.monthlyAmount),
                 dueDay: bill.dueDay || "",
                 nextDueDate: bill.nextDueDate || bill.dueDate || "",
                 monthlyAmount: bill.monthlyAmount || bill.amount || "",
@@ -1198,7 +1196,7 @@ function loadState() {
               ...blankRecurringBill(category),
               ...clone(bill),
               category,
-              scheduleEnabled: Boolean(bill.amount || bill.dueDate),
+              scheduleEnabled: Boolean(bill.scheduleEnabled || bill.dueDay || bill.monthlyAmount),
               dueDay: bill.dueDate ? String(Number(bill.dueDate.slice(-2))) : bill.dueDay || "",
               monthlyAmount: bill.monthlyAmount || bill.amount || "",
             })),
@@ -1580,7 +1578,6 @@ function syncRecurringBillScheduleState(bill, changedField = "") {
   if (bill.scheduleEnabled && bill.monthlyAmount && changedField !== "amount") {
     bill.amount = bill.monthlyAmount;
   }
-  bill.scheduleEnabled = Boolean(bill.amount || bill.monthlyAmount || bill.dueDay || bill.nextDueDate);
 }
 
 function currentAccount() {
@@ -5886,7 +5883,7 @@ async function approveForm(formId, coachNotes = "", actionSteps = "") {
           {
             ...bill,
             id: bill.profileBillId || bill.id || previousBill?.id || "",
-            scheduleEnabled: Boolean(previousBill?.scheduleEnabled || bill.dueDate || bill.amount),
+            scheduleEnabled: Boolean(previousBill?.scheduleEnabled || bill.scheduleEnabled || previousBill?.dueDay || bill.dueDay),
             dueDay: previousBill?.dueDay || bill.dueDay || "",
             nextDueDate: billWasPaidThisCheck ? "" : previousBill?.nextDueDate || bill.dueDate || "",
             paidDueDate: billWasPaidThisCheck ? bill.dueDate || previousBill?.paidDueDate || "" : previousBill?.paidDueDate || "",

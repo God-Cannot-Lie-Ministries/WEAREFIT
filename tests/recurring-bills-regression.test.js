@@ -27,3 +27,10 @@ test("recurring bill restoration uses saved forms and carry-forward history with
   assert.match(appSource, /function mergeRecurringBills/);
   assert.match(appSource, /recurringBillKey/);
 });
+
+test("recurring bill details stay off when only amount or next due date are present", () => {
+  assert.match(appSource, /function recurringScheduleEnabledFromBill/);
+  assert.doesNotMatch(appSource, /scheduleEnabled:\s*Boolean\(bill\.amount \|\| bill\.dueDate\)/);
+  assert.doesNotMatch(appSource, /bill\.scheduleEnabled = Boolean\(bill\.amount \|\| bill\.monthlyAmount \|\| bill\.dueDay \|\| bill\.nextDueDate\)/);
+  assert.doesNotMatch(appSource, /bill\.scheduleEnabled \|\|\s*amount \|\|\s*dueDay \|\|\s*nextDueDate/);
+});
