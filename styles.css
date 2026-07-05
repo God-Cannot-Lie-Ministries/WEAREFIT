@@ -11496,3 +11496,68 @@ html[data-theme="dark"] .login-brand img {
     bottom: 14px !important;
   }
 }
+
+/* Final avatar aspect lock: mobile photos must stay perfectly circular. */
+.avatar {
+  --fit-avatar-size: 38px;
+  width: var(--fit-avatar-size) !important;
+  min-width: var(--fit-avatar-size) !important;
+  max-width: var(--fit-avatar-size) !important;
+  height: var(--fit-avatar-size) !important;
+  min-height: var(--fit-avatar-size) !important;
+  max-height: var(--fit-avatar-size) !important;
+  flex: 0 0 var(--fit-avatar-size) !important;
+  aspect-ratio: 1 / 1 !important;
+  display: grid !important;
+  place-items: center !important;
+  overflow: hidden !important;
+  border-radius: 50% !important;
+  line-height: 1 !important;
+}
+
+.avatar-lg {
+  --fit-avatar-size: 48px;
+}
+
+.avatar-xl {
+  --fit-avatar-size: 76px;
+}
+
+.connection-current .avatar {
+  --fit-avatar-size: 76px;
+}
+
+.profile-photo-panel .avatar,
+.profile-overview .avatar-xl,
+.financial-profile-view .profile-photo-panel .avatar,
+.financial-profile-view .profile-overview .avatar-xl {
+  --fit-avatar-size: 66px;
+}
+
+.avatar-photo {
+  position: relative !important;
+}
+
+.avatar-photo img,
+.connection-current .avatar-photo img,
+.profile-photo-panel .avatar-photo img {
+  position: absolute !important;
+  inset: 0 !important;
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  border-radius: inherit !important;
+}
+
+@media (max-width: 768px) {
+  .profile-photo-panel .avatar,
+  .profile-overview .avatar-xl,
+  .financial-profile-view .profile-photo-panel .avatar,
+  .financial-profile-view .profile-overview .avatar-xl {
+    --fit-avatar-size: 64px;
+  }
+}

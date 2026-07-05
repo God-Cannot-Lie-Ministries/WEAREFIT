@@ -1550,6 +1550,12 @@ async function saveFinancialProfileNow() {
   }
 }
 
+function settleFinancialProfileSaveFocus(trigger = null) {
+  const active = document.activeElement;
+  if (active?.matches?.("input, select, textarea, button, [tabindex]")) active.blur();
+  if (trigger?.blur && trigger !== active) trigger.blur();
+}
+
 function commitFinancialProfileInputs(account = currentAccount()) {
   if (!account) return;
   document.querySelectorAll("[data-profile-path]").forEach((input) => {
@@ -6383,8 +6389,12 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
-  if (event.target.closest("[data-save-financial-profile]")) {
+  const saveProfileButton = event.target.closest("[data-save-financial-profile]");
+  if (saveProfileButton) {
+    event.preventDefault();
+    settleFinancialProfileSaveFocus(saveProfileButton);
     await saveFinancialProfileNow();
+    settleFinancialProfileSaveFocus(saveProfileButton);
     return;
   }
 
@@ -7175,6 +7185,7 @@ document.addEventListener("submit", async (event) => {
 
   if (event.target.id === "profile-form") {
     event.preventDefault();
+    settleFinancialProfileSaveFocus(event.submitter || event.target);
     const account = currentAccount();
     const data = new FormData(event.target);
     account.name = data.get("name").trim();
@@ -7209,6 +7220,7 @@ document.addEventListener("submit", async (event) => {
       renderProfile();
       showToast("Complete every required profile field to unlock forms.");
     }
+    settleFinancialProfileSaveFocus(event.submitter || event.target);
     return;
   }
 
