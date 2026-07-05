@@ -16,8 +16,9 @@ const reminderWorkflow = fs.readFileSync(
   path.join(root, ".github/workflows/send-bill-reminders.yml"),
   "utf8",
 );
+const appSource = fs.readFileSync(path.join(root, "app.js"), "utf8");
 
-test("bill reminders scan profile due dates and send due-in-five-day notifications", () => {
+test("bill reminders scan profile due dates and send account-timed notifications", () => {
   assert.match(reminderFunction, /function billRemindersForAccount/);
   assert.match(reminderFunction, /recurringBills/);
   assert.match(reminderFunction, /creditCards/);
@@ -25,7 +26,9 @@ test("bill reminders scan profile due dates and send due-in-five-day notificatio
   assert.match(reminderFunction, /mortgage/);
   assert.match(reminderFunction, /"bill_due_soon"/);
   assert.match(reminderFunction, /BILL_REMINDER_DAYS_AHEAD/);
-  assert.match(reminderFunction, /body\.daysAhead \|\| defaultDaysAhead \|\| 5/);
+  assert.match(reminderFunction, /function reminderDaysForAccount/);
+  assert.match(reminderFunction, /preferences\?\.billReminderDaysAhead/);
+  assert.match(reminderFunction, /forcedTargetDate \|\| dateOnly\(addDays\(fromDate, accountDaysAhead\)\)/);
 });
 
 test("bill reminders notify members and connected coaches without exposing amounts", () => {
@@ -61,4 +64,12 @@ test("bill reminder function deploys and runs from the daily workflow", () => {
   assert.match(reminderWorkflow, /reminder_days="\$\{BILL_REMINDER_DAYS_AHEAD:-5\}"/);
   assert.match(reminderWorkflow, /x-fit-cron-secret/);
   assert.match(reminderWorkflow, /schedule:/);
+});
+
+test("settings let users choose a bill reminder window from one to seven days", () => {
+  assert.match(appSource, /const billReminderDayOptions = \[1, 2, 3, 4, 5, 6, 7\]/);
+  assert.match(appSource, /function normalizedBillReminderDays/);
+  assert.match(appSource, /data-settings-bill-reminder-days/);
+  assert.match(appSource, /account\.preferences\.billReminderDaysAhead/);
+  assert.match(appSource, /Bill reminders/);
 });

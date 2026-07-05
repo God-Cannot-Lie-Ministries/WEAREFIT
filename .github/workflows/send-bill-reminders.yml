@@ -19,7 +19,7 @@ jobs:
           test -n "$SUPABASE_URL" || (echo "Missing SUPABASE_URL repository variable" && exit 1)
           test -n "$SUPABASE_PUBLISHABLE_KEY" || (echo "Missing SUPABASE_PUBLISHABLE_KEY repository variable" && exit 1)
 
-      - name: Send due-in-5-days reminders
+      - name: Send account-timed bill reminders
         run: |
           reminder_days="${BILL_REMINDER_DAYS_AHEAD:-5}"
           curl --retry 3 --retry-delay 5 --show-error --silent --fail \

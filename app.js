@@ -9,6 +9,7 @@ const billGroups = [
   ["other", "Other Bills"],
 ];
 const rolloverTypes = ["debt", "credit_card", "student_loan", "savings"];
+const billReminderDayOptions = [1, 2, 3, 4, 5, 6, 7];
 
 let appState = loadState();
 let activeView = "dashboard";
@@ -387,10 +388,33 @@ function ensureFinancialInventory(account) {
   account.financialInventory.studentLoans = removePartialNameDuplicates(account.financialInventory.studentLoans, "account");
 }
 
+function normalizedBillReminderDays(value, fallback = 5) {
+  const numeric = Math.round(Number(value));
+  if (numeric >= 1 && numeric <= 7) return numeric;
+  const fallbackNumeric = Math.round(Number(fallback));
+  return fallbackNumeric >= 1 && fallbackNumeric <= 7 ? fallbackNumeric : 5;
+}
+
+function billReminderDaysLabel(value) {
+  const days = normalizedBillReminderDays(value);
+  return days === 1 ? "1 day" : `${days} days`;
+}
+
+function billReminderDayButtons(account) {
+  const selectedDays = normalizedBillReminderDays(account?.preferences?.billReminderDaysAhead);
+  return billReminderDayOptions
+    .map((days) => {
+      const active = selectedDays === days ? "active" : "";
+      return `<button class="type-choice ${active}" type="button" data-settings-bill-reminder-days="${days}">${days}</button>`;
+    })
+    .join("");
+}
+
 function ensureAccountModel(account) {
   ensureFinancialInventory(account);
   account.preferences ||= { theme: "light" };
   account.preferences.theme ||= "light";
+  account.preferences.billReminderDaysAhead = normalizedBillReminderDays(account.preferences.billReminderDaysAhead);
   account.preferences.notifications ||= {};
   account.preferences.notifications.milestones ??= true;
   account.preferences.notifications.documents ??= true;
@@ -3799,6 +3823,12 @@ function renderSettings() {
               <label class="check-control"><input type="checkbox" data-notification-pref="sessions" ${account.preferences.notifications.sessions ? "checked" : ""}><span>Sessions</span></label>
             </div>
           </div>
+          <div class="settings-control-row">
+            <div><strong>Bill reminders</strong><span>Email reminders ${billReminderDaysLabel(account.preferences.billReminderDaysAhead)} before saved bill due dates.</span></div>
+            <div class="settings-segmented-control settings-reminder-days" role="group" aria-label="Bill reminder days before due date">
+              ${billReminderDayButtons(account)}
+            </div>
+          </div>
         </div>
       </section>
       <section class="panel danger-zone">
@@ -6054,7 +6084,7 @@ async function createAccount(name, email, password, role) {
     coachEmail: null,
     coachRequestStatus: null,
     profileCompleted: false,
-    preferences: { theme: "light" },
+    preferences: { theme: "light", billReminderDaysAhead: 5 },
     profilePhoto: null,
     carryForward: {},
     profile: {
@@ -6482,6 +6512,19 @@ document.addEventListener("click", async (event) => {
     saveFinancialProfileMutation(account);
     renderSettings();
     showToast(`${settingsHousingType.textContent.trim()} housing format saved.`);
+    return;
+  }
+
+  const settingsBillReminderDays = event.target.closest("[data-settings-bill-reminder-days]");
+  if (settingsBillReminderDays) {
+    const account = currentAccount();
+    account.preferences.billReminderDaysAhead = normalizedBillReminderDays(
+      settingsBillReminderDays.dataset.settingsBillReminderDays,
+    );
+    saveState();
+    await productionBackend.saveNow?.(appState);
+    renderSettings();
+    showToast(`Bill reminders set to ${billReminderDaysLabel(account.preferences.billReminderDaysAhead)} before due dates.`);
     return;
   }
 

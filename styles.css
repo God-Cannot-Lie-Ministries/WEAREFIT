@@ -6685,6 +6685,14 @@ html[data-theme="dark"] .data-table th {
   font-weight: 800;
 }
 
+.settings-reminder-days {
+  grid-template-columns: repeat(7, minmax(34px, 1fr));
+}
+
+.settings-reminder-days .type-choice {
+  padding-inline: 6px;
+}
+
 .settings-check-list {
   display: grid;
   gap: 8px;
@@ -6720,6 +6728,10 @@ html[data-theme="dark"] .data-table th {
 
   .settings-page .settings-segmented-control .type-choice {
     min-height: 36px;
+  }
+
+  .settings-reminder-days {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 

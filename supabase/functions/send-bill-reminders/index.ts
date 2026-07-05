@@ -42,6 +42,22 @@ const currencyValue = (value: unknown) => {
   return Number(value) || 0;
 };
 
+function normalizedReminderDays(value: unknown, fallback = 5) {
+  const numeric = Math.round(Number(value));
+  if (numeric >= 1 && numeric <= 7) return numeric;
+  const fallbackNumeric = Math.round(Number(fallback));
+  return fallbackNumeric >= 1 && fallbackNumeric <= 7 ? fallbackNumeric : 5;
+}
+
+function reminderDaysForAccount(account: Record<string, any>, fallbackDaysAhead: number) {
+  return normalizedReminderDays(account?.preferences?.billReminderDaysAhead, fallbackDaysAhead);
+}
+
+function reminderDaysLabel(daysAhead: number) {
+  const normalizedDays = normalizedReminderDays(daysAhead);
+  return normalizedDays === 1 ? "1 day" : `${normalizedDays} days`;
+}
+
 function dateOnly(date: Date) {
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, "0");
@@ -214,17 +230,18 @@ function billRemindersForAccount(account: Record<string, any>, targetDate: strin
   return reminders.sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.name.localeCompare(b.name));
 }
 
-function reminderCopy(role: "member" | "coach", memberName: string, bill: BillReminder) {
+function reminderCopy(role: "member" | "coach", memberName: string, bill: BillReminder, daysAhead: number) {
   const due = readableDate(bill.dueDate);
+  const daysLabel = reminderDaysLabel(daysAhead);
   if (role === "coach") {
     return {
-      headline: "A member has a bill due in 5 days",
+      headline: `A member has a bill due in ${daysLabel}`,
       body: `${escapeHtml(memberName)} has a saved ${escapeHtml(bill.type.toLowerCase())} due on ${escapeHtml(due)}. Sign in to F.I.T. to view the amount and details securely.`,
       cta: "View upcoming bills",
     };
   }
   return {
-    headline: "A bill is due in 5 days",
+    headline: `A bill is due in ${daysLabel}`,
     body: `Your saved ${escapeHtml(bill.type.toLowerCase())} is due on ${escapeHtml(due)}. Sign in to F.I.T. to view the amount and plan the payment securely.`,
     cta: "View upcoming bills",
   };
@@ -357,10 +374,9 @@ Deno.serve(async (request) => {
     const appUrl = Deno.env.get("APP_URL") || "https://fit-training.org/";
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
     const fromDate = body.fromDate ? new Date(`${dateValue(body.fromDate)}T00:00:00Z`) : new Date();
-    const defaultDaysAhead = Number(Deno.env.get("BILL_REMINDER_DAYS_AHEAD") || 5);
-    const daysAhead = Number(body.daysAhead || defaultDaysAhead || 5);
-    const targetDate = body.targetDate ? dateValue(body.targetDate) : dateOnly(addDays(fromDate, daysAhead));
-    if (!targetDate) throw new Error("A valid target date is required.");
+    const defaultDaysAhead = normalizedReminderDays(body.daysAhead || Deno.env.get("BILL_REMINDER_DAYS_AHEAD") || 5);
+    const forcedTargetDate = body.targetDate ? dateValue(body.targetDate) : "";
+    if (body.targetDate && !forcedTargetDate) throw new Error("A valid target date is required.");
 
     const { data: rows, error: rowsError } = await adminClient
       .from("portal_states")
@@ -394,6 +410,8 @@ Deno.serve(async (request) => {
       const ownerEmail = normalizeEmail(row.owner_email);
       if (!ownerEmail) continue;
       const account = accountFromRow(row);
+      const accountDaysAhead = reminderDaysForAccount(account, defaultDaysAhead);
+      const targetDate = forcedTargetDate || dateOnly(addDays(fromDate, accountDaysAhead));
       const reminders = billRemindersForAccount(account, targetDate, fromDate);
       if (!reminders.length) continue;
       const memberName = accountName(account, ownerEmail);
@@ -419,17 +437,18 @@ Deno.serve(async (request) => {
 
       for (const bill of reminders) {
         for (const recipient of recipients) {
-          const reminderKey = `bill-reminder:${ownerEmail}:${bill.targetType}:${bill.id}:${bill.dueDate}:${recipient.role}`;
+          const reminderKey = `bill-reminder:${ownerEmail}:${bill.targetType}:${bill.id}:${bill.dueDate}:${recipient.role}:${accountDaysAhead}d`;
           if (await alreadyReminded(adminClient, recipient.email, reminderKey)) {
             skipped += 1;
-            results.push({ ok: true, skipped: true, recipient: recipient.email, bill: bill.name, dueDate: bill.dueDate });
+            results.push({ ok: true, skipped: true, recipient: recipient.email, bill: bill.name, dueDate: bill.dueDate, daysAhead: accountDaysAhead });
             continue;
           }
-          const copy = reminderCopy(recipient.role, memberName, bill);
+          const copy = reminderCopy(recipient.role, memberName, bill, accountDaysAhead);
+          const daysLabel = reminderDaysLabel(accountDaysAhead);
           const subject =
             recipient.role === "coach" && recipient.email !== ownerEmail
-              ? "A member has a F.I.T. bill due in 5 days"
-              : "Your F.I.T. bill is due in 5 days";
+              ? `A member has a F.I.T. bill due in ${daysLabel}`
+              : `Your F.I.T. bill is due in ${daysLabel}`;
           const logPayload = {
             user_id: row.owner_id,
             coach_id: coachProfile?.id || null,
@@ -450,12 +469,12 @@ Deno.serve(async (request) => {
           });
           if (emailResult.ok) sent += 1;
           else failed += 1;
-          results.push({ ...emailResult, recipient: recipient.email, bill: bill.name, dueDate: bill.dueDate });
+          results.push({ ...emailResult, recipient: recipient.email, bill: bill.name, dueDate: bill.dueDate, daysAhead: accountDaysAhead });
         }
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, targetDate, sent, skipped, failed, results }), {
+    return new Response(JSON.stringify({ ok: true, targetDate: forcedTargetDate || "per-account", sent, skipped, failed, results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
