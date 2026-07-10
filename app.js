@@ -10,6 +10,7 @@ const billGroups = [
 ];
 const rolloverTypes = ["debt", "credit_card", "student_loan", "savings"];
 const billReminderDayOptions = [1, 2, 3, 4, 5, 6, 7];
+const WORKSHEET_BILL_LOOKAHEAD_DAYS = 15;
 
 let appState = loadState();
 let activeView = "dashboard";
@@ -861,12 +862,16 @@ function nextMonthlyDueDate(dueDay, fromDate = new Date()) {
   return dateValueFromLocal(dueDate);
 }
 
-function isDateWithinNextMonth(value) {
+function isDateWithinNextDays(value, days) {
   if (!value) return false;
   const start = new Date(`${todayValue()}T00:00:00`);
-  const end = addDays(start, 31);
+  const end = addDays(start, days);
   const dueDate = new Date(`${value}T12:00:00`);
   return dueDate >= start && dueDate <= end;
+}
+
+function isDateWithinNextMonth(value) {
+  return isDateWithinNextDays(value, 31);
 }
 
 function recurringBillToWorksheetBill(bill) {
@@ -904,9 +909,9 @@ function isUpcomingRecurringBill(bill) {
   const dueDate = recurringBillNextDueDate(bill);
   return Boolean(
     dueDate &&
-      currencyValue(bill.amount) &&
-      isDateWithinNextMonth(dueDate) &&
-      !recurringBillIsPaidForDueDate(bill, dueDate),
+    currencyValue(bill.amount) &&
+    isDateWithinNextDays(dueDate, WORKSHEET_BILL_LOOKAHEAD_DAYS) &&
+    !recurringBillIsPaidForDueDate(bill, dueDate),
   );
 }
 
@@ -2719,19 +2724,22 @@ function shell(content, options = {}) {
 
 function daysUntilLabel(value) {
   if (!value) return "No due date";
-  const today = new Date(`${todayValue()}T00:00:00`);
-  const dueDate = new Date(`${value}T12:00:00`);
-  const difference = Math.round((dueDate - today) / 86400000);
+  const difference = daysUntilDateValue(value);
+  if (difference < 0) return "Past due";
   if (difference === 0) return "Due today";
   if (difference === 1) return "Due tomorrow";
   return `Due in ${difference} days`;
 }
 
+function daysUntilDateValue(value) {
+  const today = new Date(`${todayValue()}T00:00:00`);
+  const dueDate = new Date(`${value}T00:00:00`);
+  return Math.round((dueDate - today) / 86400000);
+}
+
 function dueUrgencyClass(value) {
   if (!value) return "no-date";
-  const today = new Date(`${todayValue()}T00:00:00`);
-  const dueDate = new Date(`${value}T12:00:00`);
-  const difference = Math.round((dueDate - today) / 86400000);
+  const difference = daysUntilDateValue(value);
   if (difference <= 3) return "urgent";
   if (difference <= 10) return "soon";
   return "steady";

@@ -27,3 +27,11 @@ test("mobile profile photos keep a fixed circular aspect ratio", () => {
   assert.match(stylesSource, /object-fit:\s*cover\s*!important/);
   assert.match(stylesSource, /@media\s*\(max-width:\s*768px\)/);
 });
+
+test("floating calculator keeps a clean collapsed and fixed-ratio open layout", () => {
+  assert.match(stylesSource, /Final calculator view repair/);
+  assert.match(stylesSource, /\.draggable-calculator:not\(\.minimized\)[\s\S]*aspect-ratio:\s*11\s*\/\s*16\s*!important/);
+  assert.match(stylesSource, /\.draggable-calculator:not\(\.minimized\)[\s\S]*resize:\s*horizontal\s*!important/);
+  assert.match(stylesSource, /\.draggable-calculator\.minimized \.calculator-history-toggle[\s\S]*display:\s*none\s*!important/);
+  assert.match(stylesSource, /\.draggable-calculator\.minimized[\s\S]*height:\s*48px\s*!important/);
+});

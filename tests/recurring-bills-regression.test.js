@@ -34,3 +34,20 @@ test("recurring bill details stay off when only amount or next due date are pres
   assert.doesNotMatch(appSource, /bill\.scheduleEnabled = Boolean\(bill\.amount \|\| bill\.monthlyAmount \|\| bill\.dueDay \|\| bill\.nextDueDate\)/);
   assert.doesNotMatch(appSource, /bill\.scheduleEnabled \|\|\s*amount \|\|\s*dueDay \|\|\s*nextDueDate/);
 });
+
+test("new worksheet recurring bill prefill is limited to bills due within 15 days", () => {
+  assert.match(appSource, /const WORKSHEET_BILL_LOOKAHEAD_DAYS = 15/);
+  const upcomingBlock = appSource.match(/function isUpcomingRecurringBill\(bill\) \{[\s\S]*?\n\}/)?.[0] || "";
+  assert.match(upcomingBlock, /isDateWithinNextDays\(dueDate, WORKSHEET_BILL_LOOKAHEAD_DAYS\)/);
+  assert.doesNotMatch(upcomingBlock, /isDateWithinNextMonth\(dueDate\)/);
+  assert.match(appSource, /function isDateWithinNextMonth\(value\) \{\s*return isDateWithinNextDays\(value, 31\);/);
+});
+
+test("upcoming bill labels compare date-only values so tomorrow is not rounded to two days", () => {
+  const labelBlock = appSource.match(/function daysUntilLabel\(value\) \{[\s\S]*?\n\}/)?.[0] || "";
+  const dateValueBlock = appSource.match(/function daysUntilDateValue\(value\) \{[\s\S]*?\n\}/)?.[0] || "";
+  assert.match(labelBlock, /if \(difference === 1\) return "Due tomorrow"/);
+  assert.match(dateValueBlock, /`\$\{todayValue\(\)\}T00:00:00`/);
+  assert.match(dateValueBlock, /`\$\{value\}T00:00:00`/);
+  assert.doesNotMatch(dateValueBlock, /T12:00:00/);
+});
