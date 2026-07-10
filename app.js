@@ -4810,7 +4810,7 @@ function calculatorPanel(form, readOnly) {
     : 0;
   const sizeStyle = `width:${calculatorWidth}px;height:auto;aspect-ratio:11 / 16;`;
   const positionStyle = `${sizeStyle}${position ? `left:${safeLeft}px;top:${safeTop}px;right:auto;bottom:auto;` : ""}`;
-  return `<aside class="calculator-widget draggable-calculator ${form.data.calculatorMinimized ? "minimized" : ""} ${form.data.calculatorHistoryOpen ? "history-open" : ""}" data-draggable-calculator="${form.id}" style="${positionStyle}">
+  return `<aside class="calculator-widget fit-calculator ${form.data.calculatorMinimized ? "minimized" : ""} ${form.data.calculatorHistoryOpen ? "history-open" : ""}" data-draggable-calculator="${form.id}" style="${positionStyle}">
     <div class="calculator-heading" data-calculator-drag-handle>
       <div class="calculator-title-group">
         <strong class="calculator-title">Calculator</strong>
@@ -4925,8 +4925,8 @@ function applyCalculatorKey(form, key) {
 function updateCalculatorKeyScale(calculator) {
   if (!calculator) return;
   const compactHeight = calculator.clientHeight < 390;
-  const horizontalReserve = compactHeight ? 16 : 20;
-  const verticalReserve = compactHeight ? 96 : 106;
+  const horizontalReserve = compactHeight ? 18 : 22;
+  const verticalReserve = compactHeight ? 126 : 136;
   const gapRatio = 0.13;
   const widthBound = (calculator.clientWidth - horizontalReserve) / (4 + (3 * gapRatio));
   const heightBound = (calculator.clientHeight - verticalReserve) / (5 + (4 * gapRatio));

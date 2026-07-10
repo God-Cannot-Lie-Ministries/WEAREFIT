@@ -29,9 +29,13 @@ test("mobile profile photos keep a fixed circular aspect ratio", () => {
 });
 
 test("floating calculator keeps a clean collapsed and fixed-ratio open layout", () => {
-  assert.match(stylesSource, /Final calculator view repair/);
-  assert.match(stylesSource, /\.draggable-calculator:not\(\.minimized\)[\s\S]*aspect-ratio:\s*11\s*\/\s*16\s*!important/);
-  assert.match(stylesSource, /\.draggable-calculator:not\(\.minimized\)[\s\S]*resize:\s*horizontal\s*!important/);
-  assert.match(stylesSource, /\.draggable-calculator\.minimized \.calculator-history-toggle[\s\S]*display:\s*none\s*!important/);
-  assert.match(stylesSource, /\.draggable-calculator\.minimized[\s\S]*height:\s*48px\s*!important/);
+  assert.match(appSource, /class="calculator-widget fit-calculator/);
+  assert.doesNotMatch(appSource, /class="calculator-widget draggable-calculator/);
+  assert.match(stylesSource, /Canonical calculator layout/);
+  assert.match(stylesSource, /\.fit-calculator[\s\S]*aspect-ratio:\s*11\s*\/\s*16\s*!important/);
+  assert.match(stylesSource, /\.fit-calculator[\s\S]*resize:\s*horizontal\s*!important/);
+  assert.match(stylesSource, /\.fit-calculator \.calculator-keypad[\s\S]*grid-template-rows:\s*repeat\(5, var\(--calculator-key-size\)\)\s*!important/);
+  assert.match(stylesSource, /\.fit-calculator\.minimized \.calculator-history-toggle[\s\S]*display:\s*none\s*!important/);
+  assert.match(stylesSource, /\.fit-calculator\.minimized[\s\S]*height:\s*48px\s*!important/);
+  assert.match(appSource, /const verticalReserve = compactHeight \? 126 : 136/);
 });
