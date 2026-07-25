@@ -600,14 +600,27 @@ function normalizeRestoredRecurringBill(bill = {}, category = bill.category || "
 function mergeRecurringBills(existingBills = [], candidateBills = []) {
   const merged = [];
   const byKey = new Map();
-  const addOrMerge = (candidate) => {
+  const addOrMerge = (candidate, source = "history") => {
     const bill = normalizeRestoredRecurringBill(candidate, candidate.category);
     if (!bill.name) return;
+    bill.__recurringMergeSource = source;
     const key = recurringBillKey(bill);
     const existing = byKey.get(key);
     if (!existing) {
       byKey.set(key, bill);
       merged.push(bill);
+      return;
+    }
+    if (existing.__recurringMergeSource === "profile") {
+      existing.scheduleEnabled = recurringScheduleEnabledFromBill(
+        existing,
+        existing.dueDay || "",
+        existing.monthlyAmount || "",
+      );
+      if (!existing.scheduleEnabled) {
+        existing.dueDay = "";
+        existing.monthlyAmount = "";
+      }
       return;
     }
     existing.id ||= bill.id;
@@ -629,9 +642,12 @@ function mergeRecurringBills(existingBills = [], candidateBills = []) {
       existing.monthlyAmount || bill.monthlyAmount || "",
     );
   };
-  existingBills.forEach(addOrMerge);
-  candidateBills.forEach(addOrMerge);
-  return removePartialNameDuplicates(merged, "name");
+  existingBills.forEach((bill) => addOrMerge(bill, "profile"));
+  candidateBills.forEach((bill) => addOrMerge(bill, "history"));
+  return removePartialNameDuplicates(
+    merged.map(({ __recurringMergeSource, ...bill }) => bill),
+    "name",
+  );
 }
 
 function recurringBillCandidatesFromState(state, account) {

@@ -37,9 +37,13 @@ test("recurring bill details stay off when only amount or next due date are pres
 });
 
 test("explicitly unchecked recurring bill details are not restored by older history", () => {
-  const mergeBlock = appSource.match(/function mergeRecurringBills\(existingBills = \[\], candidateBills = \[\]\) \{[\s\S]*?return removePartialNameDuplicates\(merged, "name"\);\n\}/)?.[0] || "";
+  const mergeBlock = appSource.match(/function mergeRecurringBills\(existingBills = \[\], candidateBills = \[\]\) \{[\s\S]*?\n\}\n\nfunction recurringBillCandidatesFromState/)?.[0] || "";
   const approvalBlock = appSource.match(/const previousScheduleDisabled = recurringScheduleExplicitlyDisabled\(previousBill\);[\s\S]*?monthlyAmount: scheduleEnabled \? previousBill\?\.monthlyAmount \|\| bill\.monthlyAmount \|\| bill\.amount \|\| "" : "",/)?.[0] || "";
   const syncBlock = appSource.match(/function syncRecurringBillScheduleState\(bill, changedField = ""\) \{[\s\S]*?\n\}/)?.[0] || "";
+  assert.match(mergeBlock, /existing\.__recurringMergeSource === "profile"/);
+  assert.match(mergeBlock, /existingBills\.forEach\(\(bill\) => addOrMerge\(bill, "profile"\)\)/);
+  assert.match(mergeBlock, /candidateBills\.forEach\(\(bill\) => addOrMerge\(bill, "history"\)\)/);
+  assert.match(mergeBlock, /__recurringMergeSource/);
   assert.match(mergeBlock, /recurringScheduleExplicitlyDisabled\(existing\)/);
   assert.match(mergeBlock, /existing\.scheduleEnabled = false;/);
   assert.match(mergeBlock, /existing\.dueDay = "";/);
