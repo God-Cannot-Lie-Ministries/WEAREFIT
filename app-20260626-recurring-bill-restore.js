@@ -304,6 +304,10 @@ function recurringScheduleEnabledFromBill(bill = {}, dueDay = bill.dueDay || "",
   return Boolean(dueDay || monthlyAmount);
 }
 
+function recurringScheduleExplicitlyDisabled(bill = {}) {
+  return Object.hasOwn(bill, "scheduleEnabled") && bill.scheduleEnabled === false;
+}
+
 function blankProfileCard() {
   return {
     id: uid("profile-card"),
@@ -471,7 +475,10 @@ function ensureAccountModel(account) {
     bill.nextDueDate ||= "";
     bill.paidDueDate ||= "";
     if (bill.scheduleEnabled) bill.monthlyAmount ||= bill.amount || "";
-    else bill.monthlyAmount ||= "";
+    else {
+      bill.dueDay = "";
+      bill.monthlyAmount = "";
+    }
     delete bill.dueDate;
   });
   account.financialInventory.creditCards.forEach(migratePromoCard);
@@ -573,6 +580,8 @@ function normalizeRestoredRecurringBill(bill = {}, category = bill.category || "
   const dueDay = bill.dueDay || (bill.dueDate ? String(Number(bill.dueDate.slice(-2))) : "");
   const amount = bill.amount || bill.monthlyAmount || "";
   const scheduleEnabled = recurringScheduleEnabledFromBill(bill, dueDay, bill.monthlyAmount || "");
+  const normalizedDueDay = scheduleEnabled ? dueDay : "";
+  const normalizedMonthlyAmount = scheduleEnabled ? bill.monthlyAmount || amount : "";
   return {
     ...blankRecurringBill(category),
     ...clone(bill),
@@ -581,8 +590,8 @@ function normalizeRestoredRecurringBill(bill = {}, category = bill.category || "
     name: String(bill.name || "").trim(),
     amount,
     nextDueDate,
-    dueDay,
-    monthlyAmount: scheduleEnabled ? bill.monthlyAmount || amount : bill.monthlyAmount || "",
+    dueDay: normalizedDueDay,
+    monthlyAmount: normalizedMonthlyAmount,
     scheduleEnabled,
     paidDueDate: bill.paidDueDate || "",
   };
@@ -603,12 +612,22 @@ function mergeRecurringBills(existingBills = [], candidateBills = []) {
     }
     existing.id ||= bill.id;
     existing.amount ||= bill.amount;
-    existing.monthlyAmount ||= bill.monthlyAmount || bill.amount;
-    existing.dueDay ||= bill.dueDay;
     existing.nextDueDate ||= bill.nextDueDate;
     existing.paidDueDate ||= bill.paidDueDate;
     existing.lastPaidAt ||= bill.lastPaidAt;
-    existing.scheduleEnabled = Boolean(existing.scheduleEnabled || bill.scheduleEnabled || existing.dueDay || bill.dueDay);
+    if (recurringScheduleExplicitlyDisabled(existing)) {
+      existing.scheduleEnabled = false;
+      existing.dueDay = "";
+      existing.monthlyAmount = "";
+      return;
+    }
+    existing.monthlyAmount ||= bill.monthlyAmount || bill.amount;
+    existing.dueDay ||= bill.dueDay;
+    existing.scheduleEnabled = recurringScheduleEnabledFromBill(
+      existing,
+      existing.dueDay || bill.dueDay || "",
+      existing.monthlyAmount || bill.monthlyAmount || "",
+    );
   };
   existingBills.forEach(addOrMerge);
   candidateBills.forEach(addOrMerge);
@@ -633,7 +652,7 @@ function recurringBillCandidatesFromState(state, account) {
               {
                 ...bill,
                 id: bill.profileBillId || bill.id || "",
-                scheduleEnabled: Boolean(bill.scheduleEnabled || bill.dueDay || bill.monthlyAmount),
+                scheduleEnabled: recurringScheduleEnabledFromBill(bill, bill.dueDay || "", bill.monthlyAmount || ""),
                 dueDay: bill.dueDay || "",
                 nextDueDate: bill.nextDueDate || bill.dueDate || "",
                 monthlyAmount: bill.monthlyAmount || bill.amount || "",
@@ -1201,7 +1220,7 @@ function loadState() {
               ...blankRecurringBill(category),
               ...clone(bill),
               category,
-              scheduleEnabled: Boolean(bill.scheduleEnabled || bill.dueDay || bill.monthlyAmount),
+              scheduleEnabled: recurringScheduleEnabledFromBill(bill, bill.dueDay || "", bill.monthlyAmount || ""),
               dueDay: bill.dueDate ? String(Number(bill.dueDate.slice(-2))) : bill.dueDay || "",
               monthlyAmount: bill.monthlyAmount || bill.amount || "",
             })),
@@ -1578,6 +1597,11 @@ function syncRecurringBillScheduleState(bill, changedField = "") {
   if (!bill) return;
   if (["amount", "dueDay", "monthlyAmount", "nextDueDate"].includes(changedField)) {
     bill.paidDueDate = "";
+  }
+  if (!bill.scheduleEnabled) {
+    bill.dueDay = "";
+    bill.monthlyAmount = "";
+    return;
   }
   if (bill.dueDay) bill.nextDueDate = nextMonthlyDueDate(bill.dueDay);
   if (bill.scheduleEnabled && bill.monthlyAmount && changedField !== "amount") {
@@ -5887,15 +5911,23 @@ async function approveForm(formId, coachNotes = "", actionSteps = "") {
             String(item.name || "").trim().toLowerCase() === String(bill.name || "").trim().toLowerCase(),
         );
         const billWasPaidThisCheck = bill.coachDecision !== "next_check";
+        const previousScheduleDisabled = recurringScheduleExplicitlyDisabled(previousBill);
+        const scheduleEnabled = previousScheduleDisabled
+          ? false
+          : recurringScheduleEnabledFromBill(
+              bill,
+              previousBill?.dueDay || bill.dueDay || "",
+              previousBill?.monthlyAmount || bill.monthlyAmount || "",
+            );
         return normalizeRestoredRecurringBill(
           {
             ...bill,
             id: bill.profileBillId || bill.id || previousBill?.id || "",
-            scheduleEnabled: Boolean(previousBill?.scheduleEnabled || bill.scheduleEnabled || previousBill?.dueDay || bill.dueDay),
-            dueDay: previousBill?.dueDay || bill.dueDay || "",
+            scheduleEnabled,
+            dueDay: scheduleEnabled ? previousBill?.dueDay || bill.dueDay || "" : "",
             nextDueDate: billWasPaidThisCheck ? "" : previousBill?.nextDueDate || bill.dueDate || "",
             paidDueDate: billWasPaidThisCheck ? bill.dueDate || previousBill?.paidDueDate || "" : previousBill?.paidDueDate || "",
-            monthlyAmount: previousBill?.monthlyAmount || bill.amount || "",
+            monthlyAmount: scheduleEnabled ? previousBill?.monthlyAmount || bill.monthlyAmount || bill.amount || "" : "",
           },
           key,
         );
@@ -6580,8 +6612,16 @@ document.addEventListener("click", async (event) => {
       bill.monthlyAmount = "";
       bill.paidDueDate = "";
     }
-    saveFinancialProfileMutation(account);
-    renderProfile();
+    scheduleToggle.disabled = true;
+    try {
+      saveFinancialProfileMutation(account);
+      await productionBackend.saveNow?.(appState);
+      renderProfile();
+    } catch (error) {
+      scheduleToggle.disabled = false;
+      showToast(error.message || "Could not save recurring bill details.");
+      renderProfile();
+    }
     return;
   }
 
@@ -7499,6 +7539,11 @@ document.addEventListener("change", async (event) => {
       const bill = account.financialInventory.recurringBills[Number(indexValue)];
       syncRecurringBillScheduleState(bill, field);
       saveFinancialProfileMutation(account);
+      try {
+        await productionBackend.saveNow?.(appState);
+      } catch (error) {
+        showToast(error.message || "Could not save recurring bill details.");
+      }
       if (field === "dueDay" || field === "monthlyAmount") renderProfile();
       return;
     }

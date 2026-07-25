@@ -30,9 +30,25 @@ test("recurring bill restoration uses saved forms and carry-forward history with
 
 test("recurring bill details stay off when only amount or next due date are present", () => {
   assert.match(appSource, /function recurringScheduleEnabledFromBill/);
+  assert.match(appSource, /function recurringScheduleExplicitlyDisabled/);
   assert.doesNotMatch(appSource, /scheduleEnabled:\s*Boolean\(bill\.amount \|\| bill\.dueDate\)/);
   assert.doesNotMatch(appSource, /bill\.scheduleEnabled = Boolean\(bill\.amount \|\| bill\.monthlyAmount \|\| bill\.dueDay \|\| bill\.nextDueDate\)/);
   assert.doesNotMatch(appSource, /bill\.scheduleEnabled \|\|\s*amount \|\|\s*dueDay \|\|\s*nextDueDate/);
+});
+
+test("explicitly unchecked recurring bill details are not restored by older history", () => {
+  const mergeBlock = appSource.match(/function mergeRecurringBills\(existingBills = \[\], candidateBills = \[\]\) \{[\s\S]*?return removePartialNameDuplicates\(merged, "name"\);\n\}/)?.[0] || "";
+  const approvalBlock = appSource.match(/const previousScheduleDisabled = recurringScheduleExplicitlyDisabled\(previousBill\);[\s\S]*?monthlyAmount: scheduleEnabled \? previousBill\?\.monthlyAmount \|\| bill\.monthlyAmount \|\| bill\.amount \|\| "" : "",/)?.[0] || "";
+  const syncBlock = appSource.match(/function syncRecurringBillScheduleState\(bill, changedField = ""\) \{[\s\S]*?\n\}/)?.[0] || "";
+  assert.match(mergeBlock, /recurringScheduleExplicitlyDisabled\(existing\)/);
+  assert.match(mergeBlock, /existing\.scheduleEnabled = false;/);
+  assert.match(mergeBlock, /existing\.dueDay = "";/);
+  assert.match(mergeBlock, /existing\.monthlyAmount = "";/);
+  assert.match(approvalBlock, /previousScheduleDisabled\s*\?\s*false/);
+  assert.match(syncBlock, /if \(!bill\.scheduleEnabled\)/);
+  assert.match(syncBlock, /bill\.dueDay = "";/);
+  assert.match(syncBlock, /bill\.monthlyAmount = "";/);
+  assert.doesNotMatch(mergeBlock, /existing\.scheduleEnabled = Boolean\(existing\.scheduleEnabled \|\| bill\.scheduleEnabled \|\| existing\.dueDay \|\| bill\.dueDay\)/);
 });
 
 test("new worksheet recurring bill prefill is limited to bills due within 15 days", () => {
