@@ -4077,6 +4077,7 @@ async function applyBillScanUpdate(formElement) {
     previousAmount,
     previousDueDate,
     confidence: Number(pendingBillScanUpload?.scan?.confidence) || 0,
+    scanMethod: pendingBillScanUpload?.scan?.scanMethod || pendingBillScanUpload?.uploadMeta?.scanMethod || "",
     notes: pendingBillScanUpload?.scan?.notes || "",
     fileName: pendingBillScanUpload?.uploadMeta?.name || "",
     storagePath: pendingBillScanUpload?.uploadMeta?.storagePath || "",
