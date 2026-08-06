@@ -44,13 +44,21 @@ jobs:
             presenceEnabled: "${{ vars.PRESENCE_ENABLED }}" === "true",
           };
           EOF
+      - name: Prepare static site artifact
+        run: |
+          mkdir -p public-site
+          cp index.html styles.css app.js app-20260626-recurring-bill-restore.js backend.js config.js supabase-health.html public-site/
+          cp -R assets public-site/assets
+          printf 'fit-training.org\n' > public-site/CNAME
+          touch public-site/.nojekyll
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload entire repository
-          path: '.'
+          path: public-site
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+        with:
+          timeout: 1800000
