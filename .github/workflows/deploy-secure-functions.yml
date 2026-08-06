@@ -27,3 +27,4 @@ jobs:
           supabase functions deploy send-session-summary-sms --project-ref jrkxltypsvapusybroyp
           supabase functions deploy notify-fit-event --project-ref jrkxltypsvapusybroyp
           supabase functions deploy send-bill-reminders --project-ref jrkxltypsvapusybroyp
+          supabase functions deploy analyze-bill-screenshot --project-ref jrkxltypsvapusybroyp
