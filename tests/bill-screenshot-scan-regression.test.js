@@ -35,14 +35,26 @@ test("confirmed screenshot scan updates only next payment fields and scan histor
   assert.doesNotMatch(updateBlock, /bill\.scheduleEnabled =/);
 });
 
-test("bill screenshot upload uses private storage and a server-side analyzer", () => {
+test("bill screenshot scanning uses free browser OCR before confirmation", () => {
+  assert.match(appSource, /function imageFileToDataUrl/);
+  assert.match(appSource, /function loadTesseractOcrLibrary/);
+  assert.match(appSource, /tesseract\.js@5\/dist\/tesseract\.min\.js/);
+  assert.match(appSource, /async function runBrowserBillOcr/);
+  assert.match(appSource, /function extractOcrAmountDue/);
+  assert.match(appSource, /function extractOcrDueDate/);
+  assert.match(appSource, /scanMethod: "browser_ocr"/);
+  const scanBlock = appSource.match(/async function analyzeBillScreenshotFile\(file\) \{[\s\S]*?\n\}/)?.[0] || "";
+  assert.doesNotMatch(scanBlock, /productionBackend\.analyzeBillScreenshot/);
+  assert.doesNotMatch(scanBlock, /uploadPrivateFile\("financial-documents", file, "bill-screenshots"\)/);
+});
+
+test("legacy server-side analyzer no longer calls paid AI services", () => {
   assert.match(backendSource, /analyzeBillScreenshot/);
   assert.match(backendSource, /functions\.invoke\("analyze-bill-screenshot"/);
-  assert.match(backendSource, /safeCategory === "bill-screenshots"/);
-  assert.match(appSource, /uploadPrivateFile\("financial-documents", file, "bill-screenshots"\)/);
-  assert.match(functionSource, /Deno\.env\.get\("OPENAI_API_KEY"\)/);
-  assert.match(functionSource, /response_format/);
-  assert.match(functionSource, /matchedBillId/);
+  assert.match(functionSource, /scanMethod: "browser_ocr"/);
+  assert.match(functionSource, /status: 410/);
+  assert.doesNotMatch(functionSource, /OPENAI_API_KEY/);
+  assert.doesNotMatch(functionSource, /api\.openai\.com/);
   assert.doesNotMatch(functionSource, /from\("portal_states"\)\.update/);
 });
 

@@ -3525,14 +3525,14 @@ function showBillScanUploadModal() {
         <button class="icon-btn" type="button" aria-label="Close" data-close-modal>×</button>
       </div>
       <form id="bill-scan-upload-form" class="modal-body bill-scan-upload-form">
-        <p>Use this for a new bill amount and due date only. It will not overwrite old bill history or fixed recurring schedule settings.</p>
+        <p>Use this for a new bill amount and due date only. F.I.T. reads the screenshot in your browser first, then asks you to confirm before saving.</p>
         <label class="bill-scan-upload">
           <input type="file" name="billScreenshot" accept="image/png,image/jpeg,image/webp" required>
           <span>Choose bill screenshot</span>
-          <small>PNG, JPG, or WebP up to 5 MB</small>
+          <small>Free OCR scan · PNG, JPG, or WebP up to 5 MB</small>
         </label>
         <div class="button-row">
-          <button class="btn btn-primary" type="submit">Analyze screenshot</button>
+          <button class="btn btn-primary" type="submit">Read screenshot</button>
           <button class="btn btn-secondary" type="button" data-close-modal>Cancel</button>
         </div>
       </form>
@@ -3562,7 +3562,7 @@ function showBillScanReviewModal(scan = {}, uploadMeta = {}) {
           <div><span>Suggested bill</span><strong>${escapeHtml(selectedBill?.name || scan.vendorName || "Review needed")}</strong></div>
           <div><span>Amount found</span><strong>${scan.amountDue ? money(scan.amountDue) : "Needs review"}</strong></div>
           <div><span>Due date found</span><strong>${scan.dueDate ? dateLabel(scan.dueDate) : "Needs review"}</strong></div>
-          <div><span>Confidence</span><strong>${Math.round((Number(scan.confidence) || 0) * 100)}%</strong></div>
+          <div><span>OCR match</span><strong>${Math.round((Number(scan.confidence) || 0) * 100)}%</strong></div>
         </div>
         ${scan.notes ? `<p class="bill-scan-note">${escapeHtml(scan.notes)}</p>` : ""}
         <div class="bill-scan-confirm-grid">
@@ -3589,7 +3589,7 @@ function showBillScanReviewModal(scan = {}, uploadMeta = {}) {
             <input class="input" type="date" name="dueDate" value="${escapeHtml(scan.dueDate || "")}" required>
           </div>
         </div>
-        <div class="vault-notice"><strong>Review before saving</strong><span>This updates only the saved bill's next payment amount and next due date.</span></div>
+        <div class="vault-notice"><strong>Review before saving</strong><span>Free OCR can misread screenshots. Confirm the bill, amount, and date before updating the saved bill.</span></div>
         <div class="button-row">
           <button class="btn btn-primary" type="submit">Update saved bill</button>
           <button class="btn btn-secondary" type="button" data-close-modal>Cancel</button>
@@ -3618,6 +3618,171 @@ function imageFileToDataUrl(file) {
   });
 }
 
+async function loadTesseractOcrLibrary() {
+  if (window.Tesseract?.createWorker) return window.Tesseract;
+  if (window.__fitTesseractLoadPromise) return window.__fitTesseractLoadPromise;
+  window.__fitTesseractLoadPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+    script.async = true;
+    script.crossOrigin = "anonymous";
+    script.onload = () => {
+      if (window.Tesseract?.createWorker) {
+        resolve(window.Tesseract);
+      } else {
+        reject(new Error("The free OCR reader could not start."));
+      }
+    };
+    script.onerror = () => reject(new Error("The free OCR reader could not load."));
+    document.head.appendChild(script);
+  });
+  return window.__fitTesseractLoadPromise;
+}
+
+function normalizeOcrText(text = "") {
+  return String(text || "")
+    .replace(/[|]+/g, " ")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function billScanWordSet(value = "") {
+  return new Set(
+    String(value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((word) => word.length >= 3),
+  );
+}
+
+function scoreBillOcrMatch(text, bill) {
+  const sourceWords = billScanWordSet(text);
+  const billWords = billScanWordSet(bill.name);
+  if (!sourceWords.size || !billWords.size) return 0;
+  const overlap = [...billWords].filter((word) => sourceWords.has(word)).length;
+  const exactBonus = normalizeOcrText(text).toLowerCase().includes(normalizeOcrText(bill.name).toLowerCase()) ? 0.35 : 0;
+  return Math.min(1, overlap / billWords.size + exactBonus);
+}
+
+function bestOcrBillMatch(text, bills = []) {
+  return bills.reduce(
+    (best, bill) => {
+      const confidence = scoreBillOcrMatch(text, bill);
+      return confidence > best.confidence ? { id: bill.id, name: bill.name, confidence } : best;
+    },
+    { id: "", name: "", confidence: 0 },
+  );
+}
+
+function parseOcrDateValue(rawDate) {
+  const cleaned = normalizeOcrText(rawDate).replace(/(\d)(st|nd|rd|th)\b/gi, "$1");
+  if (!cleaned) return "";
+  const numeric = cleaned.match(/^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?$/);
+  let parsed;
+  if (numeric) {
+    const currentYear = new Date().getFullYear();
+    const month = Number(numeric[1]) - 1;
+    const day = Number(numeric[2]);
+    const rawYear = numeric[3] ? Number(numeric[3]) : currentYear;
+    const year = rawYear < 100 ? 2000 + rawYear : rawYear;
+    parsed = new Date(year, month, day, 12, 0, 0, 0);
+    if (!numeric[3] && parsed < new Date(`${todayValue()}T00:00:00`)) {
+      parsed = new Date(currentYear + 1, month, day, 12, 0, 0, 0);
+    }
+  } else {
+    parsed = new Date(cleaned);
+  }
+  if (!parsed || Number.isNaN(parsed.getTime())) return "";
+  const today = new Date(`${todayValue()}T00:00:00`);
+  const earliest = addDays(today, -14);
+  const latest = addDays(today, 370);
+  if (parsed < earliest || parsed > latest) return "";
+  return dateValueFromLocal(parsed);
+}
+
+function extractOcrDueDate(text) {
+  const candidates = [];
+  const monthPattern = /\b(?:due|pay by|payment due|must pay by|autopay date|date due)?\s*((?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,\s*\d{2,4})?)/gi;
+  const numericPattern = /\b(?:due|pay by|payment due|must pay by|autopay date|date due)?\s*(\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\b/gi;
+  let match;
+  while ((match = monthPattern.exec(text))) {
+    candidates.push({ raw: match[1], score: /due|pay by|payment due|must pay by|date due/i.test(match[0]) ? 2 : 1 });
+  }
+  while ((match = numericPattern.exec(text))) {
+    candidates.push({ raw: match[1], score: /due|pay by|payment due|must pay by|date due/i.test(match[0]) ? 2 : 1 });
+  }
+  return candidates
+    .map((candidate) => ({ ...candidate, value: parseOcrDateValue(candidate.raw) }))
+    .filter((candidate) => candidate.value)
+    .sort((a, b) => b.score - a.score || a.value.localeCompare(b.value))[0]?.value || "";
+}
+
+function extractOcrAmountDue(text) {
+  const candidates = [];
+  const contextualPattern = /\b(?:amount due|total due|payment due|new charges|balance due|please pay|current amount due|total amount due)\D{0,35}(\$?\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\$?\s*\d+(?:\.\d{2})?)/gi;
+  const moneyPattern = /\$\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\d+(?:\.\d{2})?)/g;
+  let match;
+  while ((match = contextualPattern.exec(text))) {
+    candidates.push({ value: currencyValue(match[1]), score: 3 });
+  }
+  while ((match = moneyPattern.exec(text))) {
+    candidates.push({ value: currencyValue(match[1]), score: 1 });
+  }
+  return candidates
+    .filter((candidate) => candidate.value > 0 && candidate.value < 100000)
+    .sort((a, b) => b.score - a.score || b.value - a.value)[0]?.value.toFixed(2) || "";
+}
+
+function extractOcrVendorName(text, bills = [], fileName = "") {
+  const bestMatch = bestOcrBillMatch(text, bills);
+  if (bestMatch.confidence >= 0.35) return bestMatch.name;
+  const lines = String(text || "")
+    .split(/\n+/)
+    .map((line) => normalizeOcrText(line))
+    .filter((line) => line && !/amount|total|due|balance|account|statement|payment|\$|\d{1,2}[/-]\d{1,2}/i.test(line));
+  return lines[0]?.slice(0, 80) || fileName.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").slice(0, 80);
+}
+
+async function runBrowserBillOcr(imageDataUrl, file, bills = []) {
+  const Tesseract = await loadTesseractOcrLibrary();
+  const worker = await Tesseract.createWorker("eng", 1, {
+    logger: (message) => {
+      if (message?.status === "recognizing text" && Number.isFinite(message.progress)) {
+        showPageLoading(`Reading screenshot... ${Math.round(message.progress * 100)}%`);
+      }
+    },
+  });
+  try {
+    const result = await worker.recognize(imageDataUrl);
+    const rawText = result?.data?.text || "";
+    const text = normalizeOcrText(rawText);
+    const match = bestOcrBillMatch(text, bills);
+    const amountDue = extractOcrAmountDue(text);
+    const dueDate = extractOcrDueDate(text);
+    const confidence = Math.min(
+      1,
+      (match.confidence || 0) * 0.45 + (amountDue ? 0.25 : 0) + (dueDate ? 0.25 : 0) + (text ? 0.05 : 0),
+    );
+    return {
+      vendorName: extractOcrVendorName(rawText, bills, file.name),
+      amountDue,
+      dueDate,
+      matchedBillId: match.confidence >= 0.35 ? match.id : "",
+      confidence,
+      notes: text
+        ? "Free OCR read this screenshot on your device. Review the amount and due date before saving."
+        : "Free OCR could not read clear text. Enter the new amount and due date manually.",
+      scannedAt: new Date().toISOString(),
+      scanMethod: "browser_ocr",
+    };
+  } finally {
+    await worker.terminate();
+  }
+}
+
 async function analyzeBillScreenshotFile(file) {
   const allowedTypes = ["image/png", "image/jpeg", "image/webp"];
   if (!allowedTypes.includes(file.type)) throw new Error("Choose a PNG, JPG, or WebP bill screenshot.");
@@ -3625,19 +3790,17 @@ async function analyzeBillScreenshotFile(file) {
 
   const account = currentAccount();
   const bills = billScanSourceBills(account);
-  let uploadMeta = { name: file.name, type: file.type, size: file.size };
-  let scanPayload;
-  if (productionBackend.enabled) {
-    const uploaded = await productionBackend.uploadPrivateFile("financial-documents", file, "bill-screenshots");
-    uploadMeta = { ...uploadMeta, ...uploaded };
-    scanPayload = { imageUrl: uploaded.dataUrl, bills };
-  } else {
-    const imageDataUrl = await imageFileToDataUrl(file);
-    uploadMeta.dataUrl = imageDataUrl;
-    scanPayload = { imageDataUrl, bills };
-  }
-
-  if (!productionBackend.enabled || typeof productionBackend.analyzeBillScreenshot !== "function") {
+  const imageDataUrl = await imageFileToDataUrl(file);
+  const uploadMeta = {
+    name: file.name,
+    type: file.type,
+    size: file.size,
+    scanMethod: "browser_ocr",
+  };
+  try {
+    const scan = await runBrowserBillOcr(imageDataUrl, file, bills);
+    return { uploadMeta, scan };
+  } catch (error) {
     return {
       uploadMeta,
       scan: {
@@ -3646,14 +3809,14 @@ async function analyzeBillScreenshotFile(file) {
         dueDate: "",
         matchedBillId: "",
         confidence: 0,
-        notes: "Secure AI scanning runs on the live server. Enter the new amount and due date to save this bill update.",
+        notes: error?.message
+          ? `${error.message} Enter the new amount and due date manually.`
+          : "Free OCR could not read this screenshot. Enter the new amount and due date manually.",
         scannedAt: new Date().toISOString(),
+        scanMethod: "manual_fallback",
       },
     };
   }
-
-  const result = await productionBackend.analyzeBillScreenshot(scanPayload);
-  return { uploadMeta, scan: result.scan || {} };
 }
 
 async function applyBillScanUpdate(formElement) {
