@@ -890,6 +890,149 @@ textarea:disabled {
   grid-template-columns: minmax(0, 1.35fr) repeat(3, minmax(0, 1fr));
 }
 
+.bill-scan-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 14px;
+  align-items: center;
+  margin: 14px;
+  border: 1px solid color-mix(in srgb, var(--line) 76%, var(--gold) 24%);
+  border-radius: 10px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface) 92%, var(--gold) 8%), var(--surface));
+  padding: 14px;
+}
+
+.bill-scan-panel h4 {
+  margin: 0 0 4px;
+  color: var(--navy);
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.bill-scan-panel p,
+.bill-scan-meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.bill-scan-meta {
+  grid-column: 1 / -1;
+}
+
+html[data-theme="dark"] .bill-scan-panel {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface) 88%, var(--gold) 12%), var(--surface));
+}
+
+html[data-theme="dark"] .bill-scan-panel h4 {
+  color: var(--gold);
+}
+
+.bill-scan-upload-form {
+  gap: 16px;
+}
+
+.bill-scan-upload {
+  display: grid;
+  min-height: 140px;
+  place-items: center;
+  gap: 6px;
+  border: 1px dashed color-mix(in srgb, var(--line) 70%, var(--gold) 30%);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 88%, var(--canvas) 12%);
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.bill-scan-upload input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.bill-scan-upload span {
+  color: var(--navy);
+  font-weight: 850;
+}
+
+.bill-scan-upload small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+html[data-theme="dark"] .bill-scan-upload span {
+  color: var(--text);
+}
+
+.bill-scan-result {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.bill-scan-result > div {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 12px;
+  min-width: 0;
+}
+
+.bill-scan-result span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.bill-scan-result strong {
+  color: var(--navy);
+  overflow-wrap: anywhere;
+}
+
+html[data-theme="dark"] .bill-scan-result strong {
+  color: var(--text);
+}
+
+.bill-scan-note {
+  border-left: 4px solid var(--gold);
+  background: color-mix(in srgb, var(--gold) 12%, var(--surface));
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.bill-scan-confirm-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.bill-scan-confirm-grid .field {
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .bill-scan-panel,
+  .bill-scan-confirm-grid,
+  .bill-scan-result {
+    grid-template-columns: 1fr;
+  }
+
+  .bill-scan-panel .btn {
+    width: 100%;
+  }
+}
+
 .profile-remove {
   position: static;
   display: flex;

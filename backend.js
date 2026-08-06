@@ -659,6 +659,14 @@
     return data;
   }
 
+  async function analyzeBillScreenshot(payload) {
+    const { data, error } = await client.functions.invoke("analyze-bill-screenshot", {
+      body: payload,
+    });
+    await throwFunctionError(error, "The bill screenshot could not be analyzed.");
+    return data;
+  }
+
   async function unsubscribeFromPortalChanges() {
     realtimeSubscriptionGeneration += 1;
     clearTimeout(realtimeReconnectTimer);
@@ -717,30 +725,34 @@
   async function uploadPrivateFile(bucket, file, category) {
     const currentSession = await session();
     if (!currentSession) throw new Error("Sign in before uploading a file.");
+    const safeCategory = category.replace(/[^a-z0-9-]/gi, "-").toLowerCase();
     const supportedTypes = {
       "profile-photos": ["image/png", "image/jpeg", "image/webp"],
-      "financial-documents": ["application/pdf", "image/png", "image/jpeg"],
+      "financial-documents": ["application/pdf", "image/png", "image/jpeg", "image/webp"],
     };
     const sizeLimits = {
       "profile-photos": 1024 * 1024,
-      "financial-documents": 2 * 1024 * 1024,
+      "financial-documents": safeCategory === "bill-screenshots" ? 5 * 1024 * 1024 : 2 * 1024 * 1024,
     };
     if (!supportedTypes[bucket]?.includes(file.type)) {
       throw new Error(
         bucket === "profile-photos"
           ? "Choose a PNG, JPG, or WebP profile photo."
-          : "Choose a PDF, PNG, or JPG paystub.",
+          : safeCategory === "bill-screenshots"
+            ? "Choose a PNG, JPG, or WebP bill screenshot."
+            : "Choose a PDF, PNG, JPG, or WebP paystub.",
       );
     }
     if (file.size > sizeLimits[bucket]) {
       throw new Error(
         bucket === "profile-photos"
           ? "Profile photos must be 1 MB or smaller."
-          : "Paystubs must be 2 MB or smaller.",
+          : safeCategory === "bill-screenshots"
+            ? "Bill screenshots must be 5 MB or smaller."
+            : "Paystubs must be 2 MB or smaller.",
       );
     }
     const extension = file.name.split(".").pop()?.toLowerCase() || "bin";
-    const safeCategory = category.replace(/[^a-z0-9-]/gi, "-").toLowerCase();
     const path = `${currentSession.user.id}/${safeCategory}/${crypto.randomUUID()}.${extension}`;
     const { error } = await client.storage.from(bucket).upload(path, file, {
       contentType: file.type,
@@ -786,6 +798,7 @@
     removeMentee,
     sendSessionSummarySms,
     notifyFitEvent,
+    analyzeBillScreenshot,
     subscribeToPortalChanges,
     unsubscribeFromPortalChanges,
     requestAccountDeletion,

@@ -21,6 +21,7 @@ let pendingVerificationEmail = null;
 let confirmationResendNeeded = false;
 let toastTimer = null;
 let pendingPaystubUpload = null;
+let pendingBillScanUpload = null;
 let formAutosaveTimer = null;
 let lastLocalSaveAt = 0;
 let lastUserActivityAt = Date.now();
@@ -123,6 +124,7 @@ async function clearFitSiteDataFromBrowser() {
   pendingVerificationEmail = null;
   confirmationResendNeeded = false;
   pendingPaystubUpload = null;
+  pendingBillScanUpload = null;
   portalDataReady = !productionBackend.enabled;
   portalLoadError = null;
 
@@ -1708,6 +1710,7 @@ async function logoutDueToInactivity() {
   activeView = "dashboard";
   activeFormId = null;
   pendingPaystubUpload = null;
+  pendingBillScanUpload = null;
   loginMode = "signin";
   localStorage.removeItem(STORAGE_KEY);
   history.replaceState({}, "", window.location.pathname);
@@ -2887,7 +2890,10 @@ function renderUpcomingBills() {
           <h2>Upcoming bills</h2>
           <p>Bills due within a month based on ${account.role === "coach" ? "your private coach financial profile" : "your saved financial profile"}.</p>
         </div>
-        <button class="btn btn-primary" type="button" data-view="profile">Update financial profile</button>
+        <div class="button-row">
+          <button class="btn btn-secondary" type="button" data-open-bill-scan>Scan bill screenshot</button>
+          <button class="btn btn-primary" type="button" data-view="profile">Update financial profile</button>
+        </div>
       </div>
       <section class="upcoming-summary-grid" aria-label="Upcoming bill summary">
         ${metric("Bills coming up", String(items.length))}
@@ -3062,6 +3068,7 @@ function financialProfileSections(account, includePaystubs) {
     ${mortgageProfileSection(account)}
     <section class="panel profile-inventory" id="profile-bills">
       <div class="panel-heading"><div><h3>Recurring bills</h3><p>Save recurring bills and optional monthly schedule details.</p></div><button class="btn btn-secondary btn-small" type="button" data-add-profile-item="recurringBills"><span aria-hidden="true">＋</span> Add recurring bill</button></div>
+      ${billScanPanel(account)}
       <div class="profile-inventory-list">
         ${account.financialInventory.recurringBills.length ? account.financialInventory.recurringBills.map((bill, index) => recurringBillProfileCard(bill, index)).join("") : emptyInline("No recurring bills", "Add recurring bills to organize your private financial profile.")}
       </div>
@@ -3461,6 +3468,254 @@ function recurringBillProfileCard(bill, index) {
       <button class="icon-btn danger profile-remove" type="button" aria-label="Remove recurring bill" title="Remove recurring bill" data-remove-profile-item="recurringBills.${index}">×</button>
     </article>
   `.replaceAll("data-path=", "data-profile-path=");
+}
+
+function billScanPanel(account) {
+  const billCount = billScanSourceBills(account).length;
+  return `
+    <div class="bill-scan-panel">
+      <div>
+        <h4>Scan new bill</h4>
+        <p>Upload a bill screenshot to capture the new amount and due date. F.I.T. asks before updating a saved bill.</p>
+      </div>
+      <button class="btn btn-secondary btn-small" type="button" data-open-bill-scan>
+        <span aria-hidden="true">↗</span> Scan screenshot
+      </button>
+      <span class="bill-scan-meta">${billCount ? `${billCount} saved bill${billCount === 1 ? "" : "s"} available` : "Saved bills can be added during review"}</span>
+    </div>
+  `;
+}
+
+function billScanSourceBills(account = currentAccount()) {
+  if (!account) return [];
+  ensureFinancialInventory(account);
+  return (account?.financialInventory?.recurringBills || [])
+    .filter((bill) => String(bill.name || "").trim())
+    .map((bill) => ({
+      id: bill.id || "",
+      name: bill.name,
+      category: bill.category || "other",
+    }));
+}
+
+function billScanCategoryOptions(selected = "other") {
+  return billGroups.map(([value, label]) => selectOption(value, label, selected || "other")).join("");
+}
+
+function billScanMatchOptions(account, selectedId = "") {
+  const categoryLabel = Object.fromEntries(billGroups);
+  const bills = billScanSourceBills(account).sort((a, b) => a.name.localeCompare(b.name));
+  return [
+    `<option value="__new__" ${selectedId ? "" : "selected"}>Add as a new saved bill</option>`,
+    ...bills.map((bill) => `
+      <option value="${escapeHtml(bill.id)}" ${bill.id === selectedId ? "selected" : ""}>
+        ${escapeHtml(bill.name)} · ${escapeHtml(categoryLabel[bill.category] || "Other Bills")}
+      </option>
+    `),
+  ].join("");
+}
+
+function showBillScanUploadModal() {
+  const modal = document.createElement("div");
+  modal.className = "modal-backdrop";
+  modal.innerHTML = `
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="bill-scan-upload-title">
+      <div class="modal-header">
+        <div><p class="document-label">Bill update</p><h3 id="bill-scan-upload-title">Scan a new bill screenshot</h3></div>
+        <button class="icon-btn" type="button" aria-label="Close" data-close-modal>×</button>
+      </div>
+      <form id="bill-scan-upload-form" class="modal-body bill-scan-upload-form">
+        <p>Use this for a new bill amount and due date only. It will not overwrite old bill history or fixed recurring schedule settings.</p>
+        <label class="bill-scan-upload">
+          <input type="file" name="billScreenshot" accept="image/png,image/jpeg,image/webp" required>
+          <span>Choose bill screenshot</span>
+          <small>PNG, JPG, or WebP up to 5 MB</small>
+        </label>
+        <div class="button-row">
+          <button class="btn btn-primary" type="submit">Analyze screenshot</button>
+          <button class="btn btn-secondary" type="button" data-close-modal>Cancel</button>
+        </div>
+      </form>
+    </section>
+  `;
+  document.body.appendChild(modal);
+}
+
+function showBillScanReviewModal(scan = {}, uploadMeta = {}) {
+  const account = currentAccount();
+  const selectedBill = billScanSourceBills(account).find((bill) => bill.id === scan.matchedBillId);
+  const selectedCategory = selectedBill?.category || "other";
+  pendingBillScanUpload = {
+    scan,
+    uploadMeta,
+  };
+  const modal = document.createElement("div");
+  modal.className = "modal-backdrop";
+  modal.innerHTML = `
+    <section class="modal modal-wide bill-scan-review-modal" role="dialog" aria-modal="true" aria-labelledby="bill-scan-review-title">
+      <div class="modal-header">
+        <div><p class="document-label">Confirm bill update</p><h3 id="bill-scan-review-title">Is this the bill you want to update?</h3></div>
+        <button class="icon-btn" type="button" aria-label="Close" data-close-modal>×</button>
+      </div>
+      <form id="bill-scan-confirm-form" class="modal-body">
+        <div class="bill-scan-result">
+          <div><span>Suggested bill</span><strong>${escapeHtml(selectedBill?.name || scan.vendorName || "Review needed")}</strong></div>
+          <div><span>Amount found</span><strong>${scan.amountDue ? money(scan.amountDue) : "Needs review"}</strong></div>
+          <div><span>Due date found</span><strong>${scan.dueDate ? dateLabel(scan.dueDate) : "Needs review"}</strong></div>
+          <div><span>Confidence</span><strong>${Math.round((Number(scan.confidence) || 0) * 100)}%</strong></div>
+        </div>
+        ${scan.notes ? `<p class="bill-scan-note">${escapeHtml(scan.notes)}</p>` : ""}
+        <div class="bill-scan-confirm-grid">
+          <div class="field">
+            <label>Bill to update</label>
+            <select class="input" name="billId" data-bill-scan-select>
+              ${billScanMatchOptions(account, scan.matchedBillId || "")}
+            </select>
+          </div>
+          <div class="field bill-scan-new-field">
+            <label>New bill name</label>
+            <input class="input" name="newBillName" value="${escapeHtml(scan.vendorName || "")}" placeholder="Bill name">
+          </div>
+          <div class="field bill-scan-new-field">
+            <label>Category</label>
+            <select class="input" name="newBillCategory">${billScanCategoryOptions(selectedCategory)}</select>
+          </div>
+          <div class="field">
+            <label>New payment amount</label>
+            <div class="money-input-wrap"><input class="input" type="text" inputmode="decimal" data-currency-input name="amountDue" value="${moneyInputValue(scan.amountDue)}" placeholder="0.00" required></div>
+          </div>
+          <div class="field">
+            <label>New due date</label>
+            <input class="input" type="date" name="dueDate" value="${escapeHtml(scan.dueDate || "")}" required>
+          </div>
+        </div>
+        <div class="vault-notice"><strong>Review before saving</strong><span>This updates only the saved bill's next payment amount and next due date.</span></div>
+        <div class="button-row">
+          <button class="btn btn-primary" type="submit">Update saved bill</button>
+          <button class="btn btn-secondary" type="button" data-close-modal>Cancel</button>
+        </div>
+      </form>
+    </section>
+  `;
+  document.body.appendChild(modal);
+  toggleBillScanNewFields(modal.querySelector("[data-bill-scan-select]"));
+}
+
+function toggleBillScanNewFields(select) {
+  const modal = select?.closest(".modal-backdrop");
+  const showNewFields = !select || select.value === "__new__";
+  modal?.querySelectorAll(".bill-scan-new-field").forEach((field) => {
+    field.classList.toggle("hidden", !showNewFields);
+  });
+}
+
+function imageFileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("This screenshot could not be read."));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function analyzeBillScreenshotFile(file) {
+  const allowedTypes = ["image/png", "image/jpeg", "image/webp"];
+  if (!allowedTypes.includes(file.type)) throw new Error("Choose a PNG, JPG, or WebP bill screenshot.");
+  if (file.size > 5 * 1024 * 1024) throw new Error("Bill screenshots must be 5 MB or smaller.");
+
+  const account = currentAccount();
+  const bills = billScanSourceBills(account);
+  let uploadMeta = { name: file.name, type: file.type, size: file.size };
+  let scanPayload;
+  if (productionBackend.enabled) {
+    const uploaded = await productionBackend.uploadPrivateFile("financial-documents", file, "bill-screenshots");
+    uploadMeta = { ...uploadMeta, ...uploaded };
+    scanPayload = { imageUrl: uploaded.dataUrl, bills };
+  } else {
+    const imageDataUrl = await imageFileToDataUrl(file);
+    uploadMeta.dataUrl = imageDataUrl;
+    scanPayload = { imageDataUrl, bills };
+  }
+
+  if (!productionBackend.enabled || typeof productionBackend.analyzeBillScreenshot !== "function") {
+    return {
+      uploadMeta,
+      scan: {
+        vendorName: file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " "),
+        amountDue: "",
+        dueDate: "",
+        matchedBillId: "",
+        confidence: 0,
+        notes: "Secure AI scanning runs on the live server. Enter the new amount and due date to save this bill update.",
+        scannedAt: new Date().toISOString(),
+      },
+    };
+  }
+
+  const result = await productionBackend.analyzeBillScreenshot(scanPayload);
+  return { uploadMeta, scan: result.scan || {} };
+}
+
+async function applyBillScanUpdate(formElement) {
+  const account = currentAccount();
+  ensureFinancialInventory(account);
+  const data = new FormData(formElement);
+  const amountDue = currencyValue(data.get("amountDue"));
+  const dueDate = String(data.get("dueDate") || "").trim();
+  if (!amountDue || !dueDate) {
+    showToast("Confirm a payment amount and due date before saving.");
+    return false;
+  }
+
+  let bill;
+  const selectedBillId = String(data.get("billId") || "");
+  if (selectedBillId === "__new__" || !selectedBillId) {
+    const name = String(data.get("newBillName") || pendingBillScanUpload?.scan?.vendorName || "").trim();
+    if (!name) {
+      showToast("Enter a bill name before saving.");
+      return false;
+    }
+    bill = {
+      ...blankRecurringBill(String(data.get("newBillCategory") || "other")),
+      name,
+    };
+    account.financialInventory.recurringBills.unshift(bill);
+  } else {
+    bill = account.financialInventory.recurringBills.find((item) => item.id === selectedBillId);
+  }
+  if (!bill) {
+    showToast("Choose a saved bill before updating.");
+    return false;
+  }
+
+  const previousAmount = bill.amount || "";
+  const previousDueDate = bill.nextDueDate || "";
+  bill.amount = amountDue.toFixed(2);
+  bill.nextDueDate = dueDate;
+  bill.paidDueDate = "";
+  bill.billScanHistory ||= [];
+  bill.billScanHistory.unshift({
+    id: uid("bill-scan"),
+    vendorName: pendingBillScanUpload?.scan?.vendorName || bill.name,
+    amountDue: bill.amount,
+    dueDate,
+    previousAmount,
+    previousDueDate,
+    confidence: Number(pendingBillScanUpload?.scan?.confidence) || 0,
+    notes: pendingBillScanUpload?.scan?.notes || "",
+    fileName: pendingBillScanUpload?.uploadMeta?.name || "",
+    storagePath: pendingBillScanUpload?.uploadMeta?.storagePath || "",
+    scannedAt: pendingBillScanUpload?.scan?.scannedAt || new Date().toISOString(),
+    savedAt: new Date().toISOString(),
+  });
+  bill.billScanHistory = bill.billScanHistory.slice(0, 10);
+  bill.lastBillScan = bill.billScanHistory[0];
+
+  saveFinancialProfileMutation(account);
+  await productionBackend.saveNow?.(appState);
+  pendingBillScanUpload = null;
+  showToast(`${bill.name} updated with the new amount and due date.`);
+  return true;
 }
 
 function creditCardProfileCard(card, index) {
@@ -6195,6 +6450,8 @@ document.addEventListener("submit", (event) => {
       "#complete-account-deletion-form",
       "#password-reset-request-form",
       "#password-update-form",
+      "#bill-scan-upload-form",
+      "#bill-scan-confirm-form",
     ].join(","),
   );
   if (remoteForm) showPageLoading();
@@ -6401,6 +6658,11 @@ document.addEventListener("click", async (event) => {
   const profileWithdrawalButton = event.target.closest("[data-withdraw-profile-savings]");
   if (profileWithdrawalButton) {
     showProfileWithdrawalModal(profileWithdrawalButton.dataset.withdrawProfileSavings);
+    return;
+  }
+
+  if (event.target.closest("[data-open-bill-scan]")) {
+    showBillScanUploadModal();
     return;
   }
 
@@ -6612,6 +6874,12 @@ document.addEventListener("click", async (event) => {
       markUpcomingPaid.disabled = false;
       showToast(error.message || "Could not mark this bill paid.");
     }
+    return;
+  }
+
+  const billScanSelect = event.target.closest("[data-bill-scan-select]");
+  if (billScanSelect) {
+    toggleBillScanNewFields(billScanSelect);
     return;
   }
 
@@ -6858,6 +7126,7 @@ document.addEventListener("click", async (event) => {
     activeView = "dashboard";
     activeFormId = null;
     pendingPaystubUpload = null;
+    pendingBillScanUpload = null;
     saveState();
     history.replaceState({}, "", window.location.pathname);
     render();
@@ -7293,6 +7562,56 @@ document.addEventListener("submit", async (event) => {
     return;
   }
 
+  if (event.target.id === "bill-scan-upload-form") {
+    event.preventDefault();
+    const submitButton = event.target.querySelector('button[type="submit"]');
+    const file = new FormData(event.target).get("billScreenshot");
+    if (!(file instanceof File) || !file.size) {
+      showToast("Choose a bill screenshot before scanning.");
+      hidePageLoading();
+      return;
+    }
+    submitButton.disabled = true;
+    try {
+      const { scan, uploadMeta } = await analyzeBillScreenshotFile(file);
+      event.target.closest(".modal-backdrop")?.remove();
+      showBillScanReviewModal(scan, uploadMeta);
+      showToast("Review the suggested bill update before saving.");
+    } catch (error) {
+      submitButton.disabled = false;
+      showToast(error.message || "The bill screenshot could not be analyzed.");
+    } finally {
+      hidePageLoading();
+    }
+    return;
+  }
+
+  if (event.target.id === "bill-scan-confirm-form") {
+    event.preventDefault();
+    const submitButton = event.target.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    try {
+      const saved = await applyBillScanUpdate(event.target);
+      if (!saved) {
+        submitButton.disabled = false;
+        hidePageLoading();
+        return;
+      }
+      event.target.closest(".modal-backdrop")?.remove();
+      if (activeView === "upcoming-bills") {
+        renderUpcomingBills();
+      } else {
+        renderProfile();
+      }
+    } catch (error) {
+      submitButton.disabled = false;
+      showToast(error.message || "The bill update could not be saved.");
+    } finally {
+      hidePageLoading();
+    }
+    return;
+  }
+
   if (event.target.id === "paystub-submit-form") {
     event.preventDefault();
     if (!pendingPaystubUpload) {
@@ -7512,6 +7831,12 @@ document.addEventListener("focusout", (event) => {
 
 document.addEventListener("change", async (event) => {
   normalizeCurrencyInput(event.target);
+  const billScanSelect = event.target.closest("[data-bill-scan-select]");
+  if (billScanSelect) {
+    toggleBillScanNewFields(billScanSelect);
+    return;
+  }
+
   const notificationPreference = event.target.closest("[data-notification-pref]");
   if (notificationPreference) {
     const account = currentAccount();
