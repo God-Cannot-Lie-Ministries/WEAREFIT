@@ -663,7 +663,7 @@
     const { data, error } = await client.functions.invoke("analyze-bill-screenshot", {
       body: payload,
     });
-    await throwFunctionError(error, "The bill screenshot could not be analyzed.");
+    await throwFunctionError(error, "The bill document could not be read.");
     return data;
   }
 

@@ -8,8 +8,8 @@ Deno.serve((request) => {
 
   return new Response(
     JSON.stringify({
-      error: "Bill screenshot scanning now runs free in the browser. Refresh F.I.T. and scan again.",
-      scanMethod: "browser_ocr",
+      error: "Bill reading now runs in the browser with PDF text first and OCR backup when needed. Refresh F.I.T. and upload the bill again.",
+      scanMethod: "hybrid_document_reader",
     }),
     {
       status: 410,

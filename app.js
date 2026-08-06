@@ -2891,7 +2891,7 @@ function renderUpcomingBills() {
           <p>Bills due within a month based on ${account.role === "coach" ? "your private coach financial profile" : "your saved financial profile"}.</p>
         </div>
         <div class="button-row">
-          <button class="btn btn-secondary" type="button" data-open-bill-scan>Scan bill screenshot</button>
+          <button class="btn btn-secondary" type="button" data-open-bill-scan>Read bill PDF</button>
           <button class="btn btn-primary" type="button" data-view="profile">Update financial profile</button>
         </div>
       </div>
@@ -3475,11 +3475,11 @@ function billScanPanel(account) {
   return `
     <div class="bill-scan-panel">
       <div>
-        <h4>Scan new bill</h4>
-        <p>Upload a bill screenshot to capture the new amount and due date. F.I.T. asks before updating a saved bill.</p>
+        <h4>Read new bill document</h4>
+        <p>Upload the original PDF bill for the best result. If needed, F.I.T. uses OCR as a backup and asks before updating a saved bill.</p>
       </div>
       <button class="btn btn-secondary btn-small" type="button" data-open-bill-scan>
-        <span aria-hidden="true">↗</span> Scan screenshot
+        <span aria-hidden="true">↗</span> Read bill
       </button>
       <span class="bill-scan-meta">${billCount ? `${billCount} saved bill${billCount === 1 ? "" : "s"} available` : "Saved bills can be added during review"}</span>
     </div>
@@ -3521,18 +3521,18 @@ function showBillScanUploadModal() {
   modal.innerHTML = `
     <section class="modal" role="dialog" aria-modal="true" aria-labelledby="bill-scan-upload-title">
       <div class="modal-header">
-        <div><p class="document-label">Bill update</p><h3 id="bill-scan-upload-title">Scan a new bill screenshot</h3></div>
+        <div><p class="document-label">Bill update</p><h3 id="bill-scan-upload-title">Read a new bill document</h3></div>
         <button class="icon-btn" type="button" aria-label="Close" data-close-modal>×</button>
       </div>
       <form id="bill-scan-upload-form" class="modal-body bill-scan-upload-form">
-        <p>Use this for a new bill amount and due date only. F.I.T. reads the screenshot in your browser first, then asks you to confirm before saving.</p>
+        <p>Use this for a new bill amount and due date only. F.I.T. reads PDF text first, then uses OCR as a backup when needed.</p>
         <label class="bill-scan-upload">
-          <input type="file" name="billScreenshot" accept="image/png,image/jpeg,image/webp" required>
-          <span>Choose bill screenshot</span>
-          <small>Free OCR scan · PNG, JPG, or WebP up to 5 MB</small>
+          <input type="file" name="billDocument" accept="application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp" required>
+          <span>Choose bill PDF, screenshot, or photo</span>
+          <small>Best: original PDF · OCR backup for images or scanned PDFs</small>
         </label>
         <div class="button-row">
-          <button class="btn btn-primary" type="submit">Read screenshot</button>
+          <button class="btn btn-primary" type="submit">Read bill</button>
           <button class="btn btn-secondary" type="button" data-close-modal>Cancel</button>
         </div>
       </form>
@@ -3562,7 +3562,7 @@ function showBillScanReviewModal(scan = {}, uploadMeta = {}) {
           <div><span>Suggested bill</span><strong>${escapeHtml(selectedBill?.name || scan.vendorName || "Review needed")}</strong></div>
           <div><span>Amount found</span><strong>${scan.amountDue ? money(scan.amountDue) : "Needs review"}</strong></div>
           <div><span>Due date found</span><strong>${scan.dueDate ? dateLabel(scan.dueDate) : "Needs review"}</strong></div>
-          <div><span>OCR match</span><strong>${Math.round((Number(scan.confidence) || 0) * 100)}%</strong></div>
+          <div><span>Reader confidence</span><strong>${Math.round((Number(scan.confidence) || 0) * 100)}%</strong></div>
         </div>
         ${scan.notes ? `<p class="bill-scan-note">${escapeHtml(scan.notes)}</p>` : ""}
         <div class="bill-scan-confirm-grid">
@@ -3589,7 +3589,7 @@ function showBillScanReviewModal(scan = {}, uploadMeta = {}) {
             <input class="input" type="date" name="dueDate" value="${escapeHtml(scan.dueDate || "")}" required>
           </div>
         </div>
-        <div class="vault-notice"><strong>Review before saving</strong><span>Free OCR can misread screenshots. Confirm the bill, amount, and date before updating the saved bill.</span></div>
+        <div class="vault-notice"><strong>Review before saving</strong><span>Document readers can misread bills. Confirm the bill, amount, and date before updating the saved bill.</span></div>
         <div class="button-row">
           <button class="btn btn-primary" type="submit">Update saved bill</button>
           <button class="btn btn-secondary" type="button" data-close-modal>Cancel</button>
@@ -3609,13 +3609,50 @@ function toggleBillScanNewFields(select) {
   });
 }
 
+function fileToArrayBuffer(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("This bill document could not be read."));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
 function imageFileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error("This screenshot could not be read."));
+    reader.onerror = () => reject(new Error("This bill image could not be read."));
     reader.readAsDataURL(file);
   });
+}
+
+function cloneArrayBuffer(buffer) {
+  if (buffer?.slice) return buffer.slice(0);
+  return new Uint8Array(buffer || []).slice().buffer;
+}
+
+async function loadPdfTextLibrary() {
+  if (window.pdfjsLib?.getDocument) return window.pdfjsLib;
+  if (window.__fitPdfTextLoadPromise) return window.__fitPdfTextLoadPromise;
+  window.__fitPdfTextLoadPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js";
+    script.async = true;
+    script.crossOrigin = "anonymous";
+    script.onload = () => {
+      if (window.pdfjsLib?.getDocument) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+        resolve(window.pdfjsLib);
+      } else {
+        reject(new Error("The PDF document reader could not start."));
+      }
+    };
+    script.onerror = () => reject(new Error("The PDF document reader could not load."));
+    document.head.appendChild(script);
+  });
+  return window.__fitPdfTextLoadPromise;
 }
 
 async function loadTesseractOcrLibrary() {
@@ -3630,16 +3667,16 @@ async function loadTesseractOcrLibrary() {
       if (window.Tesseract?.createWorker) {
         resolve(window.Tesseract);
       } else {
-        reject(new Error("The free OCR reader could not start."));
+        reject(new Error("The OCR backup reader could not start."));
       }
     };
-    script.onerror = () => reject(new Error("The free OCR reader could not load."));
+    script.onerror = () => reject(new Error("The OCR backup reader could not load."));
     document.head.appendChild(script);
   });
   return window.__fitTesseractLoadPromise;
 }
 
-function normalizeOcrText(text = "") {
+function normalizeBillDocumentText(text = "") {
   return String(text || "")
     .replace(/[|]+/g, " ")
     .replace(/[“”]/g, '"')
@@ -3648,7 +3685,7 @@ function normalizeOcrText(text = "") {
     .trim();
 }
 
-function billScanWordSet(value = "") {
+function billDocumentWordSet(value = "") {
   return new Set(
     String(value || "")
       .toLowerCase()
@@ -3658,27 +3695,27 @@ function billScanWordSet(value = "") {
   );
 }
 
-function scoreBillOcrMatch(text, bill) {
-  const sourceWords = billScanWordSet(text);
-  const billWords = billScanWordSet(bill.name);
+function scoreBillDocumentMatch(text, bill) {
+  const sourceWords = billDocumentWordSet(text);
+  const billWords = billDocumentWordSet(bill.name);
   if (!sourceWords.size || !billWords.size) return 0;
   const overlap = [...billWords].filter((word) => sourceWords.has(word)).length;
-  const exactBonus = normalizeOcrText(text).toLowerCase().includes(normalizeOcrText(bill.name).toLowerCase()) ? 0.35 : 0;
+  const exactBonus = normalizeBillDocumentText(text).toLowerCase().includes(normalizeBillDocumentText(bill.name).toLowerCase()) ? 0.35 : 0;
   return Math.min(1, overlap / billWords.size + exactBonus);
 }
 
-function bestOcrBillMatch(text, bills = []) {
+function bestBillDocumentMatch(text, bills = []) {
   return bills.reduce(
     (best, bill) => {
-      const confidence = scoreBillOcrMatch(text, bill);
+      const confidence = scoreBillDocumentMatch(text, bill);
       return confidence > best.confidence ? { id: bill.id, name: bill.name, confidence } : best;
     },
     { id: "", name: "", confidence: 0 },
   );
 }
 
-function parseOcrDateValue(rawDate) {
-  const cleaned = normalizeOcrText(rawDate).replace(/(\d)(st|nd|rd|th)\b/gi, "$1");
+function parseBillDocumentDateValue(rawDate) {
+  const cleaned = normalizeBillDocumentText(rawDate).replace(/(\d)(st|nd|rd|th)\b/gi, "$1");
   if (!cleaned) return "";
   const numeric = cleaned.match(/^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?$/);
   let parsed;
@@ -3703,29 +3740,51 @@ function parseOcrDateValue(rawDate) {
   return dateValueFromLocal(parsed);
 }
 
-function extractOcrDueDate(text) {
+function extractBillDocumentDueDate(text) {
   const candidates = [];
-  const monthPattern = /\b(?:due|pay by|payment due|must pay by|autopay date|date due)?\s*((?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,\s*\d{2,4})?)/gi;
-  const numericPattern = /\b(?:due|pay by|payment due|must pay by|autopay date|date due)?\s*(\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\b/gi;
+  const context = "(?:due date|date due|payment due date|payment due|due by|pay by|must pay by|autopay date|scheduled payment date)";
+  const monthDate = "((?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,\\s*\\d{2,4})?)";
+  const numericDate = "(\\d{1,2}[/-]\\d{1,2}(?:[/-]\\d{2,4})?)";
+  const contextualMonthPattern = new RegExp(`\\b${context}\\D{0,45}${monthDate}`, "gi");
+  const contextualNumericPattern = new RegExp(`\\b${context}\\D{0,45}${numericDate}`, "gi");
+  const monthPattern = new RegExp(`\\b${monthDate}`, "gi");
+  const numericPattern = new RegExp(`\\b${numericDate}\\b`, "gi");
   let match;
+  while ((match = contextualMonthPattern.exec(text))) {
+    candidates.push({ raw: match[1], score: 5 });
+  }
+  while ((match = contextualNumericPattern.exec(text))) {
+    candidates.push({ raw: match[1], score: 5 });
+  }
   while ((match = monthPattern.exec(text))) {
-    candidates.push({ raw: match[1], score: /due|pay by|payment due|must pay by|date due/i.test(match[0]) ? 2 : 1 });
+    candidates.push({ raw: match[1], score: 1 });
   }
   while ((match = numericPattern.exec(text))) {
-    candidates.push({ raw: match[1], score: /due|pay by|payment due|must pay by|date due/i.test(match[0]) ? 2 : 1 });
+    candidates.push({ raw: match[1], score: 1 });
   }
   return candidates
-    .map((candidate) => ({ ...candidate, value: parseOcrDateValue(candidate.raw) }))
+    .map((candidate) => ({ ...candidate, value: parseBillDocumentDateValue(candidate.raw) }))
     .filter((candidate) => candidate.value)
     .sort((a, b) => b.score - a.score || a.value.localeCompare(b.value))[0]?.value || "";
 }
 
-function extractOcrAmountDue(text) {
+function extractBillDocumentAmountDue(text) {
   const candidates = [];
-  const contextualPattern = /\b(?:amount due|total due|payment due|new charges|balance due|please pay|current amount due|total amount due)\D{0,35}(\$?\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\$?\s*\d+(?:\.\d{2})?)/gi;
+  const amountValue = "(\\$?\\s*\\d{1,3}(?:,\\d{3})*(?:\\.\\d{2})?|\\$?\\s*\\d+(?:\\.\\d{2})?)";
+  const strongestContext = "(?:amount due|total amount due|current amount due|payment amount due|please pay|total due|balance due)";
+  const weakerContext = "(?:new charges|current charges|total new charges|auto pay amount|automatic payment amount|minimum payment due|payment due)";
+  const strongestAfterPattern = new RegExp(`\\b${strongestContext}\\D{0,55}${amountValue}`, "gi");
+  const strongestBeforePattern = new RegExp(`${amountValue}\\D{0,45}\\b${strongestContext}`, "gi");
+  const weakerAfterPattern = new RegExp(`\\b${weakerContext}\\D{0,55}${amountValue}`, "gi");
   const moneyPattern = /\$\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\d+(?:\.\d{2})?)/g;
   let match;
-  while ((match = contextualPattern.exec(text))) {
+  while ((match = strongestAfterPattern.exec(text))) {
+    candidates.push({ value: currencyValue(match[1]), score: 6 });
+  }
+  while ((match = strongestBeforePattern.exec(text))) {
+    candidates.push({ value: currencyValue(match[1]), score: 5 });
+  }
+  while ((match = weakerAfterPattern.exec(text))) {
     candidates.push({ value: currencyValue(match[1]), score: 3 });
   }
   while ((match = moneyPattern.exec(text))) {
@@ -3736,69 +3795,222 @@ function extractOcrAmountDue(text) {
     .sort((a, b) => b.score - a.score || b.value - a.value)[0]?.value.toFixed(2) || "";
 }
 
-function extractOcrVendorName(text, bills = [], fileName = "") {
-  const bestMatch = bestOcrBillMatch(text, bills);
+function extractBillDocumentVendorName(text, bills = [], fileName = "") {
+  const bestMatch = bestBillDocumentMatch(text, bills);
   if (bestMatch.confidence >= 0.35) return bestMatch.name;
   const lines = String(text || "")
     .split(/\n+/)
-    .map((line) => normalizeOcrText(line))
+    .map((line) => normalizeBillDocumentText(line))
     .filter((line) => line && !/amount|total|due|balance|account|statement|payment|\$|\d{1,2}[/-]\d{1,2}/i.test(line));
   return lines[0]?.slice(0, 80) || fileName.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").slice(0, 80);
 }
 
-async function runBrowserBillOcr(imageDataUrl, file, bills = []) {
+function analyzeBillDocumentText(text, file, bills = [], options = {}) {
+  const normalizedText = normalizeBillDocumentText(text);
+  const match = bestBillDocumentMatch(normalizedText, bills);
+  const amountDue = extractBillDocumentAmountDue(normalizedText);
+  const dueDate = extractBillDocumentDueDate(normalizedText);
+  const confidence = Math.min(
+    1,
+    (match.confidence || 0) * 0.5 + (amountDue ? 0.25 : 0) + (dueDate ? 0.2 : 0) + (normalizedText ? 0.05 : 0),
+  );
+  return {
+    vendorName: extractBillDocumentVendorName(text, bills, file.name),
+    amountDue,
+    dueDate,
+    matchedBillId: match.confidence >= 0.35 ? match.id : "",
+    confidence,
+    notes: options.notes || (
+      normalizedText
+        ? "F.I.T. read this bill and found a suggested update. Review the amount and due date before saving."
+        : "F.I.T. could not find readable bill text. Enter the new amount and due date manually."
+    ),
+    scannedAt: new Date().toISOString(),
+    scanMethod: options.scanMethod || "document_text",
+  };
+}
+
+function billScanHasSuggestion(scan = {}) {
+  return Boolean(scan.matchedBillId || scan.amountDue || scan.dueDate || normalizeBillDocumentText(scan.vendorName));
+}
+
+function billScanNeedsOcrBackup(scan = {}) {
+  return !scan.amountDue || !scan.dueDate || !scan.matchedBillId || Number(scan.confidence || 0) < 0.75;
+}
+
+function combineBillDocumentScans(primaryScan, backupScan) {
+  if (!primaryScan || !billScanHasSuggestion(primaryScan)) return backupScan || primaryScan;
+  if (!backupScan || !billScanHasSuggestion(backupScan)) return primaryScan;
+
+  const matchSource =
+    backupScan.matchedBillId && Number(backupScan.confidence || 0) > Number(primaryScan.confidence || 0)
+      ? backupScan
+      : primaryScan;
+  const amountSource = primaryScan.amountDue ? primaryScan : backupScan;
+  const dueDateSource = primaryScan.dueDate ? primaryScan : backupScan;
+  const vendorSource =
+    matchSource.vendorName || primaryScan.vendorName ? matchSource : backupScan.vendorName ? backupScan : primaryScan;
+  const fieldBoost =
+    (primaryScan.amountDue && backupScan.amountDue ? 0.03 : 0) +
+    (primaryScan.dueDate && backupScan.dueDate ? 0.03 : 0) +
+    (primaryScan.matchedBillId && backupScan.matchedBillId ? 0.04 : 0);
+
+  return {
+    ...primaryScan,
+    vendorName: vendorSource.vendorName || primaryScan.vendorName || backupScan.vendorName || "",
+    amountDue: amountSource.amountDue || backupScan.amountDue || "",
+    dueDate: dueDateSource.dueDate || backupScan.dueDate || "",
+    matchedBillId: matchSource.matchedBillId || primaryScan.matchedBillId || backupScan.matchedBillId || "",
+    confidence: Math.min(1, Math.max(Number(primaryScan.confidence || 0), Number(backupScan.confidence || 0)) + fieldBoost),
+    notes: "F.I.T. compared PDF text with OCR backup and combined the strongest suggestion. Review the bill, amount, and date before saving.",
+    scanMethod: `${primaryScan.scanMethod || "pdf_text"}+${backupScan.scanMethod || "ocr_backup"}`,
+    sourceSuggestions: [primaryScan, backupScan].map((scan) => ({
+      scanMethod: scan.scanMethod || "",
+      vendorName: scan.vendorName || "",
+      amountDue: scan.amountDue || "",
+      dueDate: scan.dueDate || "",
+      matchedBillId: scan.matchedBillId || "",
+      confidence: Number(scan.confidence || 0),
+    })),
+  };
+}
+
+async function extractPdfBillDocumentText(file, data) {
+  const pdfjsLib = await loadPdfTextLibrary();
+  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(cloneArrayBuffer(data)) });
+  const pdf = await loadingTask.promise;
+  const pageLimit = Math.min(pdf.numPages || 0, 12);
+  const lines = [];
+  for (let pageNumber = 1; pageNumber <= pageLimit; pageNumber += 1) {
+    showPageLoading(`Reading PDF page ${pageNumber} of ${pageLimit}...`);
+    const page = await pdf.getPage(pageNumber);
+    const content = await page.getTextContent();
+    const pageText = (content.items || [])
+      .map((item) => String(item.str || "").trim())
+      .filter(Boolean)
+      .join(" ");
+    if (pageText) lines.push(pageText);
+  }
+  const text = lines.join("\n");
+  if (!normalizeBillDocumentText(text)) {
+    throw new Error("This PDF does not contain selectable bill text. Upload the original PDF bill or enter the amount and due date manually.");
+  }
+  return text;
+}
+
+async function renderPdfBillPagesForOcr(file, data) {
+  const pdfjsLib = await loadPdfTextLibrary();
+  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(cloneArrayBuffer(data)) });
+  const pdf = await loadingTask.promise;
+  const pageLimit = Math.min(pdf.numPages || 0, 2);
+  const images = [];
+  for (let pageNumber = 1; pageNumber <= pageLimit; pageNumber += 1) {
+    showPageLoading(`Preparing OCR backup page ${pageNumber} of ${pageLimit}...`);
+    const page = await pdf.getPage(pageNumber);
+    const baseViewport = page.getViewport({ scale: 1 });
+    const scale = Math.min(2.2, Math.max(1.4, 1500 / Math.max(baseViewport.width, 1)));
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    await page.render({ canvasContext: context, viewport }).promise;
+    images.push(canvas.toDataURL("image/png"));
+  }
+  if (!images.length) throw new Error("This PDF could not be prepared for OCR backup.");
+  return images;
+}
+
+async function readBillTextWithOcr(imageDataUrls, label = "bill") {
+  const urls = Array.isArray(imageDataUrls) ? imageDataUrls : [imageDataUrls];
   const Tesseract = await loadTesseractOcrLibrary();
   const worker = await Tesseract.createWorker("eng", 1, {
     logger: (message) => {
       if (message?.status === "recognizing text" && Number.isFinite(message.progress)) {
-        showPageLoading(`Reading screenshot... ${Math.round(message.progress * 100)}%`);
+        showPageLoading(`Reading ${label} with OCR... ${Math.round(message.progress * 100)}%`);
       }
     },
   });
   try {
-    const result = await worker.recognize(imageDataUrl);
-    const rawText = result?.data?.text || "";
-    const text = normalizeOcrText(rawText);
-    const match = bestOcrBillMatch(text, bills);
-    const amountDue = extractOcrAmountDue(text);
-    const dueDate = extractOcrDueDate(text);
-    const confidence = Math.min(
-      1,
-      (match.confidence || 0) * 0.45 + (amountDue ? 0.25 : 0) + (dueDate ? 0.25 : 0) + (text ? 0.05 : 0),
-    );
-    return {
-      vendorName: extractOcrVendorName(rawText, bills, file.name),
-      amountDue,
-      dueDate,
-      matchedBillId: match.confidence >= 0.35 ? match.id : "",
-      confidence,
-      notes: text
-        ? "Free OCR read this screenshot on your device. Review the amount and due date before saving."
-        : "Free OCR could not read clear text. Enter the new amount and due date manually.",
-      scannedAt: new Date().toISOString(),
-      scanMethod: "browser_ocr",
-    };
+    const texts = [];
+    for (let index = 0; index < urls.length; index += 1) {
+      if (urls.length > 1) showPageLoading(`Reading ${label} OCR page ${index + 1} of ${urls.length}...`);
+      const result = await worker.recognize(urls[index]);
+      texts.push(result?.data?.text || "");
+    }
+    return texts.join("\n");
   } finally {
     await worker.terminate();
   }
 }
 
-async function analyzeBillScreenshotFile(file) {
-  const allowedTypes = ["image/png", "image/jpeg", "image/webp"];
-  if (!allowedTypes.includes(file.type)) throw new Error("Choose a PNG, JPG, or WebP bill screenshot.");
-  if (file.size > 5 * 1024 * 1024) throw new Error("Bill screenshots must be 5 MB or smaller.");
+async function runBrowserBillOcr(imageDataUrls, file, bills = [], scanMethod = "ocr_backup") {
+  const text = await readBillTextWithOcr(imageDataUrls, file.name || "bill");
+  return analyzeBillDocumentText(text, file, bills, {
+    scanMethod,
+    notes: text
+      ? "OCR backup found a suggested bill update. Review the amount and due date before saving."
+      : "OCR backup could not find clear bill text. Enter the new amount and due date manually.",
+  });
+}
+
+async function analyzeBillDocumentFile(file) {
+  const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name || "");
+  const isImage = ["image/png", "image/jpeg", "image/webp"].includes(file.type) || /\.(png|jpe?g|webp)$/i.test(file.name || "");
+  if (!isPdf && !isImage) throw new Error("Choose a bill PDF, PNG, JPG, or WebP file.");
+  if (isPdf && file.size > 10 * 1024 * 1024) throw new Error("Bill PDFs must be 10 MB or smaller.");
+  if (isImage && file.size > 5 * 1024 * 1024) throw new Error("Bill images must be 5 MB or smaller.");
 
   const account = currentAccount();
   const bills = billScanSourceBills(account);
-  const imageDataUrl = await imageFileToDataUrl(file);
   const uploadMeta = {
     name: file.name,
     type: file.type,
     size: file.size,
-    scanMethod: "browser_ocr",
+    scanMethod: isPdf ? "pdf_text" : "image_ocr",
   };
   try {
-    const scan = await runBrowserBillOcr(imageDataUrl, file, bills);
+    if (isImage) {
+      const imageDataUrl = await imageFileToDataUrl(file);
+      const scan = await runBrowserBillOcr(imageDataUrl, file, bills, "image_ocr");
+      return { uploadMeta: { ...uploadMeta, scanMethod: scan.scanMethod }, scan };
+    }
+
+    const data = await fileToArrayBuffer(file);
+    let pdfTextScan = null;
+    let ocrScan = null;
+    try {
+      const text = await extractPdfBillDocumentText(file, data);
+      pdfTextScan = analyzeBillDocumentText(text, file, bills, {
+        scanMethod: "pdf_text",
+        notes: "F.I.T. read selectable PDF text from this bill. Review the amount and due date before saving.",
+      });
+    } catch (textError) {
+      pdfTextScan = {
+        vendorName: file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " "),
+        amountDue: "",
+        dueDate: "",
+        matchedBillId: "",
+        confidence: 0,
+        notes: `${textError?.message || "PDF text could not be read."} Trying OCR backup where possible.`,
+        scannedAt: new Date().toISOString(),
+        scanMethod: "pdf_text_unreadable",
+      };
+    }
+
+    if (billScanNeedsOcrBackup(pdfTextScan)) {
+      try {
+        const pdfImages = await renderPdfBillPagesForOcr(file, data);
+        ocrScan = await runBrowserBillOcr(pdfImages, file, bills, "pdf_ocr_backup");
+      } catch (ocrError) {
+        if (!billScanHasSuggestion(pdfTextScan)) {
+          pdfTextScan.notes = `${pdfTextScan.notes || "PDF text was not enough."} OCR backup also could not read this bill. Enter the new amount and due date manually.`;
+        }
+      }
+    }
+
+    const scan = combineBillDocumentScans(pdfTextScan, ocrScan) || pdfTextScan;
+    uploadMeta.scanMethod = scan.scanMethod || uploadMeta.scanMethod;
     return { uploadMeta, scan };
   } catch (error) {
     return {
@@ -3811,9 +4023,9 @@ async function analyzeBillScreenshotFile(file) {
         confidence: 0,
         notes: error?.message
           ? `${error.message} Enter the new amount and due date manually.`
-          : "Free OCR could not read this screenshot. Enter the new amount and due date manually.",
+          : "The bill document could not be read. Enter the new amount and due date manually.",
         scannedAt: new Date().toISOString(),
-        scanMethod: "manual_fallback",
+        scanMethod: "manual_entry",
       },
     };
   }
@@ -7728,21 +7940,21 @@ document.addEventListener("submit", async (event) => {
   if (event.target.id === "bill-scan-upload-form") {
     event.preventDefault();
     const submitButton = event.target.querySelector('button[type="submit"]');
-    const file = new FormData(event.target).get("billScreenshot");
+    const file = new FormData(event.target).get("billDocument");
     if (!(file instanceof File) || !file.size) {
-      showToast("Choose a bill screenshot before scanning.");
+      showToast("Choose a bill PDF, screenshot, or photo before reading.");
       hidePageLoading();
       return;
     }
     submitButton.disabled = true;
     try {
-      const { scan, uploadMeta } = await analyzeBillScreenshotFile(file);
+      const { scan, uploadMeta } = await analyzeBillDocumentFile(file);
       event.target.closest(".modal-backdrop")?.remove();
       showBillScanReviewModal(scan, uploadMeta);
       showToast("Review the suggested bill update before saving.");
     } catch (error) {
       submitButton.disabled = false;
-      showToast(error.message || "The bill screenshot could not be analyzed.");
+      showToast(error.message || "The bill document could not be read.");
     } finally {
       hidePageLoading();
     }
