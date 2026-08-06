@@ -12222,3 +12222,30 @@ html[data-theme="dark"] .login-brand img {
     max-width: none !important;
   }
 }
+
+/* Final currency-field guard: keeps the "$" prefix from covering digits after
+   mobile browser zoom, larger system text, or later responsive overrides. */
+.money-input-wrap {
+  --money-prefix-x: 16px;
+  --money-value-padding: 52px;
+}
+
+.money-input-wrap::before {
+  left: var(--money-prefix-x) !important;
+  width: 18px !important;
+  text-align: center !important;
+}
+
+.money-input-wrap input,
+.money-input-wrap .input,
+.money-input-wrap .table-input {
+  box-sizing: border-box !important;
+  padding-left: var(--money-value-padding) !important;
+}
+
+@media (max-width: 768px) {
+  .money-input-wrap {
+    --money-prefix-x: 17px;
+    --money-value-padding: 56px;
+  }
+}
