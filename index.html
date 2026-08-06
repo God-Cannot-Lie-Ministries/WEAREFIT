@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="WEAREFIT Financial Integrity Training member and coach portal"
+    />
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests; block-all-mixed-content" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <link rel="canonical" href="https://fit-training.org/" />
+    <script>
+      (() => {
+        const localHostnames = new Set(["localhost", "127.0.0.1", "::1", ""]);
+        if (location.protocol === "http:" && !localHostnames.has(location.hostname)) {
+          location.replace(`https://${location.host}${location.pathname}${location.search}${location.hash}`);
+        }
+      })();
+    </script>
+    <title>WEAREFIT</title>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link rel="preconnect" href="https://jrkxltypsvapusybroyp.supabase.co" crossorigin />
+    <link rel="stylesheet" href="styles.css?v=20260806-free-bill-ocr-2" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script defer src="config.js?v=20260704-reactivate-supabase"></script>
+    <script defer src="backend.js?v=20260806-free-bill-ocr-2"></script>
+    <script defer src="app-20260626-recurring-bill-restore.js?v=20260806-free-bill-ocr-2"></script>
+  </body>
+</html>
