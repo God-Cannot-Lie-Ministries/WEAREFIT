@@ -2,6 +2,19 @@
 name: Deploy static content to Pages
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "index.html"
+      - "styles.css"
+      - "app.js"
+      - "app-20260626-recurring-bill-restore.js"
+      - "backend.js"
+      - "config.example.js"
+      - "supabase-health.html"
+      - "assets/**"
+      - ".github/workflows/static.yml"
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
