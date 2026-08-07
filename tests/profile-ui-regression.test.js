@@ -43,10 +43,24 @@ test("floating calculator keeps a clean collapsed and fixed-ratio open layout", 
 test("members can suggest payment timing for coach approval", () => {
   assert.match(appSource, /memberSuggestion/);
   assert.match(appSource, /function memberSuggestionControl/);
+  assert.match(appSource, /function memberSuggestionField/);
   assert.match(appSource, /function coachSuggestionReview/);
   assert.match(appSource, /data-approve-member-suggestion/);
   assert.match(appSource, /row\.coachDecision = row\.memberSuggestion/);
+  assert.match(appSource, /mortgagePanel\(form, calc, readOnly, isCoachReview\)/);
+  assert.match(appSource, /savingsPanel\(form, calc, readOnly, isCoachReview\)/);
+  assert.match(appSource, /debtPanel\(form, calc, readOnly, isCoachReview\)/);
+  assert.match(appSource, /studentLoanPanel\(form, calc, readOnly, isCoachReview\)/);
+  assert.match(appSource, /allocationPanel\(form, calc, readOnly, isCoachReview\)/);
+  assert.match(appSource, /variablePanel\(form, calc, readOnly, isCoachReview\)/);
   assert.match(stylesSource, /\.member-suggestion-inline/);
   const calculateBlock = appSource.match(/function calculate\(form\) \{[\s\S]*?\n\}/)?.[0] || "";
   assert.doesNotMatch(calculateBlock, /memberSuggestion/);
+});
+
+test("printable worksheet summary includes mortgage contribution and full decision lists", () => {
+  assert.match(appSource, /function worksheetDecisionItems/);
+  assert.match(appSource, /Mortgage contribution/);
+  assert.match(appSource, /Mortgage still needed/);
+  assert.match(appSource, /paymentItemLine/);
 });

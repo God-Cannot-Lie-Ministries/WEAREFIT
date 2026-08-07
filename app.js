@@ -263,7 +263,7 @@ function blankCreditCard() {
 }
 
 function blankVariable() {
-  return { id: uid("variable"), category: "", budgeted: "" };
+  return { id: uid("variable"), category: "", budgeted: "", memberSuggestion: "", coachDecision: "" };
 }
 
 function defaultBudgetRows() {
@@ -285,6 +285,8 @@ function blankDebt() {
     promotionalRate: "",
     promotionExpiration: "",
     notes: "",
+    memberSuggestion: "",
+    coachDecision: "",
   };
 }
 
@@ -354,6 +356,8 @@ function blankStudentLoan() {
     paymentDue: "",
     dueDate: "",
     contribution: "",
+    memberSuggestion: "",
+    coachDecision: "",
   };
 }
 
@@ -777,7 +781,7 @@ function normalizeStateModels(state) {
     });
     form.data.debts = removePartialNameDuplicates(form.data.debts || [], "account").map((debt) => ({ ...blankDebt(), ...debt }));
     form.data.studentLoans = removePartialNameDuplicates(form.data.studentLoans || [], "account").map((loan) => ({ ...blankStudentLoan(), ...loan }));
-    form.data.mortgage = { totalAmount: "", interestRate: "", currentBalance: "", paymentAmount: "", nextDueDate: "", mustPayBy: "", remainingBefore: "", contribution: "", ...(form.data.mortgage || {}) };
+    form.data.mortgage = { totalAmount: "", interestRate: "", currentBalance: "", paymentAmount: "", nextDueDate: "", mustPayBy: "", remainingBefore: "", contribution: "", memberSuggestion: "", coachDecision: "", ...(form.data.mortgage || {}) };
     form.data.housingPaymentType ||= "mortgage";
     form.data.calculatorHistory ||= [];
     form.data.calculatorDraft ||= "";
@@ -786,11 +790,11 @@ function normalizeStateModels(state) {
     form.data.calculatorSize ||= null;
     form.data.calculatorMinimized ||= false;
     form.data.calculatorHistoryOpen ||= false;
-    form.data.allocations = (form.data.allocations || []).filter((item) =>
-      rolloverTypes.includes(item.type),
-    );
-    form.data.variableSpending ||= [];
-    form.data.savings ||= { goal: "", current: "", contribution: "" };
+    form.data.allocations = (form.data.allocations || [])
+      .filter((item) => rolloverTypes.includes(item.type))
+      .map((item) => ({ id: uid("allocation"), type: "", account: "", amount: "", memberSuggestion: "", coachDecision: "", ...item }));
+    form.data.variableSpending = (form.data.variableSpending || []).map((item) => ({ ...blankVariable(), ...item }));
+    form.data.savings = { goal: "", current: "", contribution: "", memberSuggestion: "", coachDecision: "", ...(form.data.savings || {}) };
     const owner = state.accounts?.[form.ownerEmail];
     if (
       form.status === "draft" &&
@@ -1144,6 +1148,8 @@ function blankForm(owner, carryForward = owner.carryForward || {}, assignedPerso
         mustPayBy: carryForward.mortgage?.mustPayBy || "",
         remainingBefore: carryForward.mortgage?.remainingBefore || "",
         contribution: "",
+        memberSuggestion: "",
+        coachDecision: "",
       },
       housingPaymentType: inventory.housingPaymentType || "mortgage",
       creditCards: sourceCards?.length
@@ -1165,12 +1171,16 @@ function blankForm(owner, carryForward = owner.carryForward || {}, assignedPerso
         goal: carryForward.savings?.goal || "",
         current: carryForward.savings?.current || "",
         contribution: "",
+        memberSuggestion: "",
+        coachDecision: "",
       },
       debts: sourceDebts?.length
         ? clone(sourceDebts).map((debt) => ({
             ...blankDebt(),
             ...debt,
             contribution: upcomingProfilePayment(debt, "minimumPayment", "dueDate"),
+            memberSuggestion: "",
+            coachDecision: "",
           }))
         : [blankDebt(), blankDebt(), blankDebt()],
       studentLoans: inventory.studentLoans?.length
@@ -1178,6 +1188,8 @@ function blankForm(owner, carryForward = owner.carryForward || {}, assignedPerso
             ...blankStudentLoan(),
             ...loan,
             contribution: upcomingProfilePayment(loan, "paymentDue", "dueDate"),
+            memberSuggestion: "",
+            coachDecision: "",
           }))
         : [],
       calculatorHistory: [],
@@ -1832,15 +1844,20 @@ function allocationTotalFor(form, type, accountName) {
   const normalizedAccount = String(accountName || "").trim().toLowerCase();
   if (!normalizedAccount) return 0;
   return currencyValue((form.data.allocations || [])
-    .filter((item) => item.type === type && String(item.account || "").trim().toLowerCase() === normalizedAccount)
+    .filter((item) => shouldPayThisCheck(item) && item.type === type && String(item.account || "").trim().toLowerCase() === normalizedAccount)
     .reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
 }
 
+function shouldPayThisCheck(row = {}) {
+  return row.coachDecision !== "next_check";
+}
+
+function effectiveContribution(row = {}) {
+  return shouldPayThisCheck(row) ? currencyValue(row.contribution) : 0;
+}
+
 function plannedContribution(row, form, type) {
-  const regularContribution =
-    type === "credit_card" && row.coachDecision === "next_check"
-      ? 0
-      : Number(row.contribution) || 0;
+  const regularContribution = effectiveContribution(row);
   return currencyValue(regularContribution + allocationTotalFor(form, type, row.account));
 }
 
@@ -1852,7 +1869,7 @@ function applySavingsRollovers(member, form) {
   const savingsAccounts = (member.savingsInvestmentAccounts || []).filter((item) => item.type === "savings");
   if (!savingsAccounts.length) return;
   (form.data.allocations || [])
-    .filter((item) => item.type === "savings" && item.account && Number(item.amount))
+    .filter((item) => shouldPayThisCheck(item) && item.type === "savings" && item.account && Number(item.amount))
     .forEach((rollover) => {
       const account = savingsAccounts.find(
         (item) => String(item.name || "").trim().toLowerCase() === String(rollover.account || "").trim().toLowerCase(),
@@ -1983,7 +2000,7 @@ function getMemberCarryForward(account) {
   const latestCalc = calculate(latest);
   const latestMortgagePaymentRemaining = currencyValue(Math.max(
     0,
-    (Number(latest.data.mortgage.paymentAmount) || 0) - (Number(latest.data.mortgage.contribution) || 0),
+    (Number(latest.data.mortgage.paymentAmount) || 0) - latestCalc.mortgageContribution,
   ));
   const profileSavings = account.savingsInvestmentAccounts?.some((item) => item.type === "savings")
     ? String(profileSavingsTotal(account))
@@ -2059,36 +2076,36 @@ function calculate(form) {
     .filter((item) => item.coachDecision !== "next_check")
     .reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
   const creditCards = currencyValue(data.creditCards.reduce(
-    (sum, item) => sum + (item.coachDecision === "next_check" ? 0 : Number(item.contribution) || 0),
+    (sum, item) => sum + effectiveContribution(item),
     0,
   ));
   const debtContributions = currencyValue(data.debts.reduce(
-    (sum, item) => sum + (Number(item.contribution) || 0),
+    (sum, item) => sum + effectiveContribution(item),
     0,
   ));
   const studentLoanContributions = currencyValue((data.studentLoans || []).reduce(
-    (sum, item) => sum + (Number(item.contribution) || 0),
+    (sum, item) => sum + effectiveContribution(item),
     0,
   ));
-  const mortgageContribution = currencyValue(data.housingPaymentType === "mortgage" ? Number(data.mortgage.contribution) || 0 : 0);
-  const savingsContribution = currencyValue(data.savings.contribution);
+  const mortgageContribution = currencyValue(data.housingPaymentType === "mortgage" ? effectiveContribution(data.mortgage) : 0);
+  const savingsContribution = effectiveContribution(data.savings);
   const totalDebt = [...data.debts, ...(data.studentLoans || [])].reduce(
     (sum, item) => sum + (Number(item.totalOwed) || 0),
     0,
   );
   const savingsRolloverTotal = currencyValue((data.allocations || [])
-    .filter((item) => item.type === "savings")
+    .filter((item) => shouldPayThisCheck(item) && item.type === "savings")
     .reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
   const savingsAfter = currencyValue(
-    (Number(data.savings.current) || 0) + (Number(data.savings.contribution) || 0) + savingsRolloverTotal,
+    (Number(data.savings.current) || 0) + savingsContribution + savingsRolloverTotal,
   );
   const mortgageAfter = currencyValue(Math.max(
     0,
     (Number(data.mortgage.currentBalance || data.mortgage.remainingBefore) || 0) -
-      (data.housingPaymentType === "mortgage" ? Number(data.mortgage.contribution) || 0 : 0),
+      mortgageContribution,
   ));
   const allocationTotal = currencyValue((data.allocations || [])
-    .filter((item) => rolloverTypes.includes(item.type))
+    .filter((item) => shouldPayThisCheck(item) && rolloverTypes.includes(item.type))
     .reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
   const totalCreditCardBalanceAfter = currencyValue(data.creditCards.reduce(
     (sum, item) => sum + remainingAfterPlannedPayment(item, form, "credit_card"),
@@ -2103,7 +2120,7 @@ function calculate(form) {
     0,
   ));
   const variableBudget = currencyValue(data.variableSpending.reduce(
-    (sum, item) => sum + (Number(item.budgeted) || 0),
+    (sum, item) => sum + (shouldPayThisCheck(item) ? Number(item.budgeted) || 0 : 0),
     0,
   ));
   const plannedBeforeBudget = currencyValue(
@@ -5104,14 +5121,14 @@ function renderEditor() {
       <div class="editor-layout" style="margin-top: ${readOnly ? "16px" : "0"}">
         <div class="editor-main">
           ${overviewPanel(form, calc, readOnly)}
-          ${form.data.housingPaymentType === "mortgage" ? mortgagePanel(form, calc, readOnly) : ""}
+          ${form.data.housingPaymentType === "mortgage" ? mortgagePanel(form, calc, readOnly, isCoachReview) : ""}
           ${billsPanel(form, calc, readOnly, isCoachReview)}
           ${creditCardPanel(form, calc, readOnly, isCoachReview)}
-          ${savingsPanel(form, calc, readOnly)}
-          ${debtPanel(form, calc, readOnly)}
-          ${studentLoanPanel(form, calc, readOnly)}
-          ${allocationPanel(form, calc, readOnly)}
-          ${variablePanel(form, calc, readOnly)}
+          ${savingsPanel(form, calc, readOnly, isCoachReview)}
+          ${debtPanel(form, calc, readOnly, isCoachReview)}
+          ${studentLoanPanel(form, calc, readOnly, isCoachReview)}
+          ${allocationPanel(form, calc, readOnly, isCoachReview)}
+          ${variablePanel(form, calc, readOnly, isCoachReview)}
           ${notesPanel(form, readOnly)}
         </div>
         <aside class="editor-aside">
@@ -5200,10 +5217,11 @@ function billGroup(form, key, label, readOnly, isCoachReview) {
   `;
 }
 
-function mortgagePanel(form, calc, readOnly) {
+function mortgagePanel(form, calc, readOnly, isCoachReview) {
   const mortgage = form.data.mortgage;
   const total = Number(mortgage.totalAmount) || 0;
-  const paymentRemaining = currencyValue(Math.max(0, (Number(mortgage.paymentAmount) || 0) - (Number(mortgage.contribution) || 0)));
+  const canSuggest = !readOnly && !isCoachReview && form.status !== "approved";
+  const paymentRemaining = currencyValue(Math.max(0, (Number(mortgage.paymentAmount) || 0) - calc.mortgageContribution));
   const progress = total ? Math.min(100, Math.max(0, ((total - calc.mortgageAfter) / total) * 100)) : 0;
   return `
     <section class="panel" id="mortgage">
@@ -5216,6 +5234,8 @@ function mortgagePanel(form, calc, readOnly) {
         ${dateField("Next due date", "mortgage.nextDueDate", mortgage.nextDueDate, readOnly)}
         ${dateField("Must pay by", "mortgage.mustPayBy", mortgage.mustPayBy, readOnly)}
         ${moneyField("This check's contribution", "mortgage.contribution", mortgage.contribution, readOnly)}
+        ${isCoachReview ? "" : memberSuggestionField("mortgage", mortgage, canSuggest)}
+        ${coachPlanField("mortgage", mortgage, isCoachReview)}
         ${computedField("Payment still needed", money(paymentRemaining), "mortgage-payment-needed")}
       </div>
       <div class="savings-progress-block">${progressBar(progress, `${Math.round(progress)}% of mortgage paid`)}</div>
@@ -5289,8 +5309,9 @@ function creditCardCard(form, row, index, readOnly, isCoachReview) {
   `;
 }
 
-function variablePanel(form, calc, readOnly) {
+function variablePanel(form, calc, readOnly, isCoachReview) {
   const overBudget = calc.available < 0;
+  const canSuggest = !readOnly && !isCoachReview && form.status !== "approved";
   return `
     <section class="panel final-budget-panel ${overBudget ? "over-budget" : ""}" id="spending">
       <div class="panel-heading">
@@ -5307,8 +5328,11 @@ function variablePanel(form, calc, readOnly) {
           <tbody>
             ${form.data.variableSpending.map((row, index) => `
               <tr>
-                <td><input class="table-input" data-path="variableSpending.${index}.category" value="${escapeHtml(row.category)}" placeholder="Category" ${readOnly ? "disabled" : ""}></td>
+                <td><input class="table-input" data-path="variableSpending.${index}.category" value="${escapeHtml(row.category)}" placeholder="Category" ${readOnly ? "disabled" : ""}>
+                  ${isCoachReview ? "" : `<div class="member-suggestion-inline"><span>Your suggestion</span>${memberSuggestionControl(`variableSpending.${index}.memberSuggestion`, row.memberSuggestion, canSuggest)}${row.coachDecision ? `<small>Coach plan: ${paymentTimingLabel(row.coachDecision, "Not reviewed")}</small>` : ""}</div>`}
+                </td>
                 <td><div class="money-input-wrap"><input class="table-input" type="text" inputmode="decimal" data-currency-input data-path="variableSpending.${index}.budgeted" value="${moneyInputValue(row.budgeted)}" placeholder="0.00" ${readOnly ? "disabled" : ""}></div></td>
+                ${isCoachReview ? `<td>${billDecisionControl(`variableSpending.${index}.coachDecision`, row.coachDecision, true, row.memberSuggestion, `variableSpending.${index}`)}</td>` : ""}
                 <td class="mobile-row-action">${readOnly ? "" : `<button class="icon-btn danger" type="button" title="Remove category" aria-label="Remove category" data-remove-row="variableSpending.${index}">×</button>`}</td>
               </tr>
             `).join("")}
@@ -5320,8 +5344,9 @@ function variablePanel(form, calc, readOnly) {
   `;
 }
 
-function savingsPanel(form, calc, readOnly) {
+function savingsPanel(form, calc, readOnly, isCoachReview) {
   const savings = form.data.savings;
+  const canSuggest = !readOnly && !isCoachReview && form.status !== "approved";
   return `
     <section class="panel" id="savings">
       <div class="panel-heading">
@@ -5332,6 +5357,8 @@ function savingsPanel(form, calc, readOnly) {
         ${moneyField("Savings goal", "savings.goal", savings.goal, readOnly)}
         ${moneyField("Current savings", "savings.current", savings.current, readOnly)}
         ${moneyField("This check's contribution", "savings.contribution", savings.contribution, readOnly)}
+        ${isCoachReview ? "" : memberSuggestionField("savings", savings, canSuggest)}
+        ${coachPlanField("savings", savings, isCoachReview)}
         ${computedField("Total savings after contribution", money(calc.savingsAfter), "savings-after")}
       </div>
       <div class="savings-progress-block">
@@ -5342,7 +5369,7 @@ function savingsPanel(form, calc, readOnly) {
   `;
 }
 
-function debtPanel(form, calc, readOnly) {
+function debtPanel(form, calc, readOnly, isCoachReview) {
   return `
     <section class="panel" id="debt">
       <div class="panel-heading">
@@ -5350,16 +5377,17 @@ function debtPanel(form, calc, readOnly) {
         ${readOnly ? "" : `<button class="btn btn-secondary btn-small" type="button" data-add-row="debts"><span aria-hidden="true">＋</span> Add debt</button>`}
       </div>
       <div class="debt-card-list">
-        ${form.data.debts.map((row, index) => debtCard(form, row, index, readOnly)).join("")}
+        ${form.data.debts.map((row, index) => debtCard(form, row, index, readOnly, isCoachReview)).join("")}
       </div>
       <div class="table-total"><span>Remaining debt after planned payments</span><strong>${money(calc.totalDebtBalanceAfter)}</strong></div>
     </section>
   `;
 }
 
-function debtCard(form, row, index, readOnly) {
+function debtCard(form, row, index, readOnly, isCoachReview) {
   const remaining = remainingAfterPlannedPayment(row, form, "debt");
   const extraPayment = allocationTotalFor(form, "debt", row.account);
+  const canSuggest = !readOnly && !isCoachReview && form.status !== "approved";
   return `
     <article class="debt-entry debt-tracker-entry">
       <div class="debt-entry-heading">
@@ -5372,6 +5400,8 @@ function debtCard(form, row, index, readOnly) {
         ${moneyField("Minimum payment", `debts.${index}.minimumPayment`, row.minimumPayment, readOnly)}
         ${moneyField("This check's contribution", `debts.${index}.contribution`, row.contribution, readOnly)}
         ${row.promotionalRateApplied ? "" : percentField("Annual APR", `debts.${index}.apr`, row.apr, readOnly)}
+        ${isCoachReview ? "" : memberSuggestionField(`debts.${index}`, row, canSuggest)}
+        ${coachPlanField(`debts.${index}`, row, isCoachReview)}
       </div>
       <label class="check-control">
         <input type="checkbox" data-promo-toggle="${index}" ${row.promotionalRateApplied ? "checked" : ""} ${readOnly ? "disabled" : ""}>
@@ -5390,20 +5420,21 @@ function debtCard(form, row, index, readOnly) {
   `;
 }
 
-function studentLoanPanel(form, calc, readOnly) {
+function studentLoanPanel(form, calc, readOnly, isCoachReview) {
   return `
     <section class="panel" id="student-loans">
       <div class="panel-heading"><div><h3>Student loans</h3><p>Plan payments while tracking each remaining balance.</p></div>${readOnly ? "" : `<button class="btn btn-secondary btn-small" type="button" data-add-row="studentLoans"><span aria-hidden="true">＋</span> Add student loan</button>`}</div>
-      <div class="debt-card-list">${(form.data.studentLoans || []).map((loan, index) => studentLoanCard(form, loan, index, readOnly)).join("") || emptyInline("No student loans", "Add a student loan from the form or financial profile.")}</div>
+      <div class="debt-card-list">${(form.data.studentLoans || []).map((loan, index) => studentLoanCard(form, loan, index, readOnly, isCoachReview)).join("") || emptyInline("No student loans", "Add a student loan from the form or financial profile.")}</div>
       <div class="table-total"><span>This check's student loan subtotal</span><strong>${money(calc.studentLoanContributions)}</strong></div>
       <div class="table-total"><span>Remaining student loan balance after planned payments</span><strong>${money(calc.totalStudentLoanBalanceAfter)}</strong></div>
     </section>
   `;
 }
 
-function studentLoanCard(form, loan, index, readOnly) {
+function studentLoanCard(form, loan, index, readOnly, isCoachReview) {
   const remaining = remainingAfterPlannedPayment(loan, form, "student_loan");
   const extraPayment = allocationTotalFor(form, "student_loan", loan.account);
+  const canSuggest = !readOnly && !isCoachReview && form.status !== "approved";
   return `<article class="debt-entry student-loan-entry"><div class="debt-entry-heading"><div><strong>${escapeHtml(loan.account || "New student loan")}</strong><span class="entry-balance">${money(remaining)} remaining${extraPayment ? ` · ${money(extraPayment)} rolled over` : ""}</span></div>${readOnly ? "" : `<button class="icon-btn danger" type="button" title="Remove student loan" aria-label="Remove student loan" data-remove-row="studentLoans.${index}">×</button>`}</div><div class="debt-entry-grid">
     ${textField("Loan name", `studentLoans.${index}.account`, loan.account, readOnly, "Student loan name")}
     ${studentLoanTypeField(`studentLoans.${index}.loanType`, loan.loanType, readOnly)}
@@ -5412,6 +5443,8 @@ function studentLoanCard(form, loan, index, readOnly) {
     ${moneyField("Payment due", `studentLoans.${index}.paymentDue`, loan.paymentDue, readOnly)}
     ${dateField("Due date", `studentLoans.${index}.dueDate`, loan.dueDate, readOnly)}
     ${moneyField("This check's contribution", `studentLoans.${index}.contribution`, loan.contribution, readOnly)}
+    ${isCoachReview ? "" : memberSuggestionField(`studentLoans.${index}`, loan, canSuggest)}
+    ${coachPlanField(`studentLoans.${index}`, loan, isCoachReview)}
   </div></article>`;
 }
 
@@ -5439,8 +5472,9 @@ function allocationTargetOptions(form, selectedType, selectedAccount) {
     .join("")}`;
 }
 
-function allocationPanel(form, calc, readOnly) {
+function allocationPanel(form, calc, readOnly, isCoachReview) {
   const rows = form.data.allocations || [];
+  const canSuggest = !readOnly && !isCoachReview && form.status !== "approved";
   return `
     <section class="panel debt-routing-panel" id="allocations">
       <div class="panel-heading">
@@ -5454,6 +5488,8 @@ function allocationPanel(form, calc, readOnly) {
               <article class="routing-row">
                 <div class="field"><label>Rollover target</label><button class="input selection-field-button" type="button" data-open-allocation-selector="${index}" ${readOnly ? "disabled" : ""}><span>${escapeHtml(row.account || "Choose a rollover target")}</span><i aria-hidden="true">⌄</i></button></div>
                 ${moneyField("Rollover amount", `allocations.${index}.amount`, row.amount, readOnly)}
+                ${isCoachReview ? "" : memberSuggestionField(`allocations.${index}`, row, canSuggest)}
+                ${coachPlanField(`allocations.${index}`, row, isCoachReview)}
                 ${readOnly ? "" : `<button class="icon-btn danger routing-remove" type="button" aria-label="Remove rollover" title="Remove rollover" data-remove-row="allocations.${index}">×</button>`}
               </article>
             `).join("")
@@ -5972,6 +6008,14 @@ function billDecisionControl(path, value, canEdit, memberSuggestion = "", rowPat
   `;
 }
 
+function memberSuggestionField(path, row, canSuggest) {
+  return `<div class="field"><label>Your suggestion</label>${memberSuggestionControl(`${path}.memberSuggestion`, row?.memberSuggestion || "", canSuggest)}</div>`;
+}
+
+function coachPlanField(path, row, isCoachReview) {
+  return `<div class="field"><label>Coach plan</label>${billDecisionControl(`${path}.coachDecision`, row?.coachDecision || "", isCoachReview, row?.memberSuggestion || "", path)}</div>`;
+}
+
 function progressBar(progress, label) {
   return `
     <div class="progress-wrap" aria-label="${escapeHtml(label)}">
@@ -6085,7 +6129,7 @@ function refreshLiveAvailable(form) {
   const calc = calculate(form);
   const mortgagePaymentRemaining = currencyValue(Math.max(
     0,
-    (Number(form.data.mortgage.paymentAmount) || 0) - (Number(form.data.mortgage.contribution) || 0),
+    (Number(form.data.mortgage.paymentAmount) || 0) - calc.mortgageContribution,
   ));
   document.querySelectorAll("[data-live-available]").forEach((element) => {
     element.textContent = money(calc.available);
@@ -6359,17 +6403,50 @@ function reviewList(items, emptyText) {
     : `<p>${escapeHtml(emptyText)}</p>`;
 }
 
+function worksheetDecisionItems(form) {
+  const payNow = [];
+  const waiting = [];
+  const pushItem = (row, label, amount, dueDate = "") => {
+    const value = currencyValue(amount);
+    if (!label || !value) return;
+    const item = { label, amount: value, dueDate };
+    (row?.coachDecision === "next_check" ? waiting : payNow).push(item);
+  };
+  Object.values(form.data.bills || {})
+    .flat()
+    .filter((bill) => bill.name)
+    .forEach((bill) => pushItem(bill, bill.name, bill.amount, bill.dueDate));
+  (form.data.creditCards || [])
+    .filter((card) => card.account)
+    .forEach((card) => pushItem(card, `Credit card: ${card.account}`, card.contribution, card.dueDate));
+  (form.data.debts || [])
+    .filter((debt) => debt.account)
+    .forEach((debt) => pushItem(debt, `Debt: ${debt.account}`, debt.contribution, debt.dueDate));
+  (form.data.studentLoans || [])
+    .filter((loan) => loan.account)
+    .forEach((loan) => pushItem(loan, `Student loan: ${loan.account}`, loan.contribution, loan.dueDate));
+  if (form.data.housingPaymentType === "mortgage") {
+    const mortgage = form.data.mortgage || {};
+    pushItem(mortgage, "Mortgage contribution", mortgage.contribution, mortgage.mustPayBy || mortgage.nextDueDate);
+  }
+  pushItem(form.data.savings, "Savings contribution", form.data.savings?.contribution);
+  (form.data.allocations || [])
+    .filter((item) => item.account || item.amount)
+    .forEach((item) => pushItem(item, `Rollover to ${item.account || item.type?.replaceAll("_", " ") || "selected account"}`, item.amount));
+  return { payNow, waiting };
+}
+
+function paymentItemLine(item) {
+  return `${item.label} - ${money(item.amount)}${item.dueDate ? ` due ${dateLabel(item.dueDate)}` : ""}`;
+}
+
 function worksheetSubmitReview(form, calc) {
-  const bills = Object.values(form.data.bills || {}).flat().filter((bill) => bill.name);
-  const payNow = bills
-    .filter((bill) => bill.coachDecision === "this_check")
-    .map((bill) => `${bill.name} - ${money(bill.amount)}${bill.dueDate ? ` due ${dateLabel(bill.dueDate)}` : ""}`);
-  const waiting = bills
-    .filter((bill) => bill.coachDecision !== "this_check")
-    .map((bill) => `${bill.name} - ${money(bill.amount)}${bill.dueDate ? ` due ${dateLabel(bill.dueDate)}` : ""}`);
+  const decisionItems = worksheetDecisionItems(form);
+  const payNow = decisionItems.payNow.map(paymentItemLine);
+  const waiting = decisionItems.waiting.map(paymentItemLine);
   const budget = (form.data.variableSpending || [])
     .filter((item) => item.category || currencyValue(item.budgeted))
-    .map((item) => `${item.category || "Budget item"} - ${money(item.budgeted)}`);
+    .map((item) => `${item.category || "Budget item"} - ${money(item.budgeted)} · ${paymentTimingLabel(item.coachDecision, "Pay this check")}`);
   const rollovers = (form.data.allocations || [])
     .filter((item) => item.account || currencyValue(item.amount))
     .map((item) => `${item.account || item.type?.replaceAll("_", " ") || "Rollover"} - ${money(item.amount)}`);
@@ -6378,9 +6455,7 @@ function worksheetSubmitReview(form, calc) {
     waiting,
     budget,
     rollovers,
-    payNowTotal: bills
-      .filter((bill) => bill.coachDecision === "this_check")
-      .reduce((sum, bill) => sum + currencyValue(bill.amount), 0),
+    payNowTotal: decisionItems.payNow.reduce((sum, item) => sum + item.amount, 0),
     totalPlanned: calc.totalPlanned,
   };
 }
@@ -6427,16 +6502,16 @@ function printWorksheetSummary(formId) {
   const latestSession = appState.sessions
     .filter((session) => session.formId === form.id)
     .sort((a, b) => new Date(b.sessionDate) - new Date(a.sessionDate))[0];
-  const bills = Object.values(form.data.bills).flat().filter((bill) => bill.name);
-  const billsPaid = bills
-    .filter((bill) => bill.coachDecision === "this_check")
-    .map((bill) => `${bill.name} - ${money(bill.amount)}`);
-  const billsRemaining = bills
-    .filter((bill) => bill.coachDecision !== "this_check")
-    .map((bill) => `${bill.name} - ${money(bill.amount)}`);
+  const decisionItems = worksheetDecisionItems(form);
+  const billsPaid = decisionItems.payNow.map(paymentItemLine);
+  const billsRemaining = decisionItems.waiting.map(paymentItemLine);
+  const mortgagePaymentRemaining = currencyValue(Math.max(
+    0,
+    (Number(form.data.mortgage.paymentAmount) || 0) - calc.mortgageContribution,
+  ));
   const budgetRows = (form.data.variableSpending || [])
     .filter((item) => item.category || Number(item.budgeted))
-    .map((item) => `${item.category || "Budget item"} - ${money(item.budgeted)}`);
+    .map((item) => `${item.category || "Budget item"} - ${money(item.budgeted)} · ${paymentTimingLabel(item.coachDecision, "Pay this check")}`);
   const allocations = (form.data.allocations || [])
     .filter((item) => item.account || Number(item.amount))
     .map((item) => `${item.account || item.type.replaceAll("_", " ")} - ${money(item.amount)}`);
@@ -6464,6 +6539,13 @@ function printWorksheetSummary(formId) {
       <div class="fact"><span>Tithe</span><strong>${titheMoney(calc.tithe)}</strong></div>
       <div class="fact"><span>Budgeted</span><strong>${money(calc.variableBudget)}</strong></div>
       <div class="fact"><span>Ready to budget</span><strong>${money(calc.available)}</strong></div>
+      ${
+        form.data.housingPaymentType === "mortgage"
+          ? `<div class="fact"><span>Mortgage payment</span><strong>${money(form.data.mortgage.paymentAmount)}</strong></div>
+             <div class="fact"><span>Mortgage contribution</span><strong>${money(calc.mortgageContribution)}</strong></div>
+             <div class="fact"><span>Mortgage still needed</span><strong>${money(mortgagePaymentRemaining)}</strong></div>`
+          : ""
+      }
     </div>
     <div class="two"><section class="section"><h2>Bills to Pay This Check</h2>${printList(billsPaid)}</section><section class="section"><h2>Future Bills / Waiting for Next Check</h2>${printList(billsRemaining)}</section></div>
     <section class="section"><h2>Budget layout</h2>${printList(budgetRows, "No budget categories recorded")}</section>
@@ -6539,7 +6621,7 @@ async function approveForm(formId, coachNotes = "", actionSteps = "") {
   form.approvedBy = coach.email;
   const mortgagePaymentRemaining = currencyValue(Math.max(
     0,
-    (Number(form.data.mortgage.paymentAmount) || 0) - (Number(form.data.mortgage.contribution) || 0),
+    (Number(form.data.mortgage.paymentAmount) || 0) - calc.mortgageContribution,
   ));
   member.carryForward = {
     bills: Object.fromEntries(
@@ -7705,7 +7787,7 @@ document.addEventListener("click", async (event) => {
     if (path === "variableSpending") target.unshift(blankVariable());
     if (path === "debts") target.unshift(blankDebt());
     if (path === "studentLoans") target.unshift(blankStudentLoan());
-    if (path === "allocations") target.unshift({ id: uid("allocation"), type: "", account: "", amount: "" });
+    if (path === "allocations") target.unshift({ id: uid("allocation"), type: "", account: "", amount: "", memberSuggestion: "", coachDecision: "" });
     form.updatedAt = new Date().toISOString();
     saveState();
     renderEditor();

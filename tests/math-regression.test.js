@@ -10,15 +10,20 @@ function allocationTotalFor(form, type, accountName) {
   const normalizedAccount = String(accountName || "").trim().toLowerCase();
   if (!normalizedAccount) return 0;
   return currencyValue((form.data.allocations || [])
-    .filter((item) => item.type === type && String(item.account || "").trim().toLowerCase() === normalizedAccount)
+    .filter((item) => shouldPayThisCheck(item) && item.type === type && String(item.account || "").trim().toLowerCase() === normalizedAccount)
     .reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
 }
 
+function shouldPayThisCheck(row = {}) {
+  return row.coachDecision !== "next_check";
+}
+
+function effectiveContribution(row = {}) {
+  return shouldPayThisCheck(row) ? currencyValue(row.contribution) : 0;
+}
+
 function plannedContribution(row, form, type) {
-  const regularContribution =
-    type === "credit_card" && row.coachDecision === "next_check"
-      ? 0
-      : Number(row.contribution) || 0;
+  const regularContribution = effectiveContribution(row);
   return currencyValue(regularContribution + allocationTotalFor(form, type, row.account));
 }
 
@@ -37,29 +42,29 @@ function calculate(form) {
     .filter((item) => item.coachDecision !== "next_check")
     .reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
   const creditCards = currencyValue(data.creditCards.reduce(
-    (sum, item) => sum + (item.coachDecision === "next_check" ? 0 : Number(item.contribution) || 0),
+    (sum, item) => sum + effectiveContribution(item),
     0,
   ));
   const debtContributions = currencyValue(data.debts.reduce(
-    (sum, item) => sum + (Number(item.contribution) || 0),
+    (sum, item) => sum + effectiveContribution(item),
     0,
   ));
   const studentLoanContributions = currencyValue((data.studentLoans || []).reduce(
-    (sum, item) => sum + (Number(item.contribution) || 0),
+    (sum, item) => sum + effectiveContribution(item),
     0,
   ));
-  const mortgageContribution = currencyValue(data.housingPaymentType === "mortgage" ? Number(data.mortgage.contribution) || 0 : 0);
-  const savingsContribution = currencyValue(data.savings.contribution);
+  const mortgageContribution = currencyValue(data.housingPaymentType === "mortgage" ? effectiveContribution(data.mortgage) : 0);
+  const savingsContribution = effectiveContribution(data.savings);
   const savingsRolloverTotal = currencyValue((data.allocations || [])
-    .filter((item) => item.type === "savings")
+    .filter((item) => shouldPayThisCheck(item) && item.type === "savings")
     .reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
-  const savingsAfter = currencyValue((Number(data.savings.current) || 0) + (Number(data.savings.contribution) || 0) + savingsRolloverTotal);
+  const savingsAfter = currencyValue((Number(data.savings.current) || 0) + savingsContribution + savingsRolloverTotal);
   const mortgageAfter = currencyValue(Math.max(0, (Number(data.mortgage.currentBalance || data.mortgage.remainingBefore) || 0) - mortgageContribution));
   const allocationTotal = currencyValue((data.allocations || [])
-    .filter((item) => ["debt", "credit_card", "student_loan", "savings"].includes(item.type))
+    .filter((item) => shouldPayThisCheck(item) && ["debt", "credit_card", "student_loan", "savings"].includes(item.type))
     .reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
   const variableBudget = currencyValue(data.variableSpending.reduce(
-    (sum, item) => sum + (Number(item.budgeted) || 0),
+    (sum, item) => sum + (shouldPayThisCheck(item) ? Number(item.budgeted) || 0 : 0),
     0,
   ));
   const plannedBeforeBudget = currencyValue(
@@ -193,6 +198,27 @@ test("member payment suggestions do not change worksheet math until coach approv
   calc = calculate(form);
   assert.equal(calc.fixedBills, 0);
   assert.equal(calc.creditCards, 0);
+});
+
+test("coach wait decision skips every contribution section for this check", () => {
+  const form = sampleForm();
+  form.data.debts[0].coachDecision = "next_check";
+  form.data.studentLoans[0].coachDecision = "next_check";
+  form.data.mortgage.coachDecision = "next_check";
+  form.data.savings.coachDecision = "next_check";
+  form.data.allocations.forEach((item) => {
+    item.coachDecision = "next_check";
+  });
+  form.data.variableSpending[0].coachDecision = "next_check";
+  const calc = calculate(form);
+  assert.equal(calc.debtContributions, 0);
+  assert.equal(calc.studentLoanContributions, 0);
+  assert.equal(calc.mortgageContribution, 0);
+  assert.equal(calc.savingsContribution, 0);
+  assert.equal(calc.allocationTotal, 0);
+  assert.equal(calc.variableBudget, 0);
+  assert.equal(calc.savingsAfter, 1000);
+  assert.equal(calc.mortgageAfter, 200000);
 });
 
 test("rollovers reduce debts and student loans", () => {
