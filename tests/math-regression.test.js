@@ -179,6 +179,22 @@ test("wait-for-next-check skips the regular card payment but still honors rollov
   assert.equal(remainingAfterPlannedPayment(form.data.creditCards[1], form, "credit_card"), 280);
 });
 
+test("member payment suggestions do not change worksheet math until coach approval", () => {
+  const form = sampleForm();
+  form.data.bills.housing[0].coachDecision = "";
+  form.data.bills.housing[0].memberSuggestion = "next_check";
+  form.data.creditCards[0].memberSuggestion = "next_check";
+  let calc = calculate(form);
+  assert.equal(calc.fixedBills, 500.1);
+  assert.equal(calc.creditCards, 75.25);
+
+  form.data.bills.housing[0].coachDecision = form.data.bills.housing[0].memberSuggestion;
+  form.data.creditCards[0].coachDecision = form.data.creditCards[0].memberSuggestion;
+  calc = calculate(form);
+  assert.equal(calc.fixedBills, 0);
+  assert.equal(calc.creditCards, 0);
+});
+
 test("rollovers reduce debts and student loans", () => {
   const form = sampleForm();
   const calc = calculate(form);

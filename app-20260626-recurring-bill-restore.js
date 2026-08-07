@@ -238,7 +238,7 @@ function todayValue() {
 }
 
 function blankBill() {
-  return { id: uid("bill"), name: "", dueDate: "", amount: "", coachDecision: "" };
+  return { id: uid("bill"), name: "", dueDate: "", amount: "", memberSuggestion: "", coachDecision: "" };
 }
 
 function blankCreditCard() {
@@ -257,6 +257,7 @@ function blankCreditCard() {
     purchasePromoExpiration: "",
     balanceTransferPromoRate: "",
     balanceTransferPromoExpiration: "",
+    memberSuggestion: "",
     coachDecision: "",
   };
 }
@@ -919,6 +920,7 @@ function recurringBillToWorksheetBill(bill) {
     name: bill.name,
     dueDate,
     amount: dueDate ? bill.amount : "",
+    memberSuggestion: "",
     coachDecision: "",
   };
 }
@@ -972,7 +974,7 @@ function syncWorksheetBillsWithProfile(existingBills = [], profileBills = []) {
   const usedNames = new Set();
   const synced = existingBills
     .map((bill) => {
-      const isEmpty = !bill.name && !bill.amount && !bill.dueDate && !bill.coachDecision;
+      const isEmpty = !bill.name && !bill.amount && !bill.dueDate && !bill.memberSuggestion && !bill.coachDecision;
       if (isEmpty) return null;
       const nameKey = String(bill.name || "").trim().toLowerCase();
       const profileBill = profileById.get(bill.profileBillId) || profileByName.get(nameKey);
@@ -986,6 +988,7 @@ function syncWorksheetBillsWithProfile(existingBills = [], profileBills = []) {
         ...blankBill(),
         ...clone(bill),
         ...profileBill,
+        memberSuggestion: bill.memberSuggestion || "",
         coachDecision: bill.coachDecision || "",
       };
     })
@@ -1020,6 +1023,7 @@ function syncWorksheetAccountsWithProfile(existingRows = [], profileRows = [], b
         ...blankFactory(),
         ...clone(profileRow),
         contribution: existingRow?.contribution || (paymentPlan ? upcomingProfilePayment(profileRow, paymentPlan.amountKey, paymentPlan.dueDateKey) : ""),
+        memberSuggestion: existingRow?.memberSuggestion || "",
         coachDecision: existingRow?.coachDecision || "",
       };
     });
@@ -1148,6 +1152,7 @@ function blankForm(owner, carryForward = owner.carryForward || {}, assignedPerso
               ...blankCreditCard(),
               ...card,
               contribution: "",
+              memberSuggestion: "",
               coachDecision: "",
             };
             migratePromoCard(nextCard);
@@ -1276,9 +1281,11 @@ function loadState() {
         Object.values(form.data.bills)
           .flat()
           .forEach((bill) => {
+            bill.memberSuggestion ||= "";
             bill.coachDecision ||= "";
           });
         form.data.creditCards.forEach((card) => {
+          card.memberSuggestion ||= "";
           card.coachDecision ||= "";
           card.apr ||= "";
           card.promotionalRateApplied = Boolean(card.promotionalRateApplied);
@@ -5162,6 +5169,7 @@ function billsPanel(form, calc, readOnly, isCoachReview) {
 function billGroup(form, key, label, readOnly, isCoachReview) {
   const rows = form.data.bills[key];
   const subtotal = rows.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const canSuggest = !readOnly && !isCoachReview && form.status !== "approved";
   return `
     <section class="subpanel">
       <div class="subpanel-heading">
@@ -5174,10 +5182,13 @@ function billGroup(form, key, label, readOnly, isCoachReview) {
           <tbody>
             ${rows.map((row, index) => `
               <tr>
-                <td data-mobile-label="Bill"><div class="bill-selector-wrap"><input class="table-input" data-bill-suggestion="${key}.${index}" data-path="bills.${key}.${index}.name" value="${escapeHtml(row.name)}" placeholder="Choose or enter bill" ${readOnly ? "disabled" : ""}>${readOnly ? "" : `<button class="bill-selector-button" type="button" data-open-bill-selector aria-label="Choose a saved bill" title="Choose a saved bill">⌄</button>`}</div></td>
+                <td data-mobile-label="Bill">
+                  <div class="bill-selector-wrap"><input class="table-input" data-bill-suggestion="${key}.${index}" data-path="bills.${key}.${index}.name" value="${escapeHtml(row.name)}" placeholder="Choose or enter bill" ${readOnly ? "disabled" : ""}>${readOnly ? "" : `<button class="bill-selector-button" type="button" data-open-bill-selector aria-label="Choose a saved bill" title="Choose a saved bill">⌄</button>`}</div>
+                  ${isCoachReview ? "" : `<div class="member-suggestion-inline"><span>Your suggestion</span>${memberSuggestionControl(`bills.${key}.${index}.memberSuggestion`, row.memberSuggestion, canSuggest)}${row.coachDecision ? `<small>Coach plan: ${paymentTimingLabel(row.coachDecision, "Not reviewed")}</small>` : ""}</div>`}
+                </td>
                 <td data-mobile-label="Due date"><input class="table-input" type="date" data-current-calendar data-path="bills.${key}.${index}.dueDate" value="${row.dueDate}" ${readOnly ? "disabled" : ""}></td>
                 <td data-mobile-label="Amount"><div class="money-input-wrap"><input class="table-input" type="text" inputmode="decimal" data-currency-input data-path="bills.${key}.${index}.amount" value="${moneyInputValue(row.amount)}" placeholder="0.00" ${readOnly ? "disabled" : ""}></div></td>
-                ${isCoachReview ? `<td data-mobile-label="Coach plan">${billDecisionControl(`bills.${key}.${index}.coachDecision`, row.coachDecision, true)}</td>` : ""}
+                ${isCoachReview ? `<td data-mobile-label="Coach plan">${billDecisionControl(`bills.${key}.${index}.coachDecision`, row.coachDecision, true, row.memberSuggestion, `bills.${key}.${index}`)}</td>` : ""}
                 <td class="mobile-row-action">${readOnly ? "" : `<button class="icon-btn danger" type="button" title="Remove row" aria-label="Remove row" data-remove-row="bills.${key}.${index}">×</button>`}</td>
               </tr>
             `).join("")}
@@ -5249,7 +5260,8 @@ function creditCardCard(form, row, index, readOnly, isCoachReview) {
         ${dateField("Due date", `creditCards.${index}.dueDate`, row.dueDate, readOnly)}
         ${moneyField("This check's contribution", `creditCards.${index}.contribution`, row.contribution, readOnly)}
         ${hasPromo ? "" : percentField("Annual APR", `creditCards.${index}.apr`, row.apr, readOnly)}
-        <div class="field"><label>Coach plan</label>${billDecisionControl(`creditCards.${index}.coachDecision`, row.coachDecision, isCoachReview)}</div>
+        ${isCoachReview ? "" : `<div class="field"><label>Your suggestion</label>${memberSuggestionControl(`creditCards.${index}.memberSuggestion`, row.memberSuggestion, !readOnly && form.status !== "approved")}</div>`}
+        <div class="field"><label>Coach plan</label>${billDecisionControl(`creditCards.${index}.coachDecision`, row.coachDecision, isCoachReview, row.memberSuggestion, `creditCards.${index}`)}</div>
         <div class="field"><label>Promotional APR</label><select class="input" data-card-promo-type="${index}" ${readOnly ? "disabled" : ""}>
           ${selectOption("none", "No promotional APR", row.promoType)}
           ${selectOption("purchases", "Purchases", row.promoType)}
@@ -5905,22 +5917,58 @@ function percentField(label, path, value, readOnly) {
   `;
 }
 
-function billDecisionControl(path, value, canEdit) {
-  if (!canEdit) {
-    const label =
-      value === "this_check"
-        ? "Pay this check"
-        : value === "next_check"
-          ? "Wait for next check"
-          : "Not reviewed";
-    return `<span class="decision-label ${value || ""}">${label}</span>`;
-  }
+function paymentTimingLabel(value, fallback = "No suggestion") {
+  if (value === "this_check") return "Pay this check";
+  if (value === "next_check") return "Wait for next check";
+  return fallback;
+}
+
+function paymentTimingBadge(value, fallback = "No suggestion") {
+  return `<span class="decision-label ${value || ""}">${paymentTimingLabel(value, fallback)}</span>`;
+}
+
+function memberSuggestionControl(path, value, canEdit) {
+  if (!canEdit) return paymentTimingBadge(value, "No suggestion");
   return `
-    <select class="table-input" data-path="${path}" aria-label="Coach payment plan">
-      <option value="" ${!value ? "selected" : ""}>Choose plan</option>
+    <select class="table-input member-suggestion-select" data-path="${path}" aria-label="Member payment suggestion">
+      <option value="" ${!value ? "selected" : ""}>Suggest plan</option>
       <option value="this_check" ${value === "this_check" ? "selected" : ""}>Pay this check</option>
       <option value="next_check" ${value === "next_check" ? "selected" : ""}>Wait for next check</option>
     </select>
+  `;
+}
+
+function coachSuggestionReview(rowPath, memberSuggestion, coachDecision) {
+  if (!memberSuggestion) {
+    return `<div class="member-suggestion-review empty"><span>Member suggestion</span><strong>None yet</strong></div>`;
+  }
+  const approved = memberSuggestion === coachDecision;
+  return `
+    <div class="member-suggestion-review ${approved ? "approved" : "pending"}">
+      <span>Member suggested</span>
+      ${paymentTimingBadge(memberSuggestion)}
+      ${
+        approved
+          ? `<strong>Approved</strong>`
+          : `<button class="btn btn-secondary btn-micro" type="button" data-approve-member-suggestion="${rowPath}">Approve</button>`
+      }
+    </div>
+  `;
+}
+
+function billDecisionControl(path, value, canEdit, memberSuggestion = "", rowPath = "") {
+  if (!canEdit) {
+    return paymentTimingBadge(value, "Not reviewed");
+  }
+  return `
+    <div class="decision-stack">
+      ${coachSuggestionReview(rowPath, memberSuggestion, value)}
+      <select class="table-input" data-path="${path}" aria-label="Coach payment plan">
+        <option value="" ${!value ? "selected" : ""}>Choose plan</option>
+        <option value="this_check" ${value === "this_check" ? "selected" : ""}>Pay this check</option>
+        <option value="next_check" ${value === "next_check" ? "selected" : ""}>Wait for next check</option>
+      </select>
+    </div>
   `;
 }
 
@@ -7545,6 +7593,39 @@ document.addEventListener("click", async (event) => {
   const printButton = event.target.closest("[data-print-form]");
   if (printButton) {
     printWorksheetSummary(printButton.dataset.printForm);
+    return;
+  }
+
+  const approveMemberSuggestionButton = event.target.closest("[data-approve-member-suggestion]");
+  if (approveMemberSuggestionButton && activeFormId) {
+    const coach = currentAccount();
+    const form = appState.forms[activeFormId];
+    const member = form ? appState.accounts[form.ownerEmail] : null;
+    if (!form || coach?.role !== "coach" || member?.coachEmail !== coach.email) {
+      showToast("Only the assigned coach can approve member suggestions.");
+      return;
+    }
+    if (form.status === "approved") {
+      showToast("This worksheet has already been approved.");
+      return;
+    }
+    const row = getAtPath(form.data, approveMemberSuggestionButton.dataset.approveMemberSuggestion);
+    if (!row?.memberSuggestion) {
+      showToast("There is no member suggestion to approve.");
+      return;
+    }
+    row.coachDecision = row.memberSuggestion;
+    row.suggestionApprovedAt = new Date().toISOString();
+    row.suggestionApprovedBy = coach.email;
+    form.updatedAt = new Date().toISOString();
+    saveState();
+    try {
+      await productionBackend.saveNow?.(appState);
+    } catch (error) {
+      console.warn("Could not immediately save member suggestion approval", error);
+    }
+    renderEditor();
+    showToast("Member suggestion approved.");
     return;
   }
 

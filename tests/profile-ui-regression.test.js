@@ -39,3 +39,14 @@ test("floating calculator keeps a clean collapsed and fixed-ratio open layout", 
   assert.match(stylesSource, /\.fit-calculator\.minimized[\s\S]*height:\s*48px\s*!important/);
   assert.match(appSource, /const verticalReserve = compactHeight \? 126 : 136/);
 });
+
+test("members can suggest payment timing for coach approval", () => {
+  assert.match(appSource, /memberSuggestion/);
+  assert.match(appSource, /function memberSuggestionControl/);
+  assert.match(appSource, /function coachSuggestionReview/);
+  assert.match(appSource, /data-approve-member-suggestion/);
+  assert.match(appSource, /row\.coachDecision = row\.memberSuggestion/);
+  assert.match(stylesSource, /\.member-suggestion-inline/);
+  const calculateBlock = appSource.match(/function calculate\(form\) \{[\s\S]*?\n\}/)?.[0] || "";
+  assert.doesNotMatch(calculateBlock, /memberSuggestion/);
+});

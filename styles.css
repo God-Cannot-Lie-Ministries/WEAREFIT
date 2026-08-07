@@ -1725,6 +1725,71 @@ select {
   color: #76560e;
 }
 
+.member-suggestion-inline,
+.decision-stack,
+.member-suggestion-review {
+  display: grid;
+  gap: 6px;
+}
+
+.member-suggestion-inline {
+  margin-top: 6px;
+}
+
+.member-suggestion-inline > span,
+.member-suggestion-review > span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.member-suggestion-select {
+  min-height: 32px;
+  font-size: 12px;
+}
+
+.member-suggestion-review {
+  align-items: start;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px;
+}
+
+.member-suggestion-review.empty strong {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.member-suggestion-review.approved {
+  border-color: rgba(24, 128, 88, 0.28);
+  background: var(--green-soft);
+}
+
+.member-suggestion-review.pending {
+  border-color: rgba(201, 154, 39, 0.38);
+  background: var(--gold-soft);
+}
+
+.member-suggestion-review.approved strong {
+  color: var(--green);
+  font-size: 12px;
+}
+
+.member-suggestion-inline small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.btn-micro {
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+}
+
 .table-input:hover {
   border-color: #d0d7e1;
 }
@@ -3157,6 +3222,18 @@ html[data-theme="dark"] .table-total,
 html[data-theme="dark"] .decision-label,
 html[data-theme="dark"] .section-links a:hover {
   background: var(--surface-soft);
+}
+
+html[data-theme="dark"] .member-suggestion-review {
+  border-color: rgba(239, 195, 83, 0.35);
+}
+
+html[data-theme="dark"] .member-suggestion-review.pending {
+  background: rgba(239, 195, 83, 0.1);
+}
+
+html[data-theme="dark"] .member-suggestion-review.approved {
+  background: rgba(46, 213, 115, 0.11);
 }
 
 html[data-theme="dark"] .data-table th,
