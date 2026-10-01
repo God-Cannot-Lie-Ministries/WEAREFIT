@@ -12326,3 +12326,19 @@ html[data-theme="dark"] .login-brand img {
     --money-value-padding: 56px;
   }
 }
+
+/* Saved-bill search and payment progress */
+.bill-search { position: relative; margin: 16px 0; max-width: 640px; }
+.bill-search > label { display: block; font-weight: 700; margin-bottom: 8px; }
+.bill-search.has-bill-match > input { border-color: #16835b; box-shadow: 0 0 0 2px #16835b33; }
+.bill-search-results { position: absolute; top: 78px; width: 100%; z-index: 25; max-height: 280px; overflow-y: auto; background: var(--surface, white); border: 1px solid #8695a6; border-radius: 10px; box-shadow: 0 8px 24px #0002; }
+.bill-search-results[hidden] { display: none; }
+.bill-search-results button { display: flex; justify-content: space-between; gap: 16px; width: 100%; padding: 12px 16px; text-align: left; color: inherit; background: transparent; border: 0; cursor: pointer; font: inherit; }
+.bill-search-results button:hover, .bill-search-results [aria-selected="true"] { background: #16835b22; }
+.bill-search-results small, .bill-search-status, [data-bill-progress], .bill-payment-progress { font-size: 14px; }
+.bill-search-status { display: block; min-height: 22px; margin-top: 6px; }
+.bill-search-highlight { outline: 3px solid #16835b !important; outline-offset: 3px; background: #16835b22 !important; scroll-margin-top: 100px; }
+[data-bill-progress] { display: block; min-width: 140px; margin-top: 6px; }
+@media print { .bill-search { display: none; } .bill-search-highlight { outline: none !important; background: transparent !important; } }
+
+.bill-search.has-bill-match > input:focus { border-color: #16835b; outline-color: #16835b; box-shadow: 0 0 0 3px #16835b33; }
