@@ -964,6 +964,7 @@ function mortgageWorksheetPayment(mortgage) {
 }
 
 function billPaymentProgress(row) {
+  if (!row.name && !currencyValue(row.amount) && !currencyValue(row.paidBefore)) return "";
   const paidBefore = currencyValue(row.paidBefore);
   const total = currencyValue(row.periodAmount ?? row.amount);
   const payment = row.coachDecision === "next_check" ? 0 : currencyValue(row.amount);
@@ -5259,9 +5260,9 @@ function renderEditor() {
         </div>
         <aside class="editor-aside">
           ${summaryPanel(calc)}
+          ${calculatorPanel(form, readOnly)}
         </aside>
       </div>
-      ${calculatorPanel(form, readOnly)}
     </div>
   `;
 
@@ -5330,7 +5331,7 @@ function billGroup(form, key, label, readOnly, isCoachReview) {
                   ${isCoachReview ? "" : `<div class="member-suggestion-inline"><span>Your suggestion</span>${memberSuggestionControl(`bills.${key}.${index}.memberSuggestion`, row.memberSuggestion, canSuggest)}${row.coachDecision ? `<small>Coach plan: ${paymentTimingLabel(row.coachDecision, "Not reviewed")}</small>` : ""}</div>`}
                 </td>
                 <td data-mobile-label="Due date"><input class="table-input" type="date" data-current-calendar data-path="bills.${key}.${index}.dueDate" value="${row.dueDate}" ${readOnly ? "disabled" : ""}></td>
-                <td data-mobile-label="Amount"><div class="money-input-wrap"><input class="table-input" type="text" inputmode="decimal" data-currency-input data-path="bills.${key}.${index}.amount" value="${moneyInputValue(row.amount)}" placeholder="0.00" ${readOnly ? "disabled" : ""}></div><small data-bill-progress="${key}.${index}">${billPaymentProgress(row)}</small></td>
+                <td data-mobile-label="This check’s payment"><div class="money-input-wrap"><input class="table-input" type="text" inputmode="decimal" data-currency-input data-path="bills.${key}.${index}.amount" value="${moneyInputValue(row.amount)}" placeholder="0.00" ${readOnly ? "disabled" : ""}></div><small data-bill-progress="${key}.${index}">${billPaymentProgress(row)}</small></td>
                 ${isCoachReview ? `<td data-mobile-label="Coach plan">${billDecisionControl(`bills.${key}.${index}.coachDecision`, row.coachDecision, true, row.memberSuggestion, `bills.${key}.${index}`)}</td>` : ""}
                 <td class="mobile-row-action">${readOnly ? "" : `<button class="icon-btn danger" type="button" title="Remove row" aria-label="Remove row" data-remove-row="bills.${key}.${index}">×</button>`}</td>
               </tr>
@@ -5656,7 +5657,7 @@ function calculatorPanel(form, readOnly) {
     : 0;
   const sizeStyle = `width:${calculatorWidth}px;height:auto;aspect-ratio:11 / 16;`;
   const positionStyle = `${sizeStyle}${position ? `left:${safeLeft}px;top:${safeTop}px;right:auto;bottom:auto;` : ""}`;
-  return `<aside class="calculator-widget fit-calculator ${form.data.calculatorMinimized ? "minimized" : ""} ${form.data.calculatorHistoryOpen ? "history-open" : ""}" data-draggable-calculator="${form.id}" style="${positionStyle}">
+  return `<aside class="calculator-widget fit-calculator ${position ? "is-floating" : ""} ${form.data.calculatorMinimized ? "minimized" : ""} ${form.data.calculatorHistoryOpen ? "history-open" : ""}" data-draggable-calculator="${form.id}" style="${positionStyle}">
     <div class="calculator-heading" data-calculator-drag-handle>
       <div class="calculator-title-group">
         <strong class="calculator-title">Calculator</strong>
@@ -5798,11 +5799,14 @@ function observeCalculatorSize(calculator) {
 }
 
 function beginCalculatorDrag(event) {
+  if (window.innerWidth <= 1180) return;
   if (event.target.closest("button, input, select, textarea, a")) return;
   const handle = event.target.closest("[data-calculator-drag-handle]");
   const calculator = handle?.closest("[data-draggable-calculator]");
   if (!calculator || calculator.classList.contains("minimized") || event.button !== 0) return;
   const rect = calculator.getBoundingClientRect();
+  calculator.classList.add("is-floating");
+  calculator.style.width = `${rect.width}px`;
   calculator.style.left = `${rect.left}px`;
   calculator.style.top = `${rect.top}px`;
   calculator.style.right = "auto";
