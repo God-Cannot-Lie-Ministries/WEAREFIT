@@ -916,21 +916,81 @@ function isDateWithinNextMonth(value) {
   return isDateWithinNextDays(value, 31);
 }
 
+// Payments are scoped to a bill and due date; approved forms are recorded once.
+function fixedPaymentSchedule(bill) {
+  return Boolean(bill.scheduleEnabled && Number(bill.dueDay) > 0 && currencyValue(bill.monthlyAmount) > 0);
+}
+
+function nextPaymentPeriod(dueDate, dueDay) {
+  const date = new Date(`${dueDate}T12:00:00`);
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = Math.min(Number(dueDay), new Date(year, month + 1, 0).getDate());
+  return dateValueFromLocal(new Date(year, month, day, 12));
+}
+
+function paymentPeriodSummary(bill, dueDate, amount = bill.amount) {
+  const total = Math.max(0, currencyValue(amount));
+  const paid = bill.paidDueDate === dueDate && dueDate ? total : Math.min(total, currencyValue(
+    (bill.paymentHistory || []).filter((payment) => payment.dueDate === dueDate)
+      .reduce((sum, payment) => sum + Math.max(0, currencyValue(payment.amount)), 0),
+  ));
+  return { total, paid, remaining: currencyValue(Math.max(0, total - paid)) };
+}
+
+function recordPeriodPayment(bill, dueDate, amount, sourceId, total = bill.amount) {
+  if (!dueDate || currencyValue(amount) <= 0) return;
+  bill.paymentHistory ||= [];
+  if (bill.paymentHistory.some((payment) => payment.sourceId === sourceId)) return;
+  const before = paymentPeriodSummary(bill, dueDate, total);
+  const paid = Math.min(before.remaining, Math.max(0, currencyValue(amount)));
+  if (!paid) return;
+  bill.paymentHistory.push({ sourceId, dueDate, amount: paid.toFixed(2), paidAt: new Date().toISOString() });
+  bill.nextDueDate ||= dueDate;
+  if (paymentPeriodSummary(bill, dueDate, total).remaining === 0) {
+    bill.paidDueDate = dueDate;
+    if (fixedPaymentSchedule(bill) && (!bill.nextDueDate || bill.nextDueDate <= dueDate)) {
+      bill.nextDueDate = nextPaymentPeriod(dueDate, bill.dueDay);
+      bill.amount = String(bill.monthlyAmount);
+    }
+  }
+}
+
+function mortgageWorksheetPayment(mortgage) {
+  const dueDate = recurringBillNextDueDate(mortgage);
+  const amount = fixedPaymentSchedule(mortgage) ? mortgage.monthlyAmount : mortgage.paymentAmount;
+  const summary = paymentPeriodSummary(mortgage, dueDate, amount);
+  return { nextDueDate: dueDate, paymentAmount: String(summary.remaining), periodAmount: String(summary.total), paidBefore: String(summary.paid) };
+}
+
+function billPaymentProgress(row) {
+  const paidBefore = currencyValue(row.paidBefore);
+  const total = currencyValue(row.periodAmount ?? row.amount);
+  const payment = row.coachDecision === "next_check" ? 0 : currencyValue(row.amount);
+  return `${money(paidBefore)} previously paid · ${money(Math.max(0, total - paidBefore - payment))} remaining after this check`;
+}
+
 function recurringBillToWorksheetBill(bill) {
   const dueDate = recurringBillNextDueDate(bill);
+  const summary = paymentPeriodSummary(bill, dueDate);
   return {
     ...blankBill(),
     profileBillId: bill.id || "",
     name: bill.name,
     dueDate,
-    amount: dueDate ? bill.amount : "",
+    amount: dueDate ? String(summary.remaining) : "",
+    periodAmount: String(summary.total),
+    paidBefore: String(summary.paid),
     memberSuggestion: "",
     coachDecision: "",
   };
 }
 
 function recurringBillNextDueDate(bill) {
-  return bill?.dueDay ? nextMonthlyDueDate(bill.dueDay) : bill?.nextDueDate || "";
+  if (!bill) return "";
+  if (bill.nextDueDate) return bill.nextDueDate;
+  if (fixedPaymentSchedule(bill) && bill.paidDueDate) return nextPaymentPeriod(bill.paidDueDate, bill.dueDay);
+  return bill.dueDay ? nextMonthlyDueDate(bill.dueDay) : "";
 }
 
 function recurringBillIsPaidForDueDate(bill, dueDate = recurringBillNextDueDate(bill)) {
@@ -953,7 +1013,7 @@ function isUpcomingRecurringBill(bill) {
   return Boolean(
     dueDate &&
     currencyValue(bill.amount) &&
-    isDateWithinNextDays(dueDate, WORKSHEET_BILL_LOOKAHEAD_DAYS) &&
+    (dueDate < todayValue() || isDateWithinNextDays(dueDate, WORKSHEET_BILL_LOOKAHEAD_DAYS)) &&
     !recurringBillIsPaidForDueDate(bill, dueDate),
   );
 }
@@ -992,6 +1052,10 @@ function syncWorksheetBillsWithProfile(existingBills = [], profileBills = []) {
         ...blankBill(),
         ...clone(bill),
         ...profileBill,
+        id: bill.id,
+        amount: bill.periodAmount !== undefined && bill.dueDate === profileBill.dueDate &&
+          currencyValue(bill.amount) !== currencyValue(Number(bill.periodAmount) - Number(bill.paidBefore || 0))
+          ? String(Math.min(currencyValue(bill.amount), currencyValue(profileBill.amount))) : profileBill.amount,
         memberSuggestion: bill.memberSuggestion || "",
         coachDecision: bill.coachDecision || "",
       };
@@ -1079,8 +1143,7 @@ function syncDraftFormsWithFinancialProfile(account) {
         totalAmount: account.financialInventory.mortgage.totalAmount || form.data.mortgage.totalAmount || "",
         interestRate: account.financialInventory.mortgage.interestRate || form.data.mortgage.interestRate || "",
         currentBalance: account.financialInventory.mortgage.currentBalance || form.data.mortgage.currentBalance || "",
-        paymentAmount: account.financialInventory.mortgage.paymentAmount || form.data.mortgage.paymentAmount || "",
-        nextDueDate: account.financialInventory.mortgage.nextDueDate || form.data.mortgage.nextDueDate || "",
+        ...mortgageWorksheetPayment(account.financialInventory.mortgage),
       };
       form.data.housingPaymentType = account.financialInventory.housingPaymentType || "mortgage";
       form.generatedFromProfile = true;
@@ -1143,8 +1206,7 @@ function blankForm(owner, carryForward = owner.carryForward || {}, assignedPerso
         totalAmount: mortgageSource.totalAmount || "",
         interestRate: mortgageSource.interestRate || "",
         currentBalance: mortgageSource.currentBalance || "",
-        paymentAmount: mortgageSource.paymentAmount || "",
-        nextDueDate: mortgageSource.nextDueDate || "",
+        ...mortgageWorksheetPayment(mortgageSource),
         mustPayBy: carryForward.mortgage?.mustPayBy || "",
         remainingBefore: carryForward.mortgage?.remainingBefore || "",
         contribution: "",
@@ -1640,7 +1702,7 @@ function syncRecurringBillScheduleState(bill, changedField = "") {
     bill.monthlyAmount = "";
     return;
   }
-  if (bill.dueDay) bill.nextDueDate = nextMonthlyDueDate(bill.dueDay);
+  if (bill.dueDay && (!bill.nextDueDate || changedField === "dueDay")) bill.nextDueDate = nextMonthlyDueDate(bill.dueDay);
   if (bill.scheduleEnabled && bill.monthlyAmount && changedField !== "amount") {
     bill.amount = bill.monthlyAmount;
   }
@@ -2836,7 +2898,7 @@ function upcomingBillItems(account) {
     addItem(items, {
       id: bill.id,
       name: bill.name,
-      amount: bill.amount,
+      amount: paymentPeriodSummary(bill, dueDate).remaining,
       dueDate,
       type: "Recurring bill",
       source: categoryLabel[bill.category] || "Other Bills",
@@ -2885,8 +2947,8 @@ function upcomingBillItems(account) {
     addItem(items, {
       id: "mortgage-payment",
       name: "Mortgage payment",
-      amount: mortgage.paymentAmount,
-      dueDate: mortgage.nextDueDate,
+      amount: mortgageWorksheetPayment(mortgage).paymentAmount,
+      dueDate: recurringBillNextDueDate(mortgage),
       type: "Mortgage",
       source: "Housing",
       targetType: "mortgage",
@@ -2967,7 +3029,9 @@ function markUpcomingBillPaid(account, targetType, targetId, dueDate) {
   if (targetType === "recurringBills") {
     const bill = account.financialInventory.recurringBills.find((item) => item.id === targetId);
     if (!bill) return null;
-    bill.paidDueDate = dueDate || recurringBillNextDueDate(bill);
+    const paymentDate = dueDate || recurringBillNextDueDate(bill);
+    recordPeriodPayment(bill, paymentDate, paymentPeriodSummary(bill, paymentDate).remaining, `manual:${paymentDate}`);
+    bill.paidDueDate = paymentDate;
     bill.nextDueDate = "";
     bill.lastPaidAt = paidAt;
     return bill.name || "Recurring bill";
@@ -2998,8 +3062,10 @@ function markUpcomingBillPaid(account, targetType, targetId, dueDate) {
   }
   if (targetType === "mortgage") {
     const mortgage = account.financialInventory.mortgage;
-    mortgage.lastPaidDueDate = mortgage.nextDueDate || dueDate;
-    mortgage.nextDueDate = "";
+    const payment = mortgageWorksheetPayment(mortgage);
+    const paymentDate = dueDate || payment.nextDueDate;
+    recordPeriodPayment(mortgage, paymentDate, payment.paymentAmount, `manual:${paymentDate}`, payment.periodAmount);
+    mortgage.lastPaidDueDate = paymentDate;
     mortgage.lastPaidAt = paidAt;
     return "Mortgage payment";
   }
@@ -3075,8 +3141,64 @@ function renderProfile() {
   });
 }
 
+function billSearchMarkup(account) {
+  return `<section class="bill-search" data-bill-search-owner="${escapeHtml(account.email)}">
+    <label for="profile-bill-search">Search bills</label>
+    <input id="profile-bill-search" class="input" type="search" placeholder="Start typing a saved bill name…" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="bill-search-results" aria-expanded="false" data-bill-search>
+    <div id="bill-search-results" class="bill-search-results" role="listbox" hidden></div>
+    <span class="bill-search-status" role="status" aria-live="polite"></span>
+  </section>`;
+}
+
+function matchingProfileBills(account, query) {
+  const term = query.trim().toLocaleLowerCase();
+  if (!term) return [];
+  return (account?.financialInventory?.recurringBills || []).filter((bill) =>
+    String(bill.name || "").toLocaleLowerCase().includes(term));
+}
+
+function updateBillSearch(input) {
+  const container = input.closest("[data-bill-search-owner]");
+  const account = appState.accounts[container.dataset.billSearchOwner];
+  const matches = matchingProfileBills(account, input.value);
+  const list = container.querySelector("[role=listbox]");
+  list.innerHTML = matches.map((bill, index) => `<button type="button" role="option" aria-selected="false" id="bill-search-option-${index}" data-bill-search-result="${escapeHtml(bill.id)}"><strong>${escapeHtml(bill.name)}</strong><small>${escapeHtml(Object.fromEntries(billGroups)[bill.category] || "Other bills")}</small></button>`).join("");
+  list.hidden = !matches.length;
+  input.setAttribute("aria-expanded", String(Boolean(matches.length)));
+  input.removeAttribute("aria-activedescendant");
+  container.classList.toggle("has-bill-match", Boolean(matches.length));
+  container.querySelector("[role=status]").textContent = !input.value.trim() ? "" : matches.length ? `${matches.length} matching ${matches.length === 1 ? "bill" : "bills"}` : "No matching bills in this financial profile.";
+}
+
+function navigateToSearchedBill(button) {
+  const container = button.closest("[data-bill-search-owner]");
+  const ownerEmail = container.dataset.billSearchOwner;
+  const billId = button.dataset.billSearchResult;
+  const findTarget = () => [...document.querySelectorAll("[data-profile-bill], [data-worksheet-bill]")]
+    .find((element) => (element.dataset.profileBill || element.dataset.worksheetBill) === billId);
+  let target = findTarget();
+  if (!target && currentAccount()?.email === ownerEmail) {
+    activeFormId = null;
+    activeView = "profile";
+    renderProfile();
+    target = findTarget();
+  }
+  if (!target) {
+    container.querySelector("[role=status]").textContent = "This saved bill is not on this worksheet.";
+    return;
+  }
+  document.querySelectorAll(".bill-search-highlight").forEach((element) => element.classList.remove("bill-search-highlight"));
+  target.classList.add("bill-search-highlight");
+  target.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+  target.focus({ preventScroll: true });
+  const list = container.querySelector("[role=listbox]");
+  list.hidden = true;
+  container.querySelector("[data-bill-search]").setAttribute("aria-expanded", "false");
+}
+
 function financialProfileSections(account, includePaystubs) {
   return `
+    ${billSearchMarkup(account)}
     <nav class="profile-jump-nav" aria-label="Financial profile sections">
       <span>Jump to section</span>
       <a href="#profile-savings">Savings & investments</a>
@@ -3467,7 +3589,8 @@ function formatFileSize(bytes) {
 function recurringBillProfileCard(bill, index) {
   const nextDueDate = recurringBillDisplayDueDate(bill);
   return `
-    <article class="profile-inventory-card">
+    <article class="profile-inventory-card" data-profile-bill="${escapeHtml(bill.id)}" tabindex="-1">
+      <p class="bill-payment-progress">${money(paymentPeriodSummary(bill, recurringBillNextDueDate(bill)).paid)} paid · ${money(paymentPeriodSummary(bill, recurringBillNextDueDate(bill)).remaining)} remaining this period</p>
       <div class="profile-inventory-grid recurring-bill-grid">
         ${textField("Bill name", `financialInventory.recurringBills.${index}.name`, bill.name, false, "Bill name")}
         <div class="field">
@@ -4184,6 +4307,8 @@ function mortgageProfileSection(account) {
           ${moneyField("Monthly mortgage payment", "financialInventory.mortgage.paymentAmount", mortgage.paymentAmount, false)}
           ${dateField("Next mortgage due date", "financialInventory.mortgage.nextDueDate", mortgage.nextDueDate, false)}
         </div>
+        <label class="schedule-toggle"><input type="checkbox" data-mortgage-schedule ${mortgage.scheduleEnabled ? "checked" : ""}><span>Fixed monthly payment and due day</span></label>
+        ${mortgage.scheduleEnabled ? `<div class="profile-inventory-grid"><div class="field"><label>Fixed monthly due day</label><select class="input" data-profile-path="financialInventory.mortgage.dueDay">${dueDayOptions(mortgage.dueDay)}</select></div>${moneyField("Fixed monthly amount", "financialInventory.mortgage.monthlyAmount", mortgage.monthlyAmount || mortgage.paymentAmount, false)}</div>` : ""}
         <div class="savings-progress-block"><div class="savings-progress-copy"><strong>${money(Math.max(0, total - current))} paid</strong><span>${money(current)} remaining</span></div>${progressBar(progress, `${Math.round(progress)}% paid`)}</div>
         </div>
       </div>
@@ -4676,7 +4801,7 @@ function sessionListDetail(label, items = []) {
 function showSessionCompletionModal(formId) {
   const form = appState.forms[formId];
   const coach = currentAccount();
-  if (!form || coach.role !== "coach" || appState.accounts[form.ownerEmail]?.coachEmail !== coach.email) return;
+  if (!form || form.status === "approved" || coach.role !== "coach" || appState.accounts[form.ownerEmail]?.coachEmail !== coach.email) return;
   const member = appState.accounts[form.ownerEmail];
   const notificationEmails = notificationEmailsForMember(member);
   const modal = document.createElement("div");
@@ -5117,6 +5242,7 @@ function renderEditor() {
           ? `<div class="readonly-banner"><strong>${isCoachReview ? "Coach review required" : "Approved document"}</strong><span>${isCoachReview ? "Choose bill timing, then complete the session with coach notes and action steps." : `This form belongs to ${escapeHtml(form.ownerName)}.`}</span></div>`
           : ""
       }
+      ${billSearchMarkup(appState.accounts[form.ownerEmail])}
       ${worksheetJumpNav(form)}
       <div class="editor-layout" style="margin-top: ${readOnly ? "16px" : "0"}">
         <div class="editor-main">
@@ -5195,16 +5321,16 @@ function billGroup(form, key, label, readOnly, isCoachReview) {
       </div>
       <div class="data-table-wrap">
         <table class="data-table compact bills-table ${isCoachReview ? "coach-review" : ""}">
-          <thead><tr><th style="width:${isCoachReview ? "30%" : "42%"}">Bill</th><th style="width:${isCoachReview ? "22%" : "26%"}">Due date</th><th style="width:${isCoachReview ? "18%" : "22%"}">Amount</th>${isCoachReview ? `<th style="width:22%">Coach plan</th>` : ""}<th style="width:${isCoachReview ? "8%" : "10%"}"></th></tr></thead>
+          <thead><tr><th style="width:${isCoachReview ? "30%" : "42%"}">Bill</th><th style="width:${isCoachReview ? "22%" : "26%"}">Due date</th><th style="width:${isCoachReview ? "18%" : "22%"}">This check’s payment</th>${isCoachReview ? `<th style="width:22%">Coach plan</th>` : ""}<th style="width:${isCoachReview ? "8%" : "10%"}"></th></tr></thead>
           <tbody>
             ${rows.map((row, index) => `
-              <tr>
+              <tr data-worksheet-bill="${escapeHtml(row.profileBillId || "")}" tabindex="-1">
                 <td data-mobile-label="Bill">
                   <div class="bill-selector-wrap"><input class="table-input" data-bill-suggestion="${key}.${index}" data-path="bills.${key}.${index}.name" value="${escapeHtml(row.name)}" placeholder="Choose or enter bill" ${readOnly ? "disabled" : ""}>${readOnly ? "" : `<button class="bill-selector-button" type="button" data-open-bill-selector aria-label="Choose a saved bill" title="Choose a saved bill">⌄</button>`}</div>
                   ${isCoachReview ? "" : `<div class="member-suggestion-inline"><span>Your suggestion</span>${memberSuggestionControl(`bills.${key}.${index}.memberSuggestion`, row.memberSuggestion, canSuggest)}${row.coachDecision ? `<small>Coach plan: ${paymentTimingLabel(row.coachDecision, "Not reviewed")}</small>` : ""}</div>`}
                 </td>
                 <td data-mobile-label="Due date"><input class="table-input" type="date" data-current-calendar data-path="bills.${key}.${index}.dueDate" value="${row.dueDate}" ${readOnly ? "disabled" : ""}></td>
-                <td data-mobile-label="Amount"><div class="money-input-wrap"><input class="table-input" type="text" inputmode="decimal" data-currency-input data-path="bills.${key}.${index}.amount" value="${moneyInputValue(row.amount)}" placeholder="0.00" ${readOnly ? "disabled" : ""}></div></td>
+                <td data-mobile-label="Amount"><div class="money-input-wrap"><input class="table-input" type="text" inputmode="decimal" data-currency-input data-path="bills.${key}.${index}.amount" value="${moneyInputValue(row.amount)}" placeholder="0.00" ${readOnly ? "disabled" : ""}></div><small data-bill-progress="${key}.${index}">${billPaymentProgress(row)}</small></td>
                 ${isCoachReview ? `<td data-mobile-label="Coach plan">${billDecisionControl(`bills.${key}.${index}.coachDecision`, row.coachDecision, true, row.memberSuggestion, `bills.${key}.${index}`)}</td>` : ""}
                 <td class="mobile-row-action">${readOnly ? "" : `<button class="icon-btn danger" type="button" title="Remove row" aria-label="Remove row" data-remove-row="bills.${key}.${index}">×</button>`}</td>
               </tr>
@@ -5236,6 +5362,7 @@ function mortgagePanel(form, calc, readOnly, isCoachReview) {
         ${moneyField("This check's contribution", "mortgage.contribution", mortgage.contribution, readOnly)}
         ${isCoachReview ? "" : memberSuggestionField("mortgage", mortgage, canSuggest)}
         ${coachPlanField("mortgage", mortgage, isCoachReview)}
+        ${computedField("Previously paid this period", money(mortgage.paidBefore), "mortgage-previously-paid")}
         ${computedField("Payment still needed", money(paymentRemaining), "mortgage-payment-needed")}
       </div>
       <div class="savings-progress-block">${progressBar(progress, `${Math.round(progress)}% of mortgage paid`)}</div>
@@ -6051,10 +6178,7 @@ function applyRecurringBillSuggestion(input, form) {
   if (!suggestion) return;
   const [category, index] = input.dataset.billSuggestion.split(".");
   const bill = form.data.bills[category][Number(index)];
-  bill.profileBillId = suggestion.id || "";
-  bill.name = suggestion.name;
-  bill.dueDate = recurringBillDisplayDueDate(suggestion);
-  bill.amount = bill.dueDate ? suggestion.amount : "";
+  Object.assign(bill, recurringBillToWorksheetBill(suggestion), { id: bill.id });
   const dueDateInput = document.querySelector(
     `input[data-path="bills.${category}.${index}.dueDate"]`,
   );
@@ -6126,6 +6250,10 @@ function showAllocationSelectorModal(form, allocationIndex) {
 }
 
 function refreshLiveAvailable(form) {
+  document.querySelectorAll("[data-bill-progress]").forEach((element) => {
+    const [category, index] = element.dataset.billProgress.split(".");
+    element.textContent = billPaymentProgress(form.data.bills[category][Number(index)]);
+  });
   const calc = calculate(form);
   const mortgagePaymentRemaining = currencyValue(Math.max(
     0,
@@ -6613,9 +6741,37 @@ function showProfileWithdrawalModal(index) {
 async function approveForm(formId, coachNotes = "", actionSteps = "") {
   const coach = currentAccount();
   const form = appState.forms[formId];
-  if (!form || coach.role !== "coach" || appState.accounts[form.ownerEmail]?.coachEmail !== coach.email) return;
+  if (!form || form.status === "approved" || coach.role !== "coach" || appState.accounts[form.ownerEmail]?.coachEmail !== coach.email) return;
   const member = appState.accounts[form.ownerEmail];
+  const paymentRows = Object.values(form.data.bills).flat();
+  const paymentsByPeriod = new Map();
+  for (const row of paymentRows) {
+    if (row.coachDecision === "next_check") continue;
+    const saved = member.financialInventory.recurringBills.find((bill) => bill.id === row.profileBillId);
+    if (!saved) continue;
+    if (currencyValue(row.amount) > 0 && !row.dueDate) {
+      showToast(`${row.name}: enter a due date so this payment can be tracked.`);
+      return;
+    }
+    const periodKey = `${saved.id}:${row.dueDate}`;
+    const totalPayment = currencyValue((paymentsByPeriod.get(periodKey) || 0) + currencyValue(row.amount));
+    paymentsByPeriod.set(periodKey, totalPayment);
+    if (totalPayment > paymentPeriodSummary(saved, row.dueDate, row.periodAmount ?? saved.amount).remaining) {
+      showToast(`${row.name}: this payment exceeds the unpaid balance. Update the worksheet before approval.`);
+      return;
+    }
+  }
   const calc = calculate(form);
+  if (form.data.housingPaymentType === "mortgage" && calc.mortgageContribution > 0 && !form.data.mortgage.nextDueDate) {
+    showToast("Enter a mortgage due date so this payment can be tracked.");
+    return;
+  }
+  if (form.data.housingPaymentType === "mortgage" && calc.mortgageContribution > paymentPeriodSummary(
+    member.financialInventory.mortgage, form.data.mortgage.nextDueDate,
+    form.data.mortgage.periodAmount ?? member.financialInventory.mortgage.paymentAmount).remaining) {
+    showToast("The mortgage payment exceeds the unpaid amount for this period. Update the worksheet before approval.");
+    return;
+  }
   form.status = "approved";
   form.approvedAt = new Date().toISOString();
   form.approvedBy = coach.email;
@@ -6684,9 +6840,14 @@ async function approveForm(formId, coachNotes = "", actionSteps = "") {
       .map((bill) => {
         const previousBill = existingRecurringBills.find(
           (item) =>
-            item.category === key &&
-            String(item.name || "").trim().toLowerCase() === String(bill.name || "").trim().toLowerCase(),
+            (bill.profileBillId ? item.id === bill.profileBillId : item.category === key &&
+            String(item.name || "").trim().toLowerCase() === String(bill.name || "").trim().toLowerCase()),
         );
+        if (previousBill) {
+          recordPeriodPayment(previousBill, bill.dueDate, bill.coachDecision === "next_check" ? 0 : bill.amount,
+            `${form.id}:${bill.id}`, bill.periodAmount ?? previousBill.amount);
+          return previousBill;
+        }
         const billWasPaidThisCheck = bill.coachDecision !== "next_check";
         const previousScheduleDisabled = recurringScheduleExplicitlyDisabled(previousBill);
         const scheduleEnabled = previousScheduleDisabled
@@ -6714,7 +6875,13 @@ async function approveForm(formId, coachNotes = "", actionSteps = "") {
   member.financialInventory.creditCards = clone(member.carryForward.creditCards || []);
   member.financialInventory.debts = clone(member.carryForward.debts || []);
   member.financialInventory.studentLoans = clone(member.carryForward.studentLoans || []);
-  member.financialInventory.mortgage = clone(member.carryForward.mortgage || {});
+  const savedMortgage = member.financialInventory.mortgage;
+  if (form.data.housingPaymentType === "mortgage") {
+    recordPeriodPayment(savedMortgage, form.data.mortgage.nextDueDate, calc.mortgageContribution,
+      `${form.id}:mortgage`, form.data.mortgage.periodAmount ?? savedMortgage.paymentAmount);
+    savedMortgage.currentBalance = member.carryForward.mortgage.currentBalance;
+    member.carryForward.mortgage = clone(savedMortgage);
+  }
   const sessionReview = createSessionReview(form, coach, coachNotes, actionSteps);
   appState.sessions.push(sessionReview);
   autoArchivePreviousSessionReviews(appState);
@@ -6980,6 +7147,15 @@ function revealNewEntry(path, profile = false) {
 }
 
 document.addEventListener("click", async (event) => {
+  const searchResult = event.target.closest("[data-bill-search-result]");
+  if (searchResult) {
+    navigateToSearchedBill(searchResult);
+    return;
+  }
+  if (!event.target.closest(".bill-search")) {
+    document.querySelectorAll(".bill-search [role=listbox]").forEach((list) => { list.hidden = true; });
+    document.querySelectorAll("[data-bill-search]").forEach((input) => { input.setAttribute("aria-expanded", "false"); });
+  }
   if (event.target.closest("[data-clear-data-signin]")) {
     initializePortal();
     return;
@@ -7453,10 +7629,7 @@ document.addEventListener("click", async (event) => {
     );
     const bill = form.data.bills[category]?.[Number(rowIndex)];
     if (suggestion && bill) {
-      bill.name = suggestion.name;
-      bill.profileBillId = suggestion.id || "";
-      bill.dueDate = recurringBillDisplayDueDate(suggestion);
-      bill.amount = bill.dueDate ? suggestion.amount : "";
+      Object.assign(bill, recurringBillToWorksheetBill(suggestion), { id: bill.id });
       form.updatedAt = new Date().toISOString();
       saveState();
       selectedBill.closest(".modal-backdrop")?.remove();
@@ -8321,6 +8494,10 @@ document.addEventListener("submit", async (event) => {
 });
 
 document.addEventListener("input", (event) => {
+  if (event.target.matches("[data-bill-search]")) {
+    updateBillSearch(event.target);
+    return;
+  }
   sanitizeCurrencyInput(event.target);
   const assetInput = event.target.closest("[data-asset-path]");
   if (assetInput) {
@@ -8349,6 +8526,32 @@ document.addEventListener("input", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (event.target.matches("[data-bill-search]")) {
+    const input = event.target;
+    const list = input.closest(".bill-search").querySelector("[role=listbox]");
+    if (event.key === "Escape") {
+      list.hidden = true;
+      input.setAttribute("aria-expanded", "false");
+      input.removeAttribute("aria-activedescendant");
+    }
+    if (["ArrowDown", "ArrowUp", "Enter"].includes(event.key)) {
+      event.preventDefault();
+      const options = [...list.querySelectorAll("[role=option]")];
+      if (!options.length) return;
+      const selected = options.findIndex((option) => option.id === input.getAttribute("aria-activedescendant"));
+      if (event.key === "Enter") {
+        if (!list.hidden) navigateToSearchedBill(options[Math.max(0, selected)]);
+      } else {
+        list.hidden = false;
+        input.setAttribute("aria-expanded", "true");
+        const next = (selected + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length;
+        options.forEach((option, index) => option.setAttribute("aria-selected", String(index === next)));
+        input.setAttribute("aria-activedescendant", options[next].id);
+        options[next].scrollIntoView({ block: "nearest" });
+      }
+    }
+    return;
+  }
   if (event.key !== "Enter" || event.target.matches("textarea")) return;
   if (event.target.matches("[data-profile-path], [data-asset-path], [data-path]")) {
     event.preventDefault();
@@ -8370,6 +8573,18 @@ document.addEventListener("focusout", (event) => {
 
 document.addEventListener("change", async (event) => {
   normalizeCurrencyInput(event.target);
+  if (event.target.matches("[data-mortgage-schedule]")) {
+    const account = currentAccount();
+    const mortgage = account.financialInventory.mortgage;
+    mortgage.scheduleEnabled = event.target.checked;
+    if (mortgage.scheduleEnabled) {
+      mortgage.monthlyAmount ||= mortgage.paymentAmount;
+      mortgage.dueDay ||= mortgage.nextDueDate ? String(Number(mortgage.nextDueDate.slice(-2))) : "";
+    }
+    saveFinancialProfileMutation(account);
+    renderProfile();
+    return;
+  }
   const billScanSelect = event.target.closest("[data-bill-scan-select]");
   if (billScanSelect) {
     toggleBillScanNewFields(billScanSelect);
