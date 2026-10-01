@@ -12342,3 +12342,162 @@ html[data-theme="dark"] .login-brand img {
 @media print { .bill-search { display: none; } .bill-search-highlight { outline: none !important; background: transparent !important; } }
 
 .bill-search.has-bill-match > input:focus { border-color: #16835b; outline-color: #16835b; box-shadow: 0 0 0 3px #16835b33; }
+
+/* Responsive layout repair: keep fields, captions and navigation in separate space. */
+.content .profile-jump-nav,
+.content .worksheet-jump-nav {
+  position: static !important;
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 100%;
+  white-space: normal;
+  overflow: visible;
+  gap: 6px;
+}
+html[data-theme="dark"] .profile-jump-nav a,
+html[data-theme="dark"] .worksheet-jump-nav a { color: #f4f7fc; }
+.editor-aside, .editor-aside .summary-panel { position: static !important; }
+.panel-heading, .subpanel-heading, .page-heading { flex-wrap: wrap; }
+.panel-heading > div, .page-heading > div, .topbar > div { min-width: 0; }
+.topbar-actions { flex-wrap: wrap; max-width: 100%; }
+.profile-fact, .metric, .summary-row { min-width: 0; overflow-wrap: anywhere; }
+.profile-fact > *, .metric > * { display: block; }
+.profile-fact strong, .metric strong { margin-top: 4px; }
+.bill-search-results { top: calc(100% - 28px); }
+.bill-search-results button { flex-wrap: wrap; overflow-wrap: anywhere; }
+
+.worksheet-content .bill-sections .subpanel { container-type: inline-size; }
+.worksheet-content .bill-sections .bills-table { display: block; width: 100%; min-width: 0; }
+.worksheet-content .bill-sections .bills-table thead,
+.worksheet-content .bill-sections .bills-table tbody { display: grid; width: 100%; min-width: 0; }
+.worksheet-content .bill-sections .bills-table tbody { padding: 12px; gap: 16px; }
+.worksheet-content .bill-sections .bills-table thead tr,
+.worksheet-content .bill-sections .bills-table tbody tr {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(150px, .85fr) minmax(170px, 1fr) 44px !important;
+  gap: 16px;
+  align-items: start;
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+}
+.worksheet-content .bill-sections .bills-table.coach-review thead tr,
+.worksheet-content .bill-sections .bills-table.coach-review tbody tr {
+  grid-template-columns: minmax(180px, 1.3fr) minmax(150px, .9fr) minmax(170px, 1fr) minmax(160px, 1fr) 44px !important;
+}
+.worksheet-content .bill-sections .bills-table td,
+.worksheet-content .final-budget-panel .data-table td {
+  display: block;
+  min-width: 0;
+  width: auto !important;
+  padding: 0;
+  overflow-wrap: anywhere;
+}
+.worksheet-content .bill-sections .bills-table td { grid-column: auto; grid-row: auto; }
+.worksheet-content .bill-sections .bills-table td[data-mobile-label]::before { display: none; }
+.worksheet-content .bill-sections .bills-table .table-input,
+.worksheet-content .bill-sections .bills-table .money-input-wrap,
+.worksheet-content .bill-sections .bills-table .bill-selector-wrap,
+.worksheet-content .member-suggestion-inline,
+.worksheet-content .member-suggestion-select { width: 100%; min-width: 0; max-width: 100%; }
+.worksheet-content .bill-sections .bills-table .table-input { min-height: 44px; font-size: 16px; }
+.worksheet-content .member-suggestion-inline { display: grid; margin-top: 10px; gap: 6px; }
+.worksheet-content .member-suggestion-inline > span { font-size: 12px; line-height: 1.4; }
+.worksheet-content [data-bill-progress] { min-width: 0; margin-top: 10px; font-size: 14px; line-height: 1.5; white-space: normal; }
+.worksheet-content [data-bill-progress]:empty { display: none; }
+.worksheet-content .bill-sections .bills-table .mobile-row-action { position: static; display: flex; justify-content: center; align-self: start; padding: 0; }
+.worksheet-content .bill-sections .bills-table .mobile-row-action .icon-btn { width: 40px; min-width: 40px; height: 40px; }
+
+/* Respond to the actual panel width, including when the summary sits beside it. */
+@container (max-width: 760px) {
+  .worksheet-content .bill-sections .bills-table thead { display: none; }
+  .worksheet-content .bill-sections .bills-table tbody tr,
+  .worksheet-content .bill-sections .bills-table.coach-review tbody tr {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 16px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+  .worksheet-content .bill-sections .bills-table tbody td:first-child { grid-column: 1 / -1; }
+  .worksheet-content .bill-sections .bills-table td[data-mobile-label]::before {
+    display: block;
+    content: attr(data-mobile-label);
+    position: static;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .worksheet-content .bill-sections .bills-table .mobile-row-action { grid-column: 1 / -1; justify-content: flex-end; }
+}
+@container (min-width: 761px) and (max-width: 1000px) {
+  .worksheet-content .bill-sections .bills-table.coach-review thead { display: none; }
+  .worksheet-content .bill-sections .bills-table.coach-review tbody tr { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .worksheet-content .bill-sections .bills-table.coach-review td[data-mobile-label]::before { display: block; content: attr(data-mobile-label); margin-bottom: 8px; font-weight: 700; }
+  .worksheet-content .bill-sections .bills-table.coach-review .mobile-row-action { grid-column: 1 / -1; justify-content: flex-end; }
+}
+@container (max-width: 420px) {
+  .worksheet-content .bill-sections .bills-table tbody tr,
+  .worksheet-content .bill-sections .bills-table.coach-review tbody tr { grid-template-columns: minmax(0, 1fr) !important; }
+  .worksheet-content .bill-sections .bills-table tbody td { grid-column: 1 / -1; }
+}
+@media (max-width: 768px) {
+  .main { padding-bottom: calc(210px + env(safe-area-inset-bottom, 0px)) !important; }
+  .topbar { position: static !important; }
+  .topbar-actions { display: flex !important; flex-wrap: wrap; gap: 8px; }
+  .topbar-actions .btn { flex: 1 1 130px; white-space: normal; }
+  .panel-heading, .page-heading { align-items: stretch; }
+  .profile-inventory-grid, .tracker-grid, .debt-entry-grid, .overview-grid, .savings-grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .side-nav { bottom: env(safe-area-inset-bottom, 0px); }
+  .side-nav .nav-label { font-size: 11px; line-height: 1.25; }
+  .fit-calculator, .draggable-calculator { position: relative !important; inset: auto !important; width: 100% !important; max-width: 100% !important; margin: 16px 0; transform: none !important; }
+  .fit-calculator.minimized, .draggable-calculator.minimized { position: relative !important; inset: auto !important; width: 100% !important; }
+}
+/* Older tablet rules used named grid areas and absolutely positioned actions. */
+.topbar { display: flex !important; flex-wrap: wrap; gap: 16px; align-items: center; }
+.topbar > div:first-child { flex: 1 1 220px; }
+.topbar .topbar-actions { position: static !important; inset: auto !important; width: auto !important; margin: 0; flex: 0 1 auto; }
+.worksheet-content .bill-sections .bills-table tbody tr { grid-template-areas: none !important; }
+.worksheet-content .bill-sections .bills-table tbody td { grid-area: auto !important; }
+@container (max-width: 760px) {
+  .worksheet-content .bill-sections .bills-table tbody td:first-child,
+  .worksheet-content .bill-sections .bills-table tbody .mobile-row-action { grid-column: 1 / -1 !important; }
+}
+@container (max-width: 420px) {
+  .worksheet-content .bill-sections .bills-table tbody td { grid-column: 1 / -1 !important; }
+}
+html[data-theme="dark"] .table-total strong,
+html[data-theme="dark"] .badge { color: #f4f7fc !important; }
+@media (max-width: 768px) {
+  html, body { overflow-x: clip !important; }
+  .topbar > div:first-child, .topbar .topbar-actions { flex-basis: 100%; width: 100% !important; }
+  .topbar .topbar-actions .btn { flex: 1 1 120px; }
+}
+@media (max-width: 768px) {
+  #app { width: 100%; overflow-x: clip; }
+}
+.editor-aside .fit-calculator:not(.is-floating) {
+  position: relative !important;
+  inset: auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  transform: none !important;
+  margin: 16px 0;
+  resize: none !important;
+}
+@media (max-width: 1180px) {
+  .editor-aside .fit-calculator {
+    position: relative !important;
+    inset: auto !important;
+    width: min(100%, 320px) !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    transform: none !important;
+    margin: 16px auto;
+    resize: none !important;
+  }
+  .editor-aside .fit-calculator .calculator-heading { cursor: default; touch-action: auto; }
+}
