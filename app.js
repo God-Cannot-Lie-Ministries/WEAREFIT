@@ -967,7 +967,7 @@ function billPaymentProgress(row) {
   if (!row.name && !currencyValue(row.amount) && !currencyValue(row.paidBefore)) return "";
   const paidBefore = currencyValue(row.paidBefore);
   const total = currencyValue(row.periodAmount ?? row.amount);
-  const payment = row.coachDecision === "next_check" ? 0 : currencyValue(row.amount);
+  const payment = shouldPayThisCheck(row) ? currencyValue(row.amount) : 0;
   return `${money(paidBefore)} previously paid · ${money(Math.max(0, total - paidBefore - payment))} remaining after this check`;
 }
 
@@ -1912,7 +1912,7 @@ function allocationTotalFor(form, type, accountName) {
 }
 
 function shouldPayThisCheck(row = {}) {
-  return row.coachDecision !== "next_check";
+  return (row.coachDecision || row.memberSuggestion) === "this_check";
 }
 
 function effectiveContribution(row = {}) {
@@ -2073,7 +2073,7 @@ function getMemberCarryForward(account) {
       billGroups.map(([key]) => [
         key,
         latest.data.bills[key]
-          .filter((bill) => bill.coachDecision === "next_check")
+          .filter((bill) => !shouldPayThisCheck(bill))
           .map((bill) => clone(bill)),
       ]),
     ),
@@ -2136,7 +2136,7 @@ function calculate(form) {
   const tithe = Math.round(totalIncome * 0.1);
   const fixedBills = currencyValue(Object.values(data.bills)
     .flat()
-    .filter((item) => item.coachDecision !== "next_check")
+    .filter((item) => shouldPayThisCheck(item))
     .reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
   const creditCards = currencyValue(data.creditCards.reduce(
     (sum, item) => sum + effectiveContribution(item),
@@ -5301,7 +5301,7 @@ function billsPanel(form, calc, readOnly, isCoachReview) {
     <section class="panel" id="bills">
       <div class="panel-heading">
         <div><h3>Fixed bills</h3><p>Housing, utilities, subscriptions, and other bills</p></div>
-        <span class="badge">${money(calc.fixedBills)} total</span>
+        <span class="badge"><span data-live-fixed-bills>${money(calc.fixedBills)}</span> total</span>
       </div>
       <div class="panel-body bill-sections">
         ${billGroups.map(([key, label]) => billGroup(form, key, label, readOnly, isCoachReview)).join("")}
@@ -5312,7 +5312,7 @@ function billsPanel(form, calc, readOnly, isCoachReview) {
 
 function billGroup(form, key, label, readOnly, isCoachReview) {
   const rows = form.data.bills[key];
-  const subtotal = rows.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const subtotal = currencyValue(rows.filter(shouldPayThisCheck).reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
   const canSuggest = !readOnly && !isCoachReview && form.status !== "approved";
   return `
     <section class="subpanel">
@@ -5339,7 +5339,7 @@ function billGroup(form, key, label, readOnly, isCoachReview) {
           </tbody>
         </table>
       </div>
-      <div class="table-total"><span>Subtotal</span><strong>${money(subtotal)}</strong></div>
+      <div class="table-total"><span>Subtotal</span><strong data-live-bill-subtotal="${key}">${money(subtotal)}</strong></div>
     </section>
   `;
 }
@@ -6018,16 +6018,16 @@ function summaryPanel(calc) {
         ${summaryRow("Additional income", money(calc.additionalIncome))}
         ${summaryRow("Total income", money(calc.totalIncome), false, "total-income")}
         ${summaryRow("Tithe (10%)", titheMoney(calc.tithe), false, "tithe")}
-        ${summaryRow("Fixed bills", money(calc.fixedBills))}
-        ${summaryRow("Credit cards", money(calc.creditCards))}
-        ${summaryRow("Debt contributions", money(calc.debtContributions))}
-        ${summaryRow("Student loan contributions", money(calc.studentLoanContributions))}
-        ${summaryRow("Mortgage contribution", money(calc.mortgageContribution))}
-        ${summaryRow("Savings contribution", money(calc.savingsContribution))}
+        ${summaryRow("Fixed bills", money(calc.fixedBills), false, "fixed-bills")}
+        ${summaryRow("Credit cards", money(calc.creditCards), false, "credit-cards")}
+        ${summaryRow("Debt contributions", money(calc.debtContributions), false, "debt-contributions")}
+        ${summaryRow("Student loan contributions", money(calc.studentLoanContributions), false, "student-loan-contributions")}
+        ${summaryRow("Mortgage contribution", money(calc.mortgageContribution), false, "mortgage-contribution")}
+        ${summaryRow("Savings contribution", money(calc.savingsContribution), false, "savings-contribution")}
         ${summaryRow("Rollovers", money(calc.allocationTotal), false, "allocation-total")}
-        ${summaryRow("Ready to budget", money(calc.available))}
-        ${summaryRow("Budgeted", money(calc.variableBudget))}
-        ${summaryRow("Total planned outflow", money(calc.totalPlanned))}
+        ${summaryRow("Ready to budget", money(calc.available), false, "available")}
+        ${summaryRow("Budgeted", money(calc.variableBudget), false, "variable-budget")}
+        ${summaryRow("Total planned outflow", money(calc.totalPlanned), false, "total-planned")}
         ${calc.approvedBills ? summaryRow("Coach selected this check", money(calc.approvedBills)) : ""}
         ${summaryRow("Left to budget", money(calc.available), true, "available")}
       </div>
@@ -6259,6 +6259,25 @@ function refreshLiveAvailable(form) {
     element.textContent = billPaymentProgress(form.data.bills[category][Number(index)]);
   });
   const calc = calculate(form);
+  const liveTotals = {
+    "fixed-bills": calc.fixedBills,
+    "credit-cards": calc.creditCards,
+    "debt-contributions": calc.debtContributions,
+    "student-loan-contributions": calc.studentLoanContributions,
+    "mortgage-contribution": calc.mortgageContribution,
+    "savings-contribution": calc.savingsContribution,
+    "total-planned": calc.totalPlanned,
+  };
+  Object.entries(liveTotals).forEach(([key, value]) => {
+    document.querySelectorAll(`[data-live-${key}]`).forEach((element) => {
+      element.textContent = money(value);
+    });
+  });
+  document.querySelectorAll("[data-live-bill-subtotal]").forEach((element) => {
+    const rows = form.data.bills[element.dataset.liveBillSubtotal] || [];
+    element.textContent = money(currencyValue(rows.filter(shouldPayThisCheck)
+      .reduce((sum, row) => sum + (Number(row.amount) || 0), 0)));
+  });
   const mortgagePaymentRemaining = currencyValue(Math.max(
     0,
     (Number(form.data.mortgage.paymentAmount) || 0) - calc.mortgageContribution,
@@ -6542,7 +6561,7 @@ function worksheetDecisionItems(form) {
     const value = currencyValue(amount);
     if (!label || !value) return;
     const item = { label, amount: value, dueDate };
-    (row?.coachDecision === "next_check" ? waiting : payNow).push(item);
+    (shouldPayThisCheck(row) ? payNow : waiting).push(item);
   };
   Object.values(form.data.bills || {})
     .flat()
@@ -6750,7 +6769,7 @@ async function approveForm(formId, coachNotes = "", actionSteps = "") {
   const paymentRows = Object.values(form.data.bills).flat();
   const paymentsByPeriod = new Map();
   for (const row of paymentRows) {
-    if (row.coachDecision === "next_check") continue;
+    if (!shouldPayThisCheck(row)) continue;
     const saved = member.financialInventory.recurringBills.find((bill) => bill.id === row.profileBillId);
     if (!saved) continue;
     if (currencyValue(row.amount) > 0 && !row.dueDate) {
@@ -6788,7 +6807,7 @@ async function approveForm(formId, coachNotes = "", actionSteps = "") {
       billGroups.map(([key]) => [
         key,
         form.data.bills[key]
-          .filter((bill) => bill.coachDecision === "next_check")
+          .filter((bill) => !shouldPayThisCheck(bill))
           .map((bill) => clone(bill)),
       ]),
     ),
@@ -6848,11 +6867,11 @@ async function approveForm(formId, coachNotes = "", actionSteps = "") {
             String(item.name || "").trim().toLowerCase() === String(bill.name || "").trim().toLowerCase()),
         );
         if (previousBill) {
-          recordPeriodPayment(previousBill, bill.dueDate, bill.coachDecision === "next_check" ? 0 : bill.amount,
+          recordPeriodPayment(previousBill, bill.dueDate, shouldPayThisCheck(bill) ? bill.amount : 0,
             `${form.id}:${bill.id}`, bill.periodAmount ?? previousBill.amount);
           return previousBill;
         }
-        const billWasPaidThisCheck = bill.coachDecision !== "next_check";
+        const billWasPaidThisCheck = shouldPayThisCheck(bill);
         const previousScheduleDisabled = recurringScheduleExplicitlyDisabled(previousBill);
         const scheduleEnabled = previousScheduleDisabled
           ? false
@@ -8519,6 +8538,10 @@ document.addEventListener("input", (event) => {
   if (!input || !activeFormId) return;
   const form = appState.forms[activeFormId];
   setAtPath(form.data, input.dataset.path, currencyInputStorageValue(input));
+  if (input.dataset.path.endsWith(".memberSuggestion")) {
+    // A revised member plan requires a fresh coach decision.
+    setAtPath(form.data, input.dataset.path.replace(/memberSuggestion$/, "coachDecision"), "");
+  }
   const billSuggestion = input.closest("[data-bill-suggestion]");
   if (billSuggestion) {
     applyRecurringBillSuggestion(input, form);
@@ -8765,6 +8788,10 @@ document.addEventListener("change", async (event) => {
   if (!input || !activeFormId) return;
   const form = appState.forms[activeFormId];
   setAtPath(form.data, input.dataset.path, currencyInputStorageValue(input));
+  if (input.dataset.path.endsWith(".memberSuggestion")) {
+    // A revised member plan requires a fresh coach decision.
+    setAtPath(form.data, input.dataset.path.replace(/memberSuggestion$/, "coachDecision"), "");
+  }
   const billSuggestion = input.closest("[data-bill-suggestion]");
   if (billSuggestion) {
     applyRecurringBillSuggestion(input, form);

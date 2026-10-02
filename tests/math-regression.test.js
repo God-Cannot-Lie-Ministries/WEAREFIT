@@ -1,116 +1,16 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-function currencyValue(value) {
-  const numericValue = typeof value === "string" ? value.replaceAll(",", "") : value;
-  return Math.round(((Number(numericValue) || 0) + Number.EPSILON) * 100) / 100;
+const fs = require("node:fs");
+const vm = require("node:vm");
+const source = fs.readFileSync(require("node:path").join(__dirname, "../app-20260626-recurring-bill-restore.js"), "utf8");
+const ctx = vm.createContext({ rolloverTypes: ["debt", "credit_card", "student_loan", "savings"] });
+for (const name of ["currencyValue", "allocationTotalFor", "shouldPayThisCheck", "effectiveContribution", "plannedContribution", "remainingAfterPlannedPayment", "calculate"]) {
+  const match = source.match(new RegExp(`^function ${name}\\([^]*?^}`, "m"));
+  assert.ok(match, `production function ${name}`);
+  vm.runInContext(match[0], ctx);
 }
-
-function allocationTotalFor(form, type, accountName) {
-  const normalizedAccount = String(accountName || "").trim().toLowerCase();
-  if (!normalizedAccount) return 0;
-  return currencyValue((form.data.allocations || [])
-    .filter((item) => shouldPayThisCheck(item) && item.type === type && String(item.account || "").trim().toLowerCase() === normalizedAccount)
-    .reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
-}
-
-function shouldPayThisCheck(row = {}) {
-  return row.coachDecision !== "next_check";
-}
-
-function effectiveContribution(row = {}) {
-  return shouldPayThisCheck(row) ? currencyValue(row.contribution) : 0;
-}
-
-function plannedContribution(row, form, type) {
-  const regularContribution = effectiveContribution(row);
-  return currencyValue(regularContribution + allocationTotalFor(form, type, row.account));
-}
-
-function remainingAfterPlannedPayment(row, form, type) {
-  return currencyValue(Math.max(0, (Number(row.totalBalance ?? row.totalOwed) || 0) - plannedContribution(row, form, type)));
-}
-
-function calculate(form) {
-  const data = form.data;
-  const thisCheck = currencyValue(data.overview.thisCheck);
-  const additionalIncome = currencyValue(data.overview.additionalIncome);
-  const totalIncome = currencyValue(thisCheck + additionalIncome);
-  const tithe = Math.round(totalIncome * 0.1);
-  const fixedBills = currencyValue(Object.values(data.bills)
-    .flat()
-    .filter((item) => item.coachDecision !== "next_check")
-    .reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
-  const creditCards = currencyValue(data.creditCards.reduce(
-    (sum, item) => sum + effectiveContribution(item),
-    0,
-  ));
-  const debtContributions = currencyValue(data.debts.reduce(
-    (sum, item) => sum + effectiveContribution(item),
-    0,
-  ));
-  const studentLoanContributions = currencyValue((data.studentLoans || []).reduce(
-    (sum, item) => sum + effectiveContribution(item),
-    0,
-  ));
-  const mortgageContribution = currencyValue(data.housingPaymentType === "mortgage" ? effectiveContribution(data.mortgage) : 0);
-  const savingsContribution = effectiveContribution(data.savings);
-  const savingsRolloverTotal = currencyValue((data.allocations || [])
-    .filter((item) => shouldPayThisCheck(item) && item.type === "savings")
-    .reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
-  const savingsAfter = currencyValue((Number(data.savings.current) || 0) + savingsContribution + savingsRolloverTotal);
-  const mortgageAfter = currencyValue(Math.max(0, (Number(data.mortgage.currentBalance || data.mortgage.remainingBefore) || 0) - mortgageContribution));
-  const allocationTotal = currencyValue((data.allocations || [])
-    .filter((item) => shouldPayThisCheck(item) && ["debt", "credit_card", "student_loan", "savings"].includes(item.type))
-    .reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
-  const variableBudget = currencyValue(data.variableSpending.reduce(
-    (sum, item) => sum + (shouldPayThisCheck(item) ? Number(item.budgeted) || 0 : 0),
-    0,
-  ));
-  const plannedBeforeBudget = currencyValue(
-    fixedBills +
-    creditCards +
-    debtContributions +
-    studentLoanContributions +
-    mortgageContribution +
-    savingsContribution,
-  );
-  const remainingBeforeAllocations = currencyValue(totalIncome - tithe - plannedBeforeBudget);
-  const remainingBeforeBudget = currencyValue(remainingBeforeAllocations - allocationTotal);
-  const totalBills = currencyValue(plannedBeforeBudget + variableBudget);
-  const totalPlanned = currencyValue(totalBills + allocationTotal);
-  const available = currencyValue(totalIncome - tithe - totalPlanned);
-  return {
-    totalIncome,
-    tithe,
-    fixedBills,
-    creditCards,
-    debtContributions,
-    studentLoanContributions,
-    mortgageContribution,
-    savingsContribution,
-    plannedBeforeBudget,
-    remainingBeforeBudget,
-    variableBudget,
-    allocationTotal,
-    totalPlanned,
-    available,
-    savingsAfter,
-    mortgageAfter,
-    totalCreditCardBalanceAfter: currencyValue(data.creditCards.reduce(
-      (sum, item) => sum + remainingAfterPlannedPayment(item, form, "credit_card"),
-      0,
-    )),
-    totalDebtBalanceAfter: currencyValue(data.debts.reduce(
-      (sum, item) => sum + remainingAfterPlannedPayment(item, form, "debt"),
-      0,
-    )),
-    totalStudentLoanBalanceAfter: currencyValue((data.studentLoans || []).reduce(
-      (sum, item) => sum + remainingAfterPlannedPayment(item, form, "student_loan"),
-      0,
-    )),
-  };
-}
+const { calculate, remainingAfterPlannedPayment, currencyValue } = ctx;
 
 function sampleForm() {
   return {
@@ -124,22 +24,22 @@ function sampleForm() {
         other: [],
       },
       creditCards: [
-        { account: "Capital One", totalBalance: "1000.00", contribution: "75.25", coachDecision: "" },
+        { account: "Capital One", totalBalance: "1000.00", contribution: "75.25", coachDecision: "this_check" },
         { account: "Discover", totalBalance: "300.00", contribution: "40.00", coachDecision: "next_check" },
       ],
-      debts: [{ account: "Medical", totalOwed: "500.00", contribution: "25.50" }],
-      studentLoans: [{ account: "Federal Loan", totalOwed: "900.00", contribution: "50.25" }],
-      mortgage: { currentBalance: "200000.00", contribution: "250.00" },
+      debts: [{ account: "Medical", totalOwed: "500.00", coachDecision: "this_check", contribution: "25.50" }],
+      studentLoans: [{ account: "Federal Loan", totalOwed: "900.00", coachDecision: "this_check", contribution: "50.25" }],
+      mortgage: { currentBalance: "200000.00", coachDecision: "this_check", contribution: "250.00" },
       housingPaymentType: "mortgage",
-      savings: { current: "1000.00", contribution: "100.00" },
+      savings: { current: "1000.00", coachDecision: "this_check", contribution: "100.00" },
       allocations: [
-        { type: "credit_card", account: "Capital One", amount: "100.00" },
-        { type: "credit_card", account: "Discover", amount: "20.00" },
-        { type: "debt", account: "Medical", amount: "10.00" },
-        { type: "student_loan", account: "Federal Loan", amount: "15.00" },
-        { type: "savings", account: "Emergency Fund", amount: "30.00" },
+        { coachDecision: "this_check", type: "credit_card", account: "Capital One", amount: "100.00" },
+        { coachDecision: "this_check", type: "credit_card", account: "Discover", amount: "20.00" },
+        { coachDecision: "this_check", type: "debt", account: "Medical", amount: "10.00" },
+        { coachDecision: "this_check", type: "student_loan", account: "Federal Loan", amount: "15.00" },
+        { coachDecision: "this_check", type: "savings", account: "Emergency Fund", amount: "30.00" },
       ],
-      variableSpending: [{ budgeted: "200.55" }],
+      variableSpending: [{ coachDecision: "this_check", budgeted: "200.55" }],
     },
   };
 }
@@ -168,8 +68,8 @@ test("currency helper accepts comma-formatted values and keeps two-decimal math"
 test("budgeted categories reduce left-to-budget without rounding to whole dollars", () => {
   const form = sampleForm();
   form.data.variableSpending = [
-    { category: "Groceries", budgeted: "50.25" },
-    { category: "Gas", budgeted: "25.10" },
+    { memberSuggestion: "this_check", category: "Groceries", budgeted: "50.25" },
+    { memberSuggestion: "this_check", category: "Gas", budgeted: "25.10" },
   ];
   const calc = calculate(form);
   assert.equal(calc.variableBudget, 75.35);
@@ -184,14 +84,15 @@ test("wait-for-next-check skips the regular card payment but still honors rollov
   assert.equal(remainingAfterPlannedPayment(form.data.creditCards[1], form, "credit_card"), 280);
 });
 
-test("member payment suggestions do not change worksheet math until coach approval", () => {
+test("member next-check selection immediately excludes payments before coach review", () => {
   const form = sampleForm();
   form.data.bills.housing[0].coachDecision = "";
   form.data.bills.housing[0].memberSuggestion = "next_check";
+  form.data.creditCards[0].coachDecision = "";
   form.data.creditCards[0].memberSuggestion = "next_check";
   let calc = calculate(form);
-  assert.equal(calc.fixedBills, 500.1);
-  assert.equal(calc.creditCards, 75.25);
+  assert.equal(calc.fixedBills, 0);
+  assert.equal(calc.creditCards, 0);
 
   form.data.bills.housing[0].coachDecision = form.data.bills.housing[0].memberSuggestion;
   form.data.creditCards[0].coachDecision = form.data.creditCards[0].memberSuggestion;
@@ -241,4 +142,51 @@ test("rent selection excludes mortgage from planned outflow and balance changes"
   assert.equal(calc.mortgageContribution, 0);
   assert.equal(calc.mortgageAfter, 200000);
   assert.equal(calc.available, 356.15);
+});
+
+test("clearing a bill choice excludes it and restores available money without deleting its amount", () => {
+  const form = sampleForm();
+  const row = form.data.bills.housing[0];
+  row.coachDecision = "";
+  row.memberSuggestion = "this_check";
+  const selected = calculate(form);
+  row.memberSuggestion = "";
+  const cleared = calculate(form);
+  assert.equal(cleared.fixedBills, 0);
+  assert.equal(cleared.totalBills, currencyValue(selected.totalBills - 500.1));
+  assert.equal(cleared.available, currencyValue(selected.available + 500.1));
+  assert.equal(row.amount, "500.10");
+  row.memberSuggestion = "next_check";
+  assert.equal(calculate(form).fixedBills, 0);
+  row.coachDecision = "this_check";
+  assert.equal(calculate(form).fixedBills, 500.1);
+  row.coachDecision = "next_check";
+  row.memberSuggestion = "this_check";
+  assert.equal(calculate(form).fixedBills, 0);
+});
+
+test("visible category subtotals, bill summary and available balance refresh when choices change", () => {
+  const elements = {
+    "[data-live-fixed-bills]": [{ textContent: "" }, { textContent: "" }],
+    "[data-live-bill-subtotal]": [{ dataset: { liveBillSubtotal: "housing" }, textContent: "" }],
+    "[data-live-total-planned]": [{ textContent: "" }],
+    "[data-live-available]": [{ textContent: "" }],
+  };
+  ctx.document = { querySelectorAll: (selector) => elements[selector] || [] };
+  ctx.money = (value) => currencyValue(value).toFixed(2);
+  ctx.titheMoney = ctx.money;
+  vm.runInContext(source.match(/^function refreshLiveAvailable\([^]*?^}/m)[0], ctx);
+  const form = sampleForm();
+  const row = form.data.bills.housing[0];
+  row.coachDecision = "";
+  for (const decision of ["this_check", "next_check", "", "this_check"]) {
+    row.memberSuggestion = decision;
+    ctx.refreshLiveAvailable(form);
+    const calc = calculate(form);
+    assert.equal(elements["[data-live-fixed-bills]"][0].textContent, calc.fixedBills.toFixed(2));
+    assert.equal(elements["[data-live-fixed-bills]"][1].textContent, calc.fixedBills.toFixed(2));
+    assert.equal(elements["[data-live-bill-subtotal]"][0].textContent, calc.fixedBills.toFixed(2));
+    assert.equal(elements["[data-live-total-planned]"][0].textContent, calc.totalPlanned.toFixed(2));
+    assert.equal(elements["[data-live-available]"][0].textContent, calc.available.toFixed(2));
+  }
 });
