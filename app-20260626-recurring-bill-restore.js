@@ -5181,6 +5181,11 @@ function emptyState(symbol, title, description, action) {
 
 
 function updateSectionNavigationLayout() {
+  const worksheetMain = document.querySelector(".main:has(.worksheet-content)");
+  if (worksheetMain?.style) {
+    const shellOffset = Math.max(0, worksheetMain.getBoundingClientRect().top + window.scrollY);
+    worksheetMain.style.setProperty("--worksheet-shell-offset", `${Math.ceil(shellOffset)}px`);
+  }
   const header = document.querySelector(".topbar");
   const headerPosition = header ? window.getComputedStyle(header).position : "";
   const headerHeight = ["sticky", "fixed"].includes(headerPosition)
@@ -5205,10 +5210,17 @@ function jumpToSection(link) {
   const heading = target.querySelector("h2, h3, h4") || target;
   heading.setAttribute("tabindex", "-1");
   heading.focus({ preventScroll: true });
-  target.scrollIntoView({
-    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
-    block: "start",
-  });
+
+  const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth";
+  const viewport = target.closest?.(".editor-layout");
+  if (viewport) {
+    viewport.scrollTo({
+      top: Math.max(0, viewport.scrollTop + target.getBoundingClientRect().top - viewport.getBoundingClientRect().top - 16),
+      behavior,
+    });
+  } else {
+    target.scrollIntoView({ behavior, block: "start" });
+  }
   return true;
 }
 

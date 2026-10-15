@@ -12582,3 +12582,72 @@ html[data-theme="dark"] .badge { color: #f4f7fc !important; }
 @media print {
   .content .profile-jump-nav { display: none; }
 }
+
+/* Reserve a toolbar row: worksheet text scrolls in a separate, non-overlapping pane. */
+.main:has(.worksheet-content) {
+  height: max(240px, calc(100dvh - var(--worksheet-shell-offset, 0px)));
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 0 !important;
+}
+.main:has(.worksheet-content) > .topbar,
+.main:has(.worksheet-content) > .community-footer {
+  flex: 0 0 auto;
+  position: relative !important;
+}
+.main > .worksheet-content {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+  padding-bottom: 16px !important;
+}
+.worksheet-content > :not(.editor-layout) { flex: 0 0 auto; }
+.worksheet-content > .worksheet-jump-nav {
+  position: relative !important;
+  inset: auto !important;
+  margin: 0;
+  background: var(--surface);
+  backdrop-filter: none;
+}
+.worksheet-content > .editor-layout {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  scroll-padding-block: 16px;
+  padding: 16px 4px;
+  align-items: start;
+}
+.worksheet-content .editor-main [id] { scroll-margin-block: 16px !important; }
+@media (min-width: 1181px) {
+  .worksheet-content .editor-aside { top: 0; max-height: calc(100dvh - 240px); }
+}
+@media (max-width: 768px) {
+  .main:has(.worksheet-content) { padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important; }
+  .main > .worksheet-content { padding-top: 8px; gap: 8px; }
+}
+@media print {
+  .main:has(.worksheet-content),
+  .main > .worksheet-content,
+  .worksheet-content > .editor-layout {
+    display: block;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+  }
+  .worksheet-content > .worksheet-jump-nav { display: none; }
+}
+@media screen and (max-height: 560px) {
+  .main:has(.worksheet-content) > .community-footer { display: none; }
+  .main:has(.worksheet-content) > .topbar { padding-block: 6px; min-height: 0; }
+  .main:has(.worksheet-content) > .topbar p { display: none; }
+  .main > .worksheet-content { padding-block: 6px !important; gap: 6px; }
+}
