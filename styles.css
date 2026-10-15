@@ -12548,3 +12548,37 @@ html[data-theme="dark"] .badge { color: #f4f7fc !important; }
   .worksheet-content .editor-aside { position: static !important; max-height: none; overflow: visible; }
   .worksheet-content .fit-calculator { display: none !important; }
 }
+
+/* Section navigation stays reachable and uses the measured header and nav height. */
+.main:has(.profile-jump-nav),
+.content:has(.profile-jump-nav) {
+  overflow-x: clip;
+  overflow-y: visible;
+}
+.content .profile-jump-nav {
+  position: sticky !important;
+  top: var(--section-nav-top, 92px) !important;
+  z-index: 40;
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  align-self: start;
+  max-width: 100%;
+  min-width: 0;
+  scrollbar-width: thin;
+}
+.content .profile-jump-nav > * { flex: 0 0 auto; }
+.content .profile-jump-nav a[aria-current="location"] {
+  background: var(--gold-soft);
+  color: var(--navy);
+}
+.content:has(.profile-jump-nav) [id] {
+  scroll-margin-top: var(--section-jump-offset, 176px);
+}
+@media (max-width: 768px) {
+  .content .profile-jump-nav { top: var(--section-nav-top, 8px) !important; }
+}
+@media print {
+  .content .profile-jump-nav { display: none; }
+}

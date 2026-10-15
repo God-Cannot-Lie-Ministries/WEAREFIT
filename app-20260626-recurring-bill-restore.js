@@ -3198,6 +3198,7 @@ function navigateToSearchedBill(button) {
 }
 
 function financialProfileSections(account, includePaystubs) {
+  requestAnimationFrame(updateSectionNavigationLayout);
   return `
     ${billSearchMarkup(account)}
     <nav class="profile-jump-nav" aria-label="Financial profile sections">
@@ -5178,7 +5179,43 @@ function emptyState(symbol, title, description, action) {
   `;
 }
 
+
+function updateSectionNavigationLayout() {
+  const header = document.querySelector(".topbar");
+  const headerPosition = header ? window.getComputedStyle(header).position : "";
+  const headerHeight = ["sticky", "fixed"].includes(headerPosition)
+    ? header.getBoundingClientRect().height : 0;
+  document.querySelectorAll(".profile-jump-nav").forEach((nav) => {
+    const container = nav.closest(".content");
+    if (!container) return;
+    container.style.setProperty("--section-nav-top", `${Math.ceil(headerHeight + 8)}px`);
+    container.style.setProperty("--section-jump-offset", `${Math.ceil(headerHeight + nav.getBoundingClientRect().height + 24)}px`);
+  });
+}
+
+function jumpToSection(link) {
+  const nav = link.closest(".profile-jump-nav");
+  const container = nav?.closest(".content");
+  const id = link.getAttribute("href")?.slice(1);
+  const target = id && container?.querySelector(`[id="${id}"]`);
+  if (!target) return false;
+  updateSectionNavigationLayout();
+  nav.querySelectorAll("a").forEach((item) => item.removeAttribute("aria-current"));
+  link.setAttribute("aria-current", "location");
+  const heading = target.querySelector("h2, h3, h4") || target;
+  heading.setAttribute("tabindex", "-1");
+  heading.focus({ preventScroll: true });
+  target.scrollIntoView({
+    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+    block: "start",
+  });
+  return true;
+}
+
+window.addEventListener("resize", updateSectionNavigationLayout);
+
 function worksheetJumpNav(form) {
+  requestAnimationFrame(updateSectionNavigationLayout);
   return `
     <nav class="profile-jump-nav worksheet-jump-nav" aria-label="Worksheet sections">
       <span>Jump to section</span>
@@ -7167,6 +7204,13 @@ function revealNewEntry(path, profile = false) {
 }
 
 document.addEventListener("click", async (event) => {
+  const sectionLink = event.target.closest('.profile-jump-nav a[href^="#"]');
+  if (sectionLink && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) {
+    event.preventDefault();
+    jumpToSection(sectionLink);
+    return;
+  }
+
   const searchResult = event.target.closest("[data-bill-search-result]");
   if (searchResult) {
     navigateToSearchedBill(searchResult);
