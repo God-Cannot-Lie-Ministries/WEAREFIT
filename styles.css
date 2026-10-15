@@ -12357,7 +12357,7 @@ html[data-theme="dark"] .login-brand img {
 }
 html[data-theme="dark"] .profile-jump-nav a,
 html[data-theme="dark"] .worksheet-jump-nav a { color: #f4f7fc; }
-.editor-aside, .editor-aside .summary-panel { position: static !important; }
+
 .panel-heading, .subpanel-heading, .page-heading { flex-wrap: wrap; }
 .panel-heading > div, .page-heading > div, .topbar > div { min-width: 0; }
 .topbar-actions { flex-wrap: wrap; max-width: 100%; }
@@ -12452,8 +12452,6 @@ html[data-theme="dark"] .worksheet-jump-nav a { color: #f4f7fc; }
   .profile-inventory-grid, .tracker-grid, .debt-entry-grid, .overview-grid, .savings-grid { grid-template-columns: minmax(0, 1fr) !important; }
   .side-nav { bottom: env(safe-area-inset-bottom, 0px); }
   .side-nav .nav-label { font-size: 11px; line-height: 1.25; }
-  .fit-calculator, .draggable-calculator { position: relative !important; inset: auto !important; width: 100% !important; max-width: 100% !important; margin: 16px 0; transform: none !important; }
-  .fit-calculator.minimized, .draggable-calculator.minimized { position: relative !important; inset: auto !important; width: 100% !important; }
 }
 /* Older tablet rules used named grid areas and absolutely positioned actions. */
 .topbar { display: flex !important; flex-wrap: wrap; gap: 16px; align-items: center; }
@@ -12478,26 +12476,75 @@ html[data-theme="dark"] .badge { color: #f4f7fc !important; }
 @media (max-width: 768px) {
   #app { width: 100%; overflow-x: clip; }
 }
-.editor-aside .fit-calculator:not(.is-floating) {
-  position: relative !important;
-  inset: auto !important;
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: 100% !important;
-  transform: none !important;
-  margin: 16px 0;
-  resize: none !important;
+/* Worksheet rhythm follows available panel width, including split-screen views. */
+.worksheet-content {
+  display: grid;
+  gap: clamp(24px, 3vw, 40px);
+  min-width: 0;
 }
-@media (max-width: 1180px) {
-  .editor-aside .fit-calculator {
-    position: relative !important;
-    inset: auto !important;
-    width: min(100%, 320px) !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-    transform: none !important;
-    margin: 16px auto;
-    resize: none !important;
+.worksheet-content .editor-main {
+  container-type: inline-size;
+  gap: clamp(24px, 3vw, 40px);
+}
+.worksheet-content > .panel { margin-block: 0; }
+.worksheet-content .panel-heading,
+.worksheet-content .panel-body,
+.worksheet-content .debt-entry,
+.worksheet-content .routing-row {
+  padding: clamp(16px, 2.5vw, 28px);
+}
+.worksheet-content .panel-heading { gap: 16px; }
+.worksheet-content .panel-heading p { line-height: 1.6; }
+.worksheet-content :is(.overview-grid, .tracker-grid, .savings-grid, .debt-entry-grid, .promo-fields) {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 24px;
+}
+.worksheet-content .field { min-width: 0; }
+.worksheet-content .field > label { display: block; margin-bottom: 8px; line-height: 1.5; }
+.worksheet-content :is(.input, .table-input) { min-height: 44px; font-size: 16px; }
+.worksheet-content :is(.debt-card-list, .routing-list, .bill-sections) { gap: 24px; }
+.worksheet-content .budget-remaining-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 16px;
+  padding: 20px;
+}
+.worksheet-content .final-budget-table,
+.worksheet-content .final-budget-table tbody { display: block; width: 100%; min-width: 0; }
+.worksheet-content .final-budget-table tbody { display: grid; gap: 16px; padding: 20px; }
+.worksheet-content .final-budget-table tbody tr {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(140px, 1fr) 44px !important;
+  gap: 20px;
+  align-items: center;
+  padding: 16px 0;
+  min-width: 0;
+}
+.worksheet-content .final-budget-table td { grid-area: auto !important; }
+.worksheet-content .final-budget-table :is(.table-input, .money-input-wrap) { width: 100%; min-width: 0; }
+.worksheet-content .final-budget-table .mobile-row-action { position: static; justify-self: end; }
+.worksheet-content .table-total { gap: 16px; flex-wrap: wrap; padding: 20px; }
+@container (max-width: 520px) {
+  .worksheet-content .final-budget-table tbody tr {
+    grid-template-columns: minmax(0, 1fr) 44px !important;
+    gap: 16px;
   }
-  .editor-aside .fit-calculator .calculator-heading { cursor: default; touch-action: auto; }
+  .worksheet-content .final-budget-table tbody td:first-child { grid-column: 1 / -1; }
+  .worksheet-content .final-budget-table tbody td:nth-child(2) { grid-column: 1; }
+  .worksheet-content .final-budget-table tbody td:last-child { grid-column: 2; }
+}
+
+/* Keep the bill summary in view without containing the viewport-fixed calculator. */
+@media (min-width: 1181px) {
+  .worksheet-content .editor-aside {
+    position: sticky !important;
+    top: 92px;
+    align-self: start;
+    max-height: calc(100dvh - 112px);
+    overflow-y: auto;
+  }
+}
+@media print {
+  .worksheet-content .editor-aside { position: static !important; max-height: none; overflow: visible; }
+  .worksheet-content .fit-calculator { display: none !important; }
 }
