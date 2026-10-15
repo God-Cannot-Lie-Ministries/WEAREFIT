@@ -117,7 +117,7 @@ test("coach wait decision skips every contribution section for this check", () =
   assert.equal(calc.mortgageContribution, 0);
   assert.equal(calc.savingsContribution, 0);
   assert.equal(calc.allocationTotal, 0);
-  assert.equal(calc.variableBudget, 0);
+  assert.equal(calc.variableBudget, 200.55);
   assert.equal(calc.savingsAfter, 1000);
   assert.equal(calc.mortgageAfter, 200000);
 });
@@ -189,4 +189,22 @@ test("visible category subtotals, bill summary and available balance refresh whe
     assert.equal(elements["[data-live-total-planned]"][0].textContent, calc.totalPlanned.toFixed(2));
     assert.equal(elements["[data-live-available]"][0].textContent, calc.available.toFixed(2));
   }
+});
+
+test("budget amounts deduct automatically regardless of legacy payment selections", () => {
+  const form = sampleForm();
+  form.data.variableSpending = [
+    { category: "Groceries", budgeted: "50.25" },
+    { category: "Gas", budgeted: "25.10", coachDecision: "next_check" },
+    { category: "Food", budgeted: "10.05", memberSuggestion: "next_check" },
+  ];
+  const calc = calculate(form);
+  assert.equal(calc.variableBudget, 85.4);
+  assert.equal(calc.available, currencyValue(calc.remainingBeforeBudget - 85.4));
+});
+
+test("budget UI contains amounts without payment selectors for members and coaches", () => {
+  const panel = source.match(/^function variablePanel\([^]*?^}/m)[0];
+  assert.doesNotMatch(panel, /memberSuggestionControl|billDecisionControl|memberSuggestion|coachDecision/);
+  assert.match(panel, /calc.remainingBeforeBudget/);
 });

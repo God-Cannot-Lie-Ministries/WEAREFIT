@@ -2183,7 +2183,7 @@ function calculate(form) {
     0,
   ));
   const variableBudget = currencyValue(data.variableSpending.reduce(
-    (sum, item) => sum + (shouldPayThisCheck(item) ? Number(item.budgeted) || 0 : 0),
+    (sum, item) => sum + currencyValue(item.budgeted),
     0,
   ));
   const plannedBeforeBudget = currencyValue(
@@ -5439,15 +5439,14 @@ function creditCardCard(form, row, index, readOnly, isCoachReview) {
 
 function variablePanel(form, calc, readOnly, isCoachReview) {
   const overBudget = calc.available < 0;
-  const canSuggest = !readOnly && !isCoachReview && form.status !== "approved";
   return `
     <section class="panel final-budget-panel ${overBudget ? "over-budget" : ""}" id="spending">
       <div class="panel-heading">
-        <div><p class="eyebrow">Final step</p><h3>Budget remaining funds</h3><p>Use only what remains after bills, contributions, and rollovers.</p></div>
+        <div><p class="eyebrow">Final step</p><h3>Budget remaining funds</h3><p>Every budget amount is automatically deducted from the funds remaining after bills, contributions, and rollovers.</p></div>
         ${readOnly ? "" : `<button class="btn btn-secondary btn-small" type="button" data-add-row="variableSpending"><span aria-hidden="true">＋</span> Add category</button>`}
       </div>
       <div class="budget-remaining-strip">
-        ${computedField("Ready to budget", money(calc.available), "remaining-before-budget")}
+        ${computedField("Ready to budget", money(calc.remainingBeforeBudget), "remaining-before-budget")}
         ${computedField("Budgeted", money(calc.variableBudget), "variable-budget")}
         ${computedField("Left to budget", money(calc.available), "available")}
       </div>
@@ -5456,11 +5455,9 @@ function variablePanel(form, calc, readOnly, isCoachReview) {
           <tbody>
             ${form.data.variableSpending.map((row, index) => `
               <tr>
-                <td><input class="table-input" data-path="variableSpending.${index}.category" value="${escapeHtml(row.category)}" placeholder="Category" ${readOnly ? "disabled" : ""}>
-                  ${isCoachReview ? "" : `<div class="member-suggestion-inline"><span>Your suggestion</span>${memberSuggestionControl(`variableSpending.${index}.memberSuggestion`, row.memberSuggestion, canSuggest)}${row.coachDecision ? `<small>Coach plan: ${paymentTimingLabel(row.coachDecision, "Not reviewed")}</small>` : ""}</div>`}
+                <td><input class="table-input" data-path="variableSpending.${index}.category" value="${escapeHtml(row.category)}" placeholder="Category" aria-label="Budget category" ${readOnly ? "disabled" : ""}>
                 </td>
-                <td><div class="money-input-wrap"><input class="table-input" type="text" inputmode="decimal" data-currency-input data-path="variableSpending.${index}.budgeted" value="${moneyInputValue(row.budgeted)}" placeholder="0.00" ${readOnly ? "disabled" : ""}></div></td>
-                ${isCoachReview ? `<td>${billDecisionControl(`variableSpending.${index}.coachDecision`, row.coachDecision, true, row.memberSuggestion, `variableSpending.${index}`)}</td>` : ""}
+                <td><div class="money-input-wrap"><input class="table-input" type="text" inputmode="decimal" data-currency-input aria-label="Budget amount" data-path="variableSpending.${index}.budgeted" value="${moneyInputValue(row.budgeted)}" placeholder="0.00" ${readOnly ? "disabled" : ""}></div></td>
                 <td class="mobile-row-action">${readOnly ? "" : `<button class="icon-btn danger" type="button" title="Remove category" aria-label="Remove category" data-remove-row="variableSpending.${index}">×</button>`}</td>
               </tr>
             `).join("")}
@@ -6292,7 +6289,7 @@ function refreshLiveAvailable(form) {
     element.textContent = titheMoney(calc.tithe);
   });
   document.querySelectorAll("[data-live-remaining-before-budget]").forEach((element) => {
-    element.textContent = money(calc.available);
+    element.textContent = money(calc.remainingBeforeBudget);
   });
   document.querySelectorAll("[data-live-variable-budget]").forEach((element) => {
     element.textContent = money(calc.variableBudget);
@@ -6597,7 +6594,7 @@ function worksheetSubmitReview(form, calc) {
   const waiting = decisionItems.waiting.map(paymentItemLine);
   const budget = (form.data.variableSpending || [])
     .filter((item) => item.category || currencyValue(item.budgeted))
-    .map((item) => `${item.category || "Budget item"} - ${money(item.budgeted)} · ${paymentTimingLabel(item.coachDecision, "Pay this check")}`);
+    .map((item) => `${item.category || "Budget item"} - ${money(item.budgeted)}`);
   const rollovers = (form.data.allocations || [])
     .filter((item) => item.account || currencyValue(item.amount))
     .map((item) => `${item.account || item.type?.replaceAll("_", " ") || "Rollover"} - ${money(item.amount)}`);
@@ -6662,7 +6659,7 @@ function printWorksheetSummary(formId) {
   ));
   const budgetRows = (form.data.variableSpending || [])
     .filter((item) => item.category || Number(item.budgeted))
-    .map((item) => `${item.category || "Budget item"} - ${money(item.budgeted)} · ${paymentTimingLabel(item.coachDecision, "Pay this check")}`);
+    .map((item) => `${item.category || "Budget item"} - ${money(item.budgeted)}`);
   const allocations = (form.data.allocations || [])
     .filter((item) => item.account || Number(item.amount))
     .map((item) => `${item.account || item.type.replaceAll("_", " ")} - ${money(item.amount)}`);

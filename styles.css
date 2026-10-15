@@ -12501,3 +12501,58 @@ html[data-theme="dark"] .badge { color: #f4f7fc !important; }
   }
   .editor-aside .fit-calculator .calculator-heading { cursor: default; touch-action: auto; }
 }
+
+/* Worksheet rhythm follows available panel width, including split-screen views. */
+.worksheet-content {
+  display: grid;
+  gap: clamp(24px, 3vw, 40px);
+  min-width: 0;
+  container-type: inline-size;
+}
+.worksheet-content > .panel { margin-block: 0; }
+.worksheet-content .panel-heading,
+.worksheet-content .panel-body,
+.worksheet-content .debt-entry,
+.worksheet-content .routing-row {
+  padding: clamp(16px, 2.5vw, 28px);
+}
+.worksheet-content .panel-heading { gap: 16px; }
+.worksheet-content .panel-heading p { line-height: 1.6; }
+.worksheet-content :is(.overview-grid, .tracker-grid, .savings-grid, .debt-entry-grid, .promo-fields) {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 24px;
+}
+.worksheet-content .field { min-width: 0; }
+.worksheet-content .field > label { display: block; margin-bottom: 8px; line-height: 1.5; }
+.worksheet-content :is(.input, .table-input) { min-height: 44px; font-size: 16px; }
+.worksheet-content :is(.debt-card-list, .routing-list, .bill-sections) { gap: 24px; }
+.worksheet-content .budget-remaining-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 16px;
+  padding: 20px;
+}
+.worksheet-content .final-budget-table,
+.worksheet-content .final-budget-table tbody { display: block; width: 100%; min-width: 0; }
+.worksheet-content .final-budget-table tbody { display: grid; gap: 16px; padding: 20px; }
+.worksheet-content .final-budget-table tbody tr {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(140px, 1fr) 44px !important;
+  gap: 20px;
+  align-items: center;
+  padding: 16px 0;
+  min-width: 0;
+}
+.worksheet-content .final-budget-table td { grid-area: auto !important; }
+.worksheet-content .final-budget-table :is(.table-input, .money-input-wrap) { width: 100%; min-width: 0; }
+.worksheet-content .final-budget-table .mobile-row-action { position: static; justify-self: end; }
+.worksheet-content .table-total { gap: 16px; flex-wrap: wrap; padding: 20px; }
+@container (max-width: 520px) {
+  .worksheet-content .final-budget-table tbody tr {
+    grid-template-columns: minmax(0, 1fr) 44px !important;
+    gap: 16px;
+  }
+  .worksheet-content .final-budget-table tbody td:first-child { grid-column: 1 / -1; }
+  .worksheet-content .final-budget-table tbody td:nth-child(2) { grid-column: 1; }
+  .worksheet-content .final-budget-table tbody td:last-child { grid-column: 2; }
+}
