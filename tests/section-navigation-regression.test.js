@@ -67,19 +67,10 @@ test("missing sections do not throw or move focus", () => {
   assert.equal(state.focus, undefined);
 });
 
-test("worksheet jumps scroll only the dedicated pane below the navigation bar", () => {
-  const { ctx, link, state } = fixture("sticky", false);
-  const container = link.closest().closest();
-  const target = container.querySelector('[id="spending"]');
-  const viewport = {
-    scrollTop: 300,
-    getBoundingClientRect: () => ({ top: 200 }),
-    scrollTo: (options) => { state.paneScroll = options; },
-  };
-  target.closest = () => viewport;
-  target.getBoundingClientRect = () => ({ top: 700 });
+test("worksheet jumps use the full page and retain the measured navigation offset", () => {
+  const { ctx, link, state, properties } = fixture("static", false);
   ctx.jumpToSection(link);
-  assert.equal(state.paneScroll.top, 784);
-  assert.equal(state.paneScroll.behavior, "smooth");
-  assert.equal(state.scroll, undefined);
+  assert.equal(state.scroll.block, "start");
+  assert.equal(state.scroll.behavior, "smooth");
+  assert.equal(properties["--section-jump-offset"], "76px");
 });
