@@ -30,6 +30,7 @@ let inactivityLogoutInProgress = false;
 let calculatorDragState = null;
 let calculatorInteractionUntil = 0;
 let calculatorResizeObserver = null;
+let calculatorExpandedFormId = null;
 let pageLoadingTimer = null;
 let pageLoadingHideTimer = null;
 let portalInitializationInProgress = false;
@@ -788,7 +789,7 @@ function normalizeStateModels(state) {
     form.data.calculatorJustEvaluated ||= false;
     form.data.calculatorPosition ||= null;
     form.data.calculatorSize ||= null;
-    form.data.calculatorMinimized ||= false;
+    form.data.calculatorMinimized ??= true;
     form.data.calculatorHistoryOpen ||= false;
     form.data.allocations = (form.data.allocations || [])
       .filter((item) => rolloverTypes.includes(item.type))
@@ -1259,7 +1260,7 @@ function blankForm(owner, carryForward = owner.carryForward || {}, assignedPerso
       calculatorDraft: "",
       calculatorPosition: null,
       calculatorSize: null,
-      calculatorMinimized: false,
+      calculatorMinimized: true,
       calculatorHistoryOpen: false,
       allocations: [],
       notes: "",
@@ -2464,6 +2465,9 @@ function notifyProfileMilestones(member) {
 function render() {
   hidePageLoading();
   const account = currentAccount();
+  if (!account || activeView !== "editor" || activeFormId !== calculatorExpandedFormId) {
+    calculatorExpandedFormId = null;
+  }
   applyTheme();
   if (loginMode === "reset" || loginMode === "delete-verify" || loginMode === "delete-success") {
     renderLogin();
@@ -5181,11 +5185,6 @@ function emptyState(symbol, title, description, action) {
 
 
 function updateSectionNavigationLayout() {
-  const worksheetMain = document.querySelector(".main:has(.worksheet-content)");
-  if (worksheetMain?.style) {
-    const shellOffset = Math.max(0, worksheetMain.getBoundingClientRect().top + window.scrollY);
-    worksheetMain.style.setProperty("--worksheet-shell-offset", `${Math.ceil(shellOffset)}px`);
-  }
   const header = document.querySelector(".topbar");
   const headerPosition = header ? window.getComputedStyle(header).position : "";
   const headerHeight = ["sticky", "fixed"].includes(headerPosition)
@@ -5212,15 +5211,7 @@ function jumpToSection(link) {
   heading.focus({ preventScroll: true });
 
   const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth";
-  const viewport = target.closest?.(".editor-layout");
-  if (viewport) {
-    viewport.scrollTo({
-      top: Math.max(0, viewport.scrollTop + target.getBoundingClientRect().top - viewport.getBoundingClientRect().top - 16),
-      behavior,
-    });
-  } else {
-    target.scrollIntoView({ behavior, block: "start" });
-  }
+  target.scrollIntoView({ behavior, block: "start" });
   return true;
 }
 
@@ -5292,7 +5283,10 @@ function renderEditor() {
           ? `<div class="readonly-banner"><strong>${isCoachReview ? "Coach review required" : "Approved document"}</strong><span>${isCoachReview ? "Choose bill timing, then complete the session with coach notes and action steps." : `This form belongs to ${escapeHtml(form.ownerName)}.`}</span></div>`
           : ""
       }
-      ${billSearchMarkup(appState.accounts[form.ownerEmail])}
+      <div class="worksheet-tools">
+        ${billSearchMarkup(appState.accounts[form.ownerEmail])}
+        <div class="worksheet-calculator-slot">${calculatorPanel(form, readOnly)}</div>
+      </div>
       ${worksheetJumpNav(form)}
       <div class="editor-layout" style="margin-top: ${readOnly ? "16px" : "0"}">
         <div class="editor-main">
@@ -5309,7 +5303,6 @@ function renderEditor() {
         </div>
         <aside class="editor-aside">
           ${summaryPanel(calc)}
-          ${calculatorPanel(form, readOnly)}
         </aside>
       </div>
     </div>
@@ -5676,6 +5669,8 @@ function allocationPanel(form, calc, readOnly, isCoachReview) {
 }
 
 function calculatorPanel(form, readOnly) {
+  // Opening a worksheet always starts collapsed, including older saved forms.
+  const minimized = calculatorExpandedFormId !== form.id;
   const keys = [
     ["⌫", "utility"], ["AC", "utility"], ["%", "utility"], ["÷", "operator"],
     ["7", "number"], ["8", "number"], ["9", "number"], ["×", "operator"],
@@ -5703,14 +5698,14 @@ function calculatorPanel(form, readOnly) {
     : 0;
   const sizeStyle = `width:${calculatorWidth}px;height:auto;aspect-ratio:11 / 16;`;
   const positionStyle = `${sizeStyle}${position ? `left:${safeLeft}px;top:${safeTop}px;right:auto;bottom:auto;` : ""}`;
-  return `<aside class="calculator-widget fit-calculator ${position ? "is-floating" : ""} ${form.data.calculatorMinimized ? "minimized" : ""} ${form.data.calculatorHistoryOpen ? "history-open" : ""}" data-draggable-calculator="${form.id}" style="${positionStyle}">
+  return `<aside class="calculator-widget fit-calculator ${position ? "is-floating" : ""} ${minimized ? "minimized" : ""} ${!minimized && form.data.calculatorHistoryOpen ? "history-open" : ""}" data-draggable-calculator="${form.id}" style="${positionStyle}">
     <div class="calculator-heading" data-calculator-drag-handle>
       <div class="calculator-title-group">
-        <strong class="calculator-title">Calculator</strong>
+        ${minimized ? `<button class="calculator-restore" type="button" data-toggle-calculator-minimize="${form.id}" aria-expanded="false">Calculator</button>` : `<strong class="calculator-title">Calculator</strong>`}
       </div>
       <div class="calculator-tools">
         <button class="calculator-history-toggle" type="button" data-toggle-calculator-history="${form.id}" aria-label="${form.data.calculatorHistoryOpen ? "Hide recent calculations" : "Show recent calculations"}" title="${form.data.calculatorHistoryOpen ? "Hide recent calculations" : "Show recent calculations"}" aria-expanded="${form.data.calculatorHistoryOpen ? "true" : "false"}"><span class="calculator-clock-symbol" aria-hidden="true">◴</span></button>
-        <button class="calculator-minimize" type="button" data-toggle-calculator-minimize="${form.id}" aria-label="${form.data.calculatorMinimized ? "Restore calculator" : "Minimize calculator"}" title="${form.data.calculatorMinimized ? "Restore calculator" : "Minimize calculator"}">${form.data.calculatorMinimized ? "□" : "−"}</button>
+        <button class="calculator-minimize" type="button" data-toggle-calculator-minimize="${form.id}" aria-label="${minimized ? "Open calculator" : "Collapse calculator"}" title="${minimized ? "Open calculator" : "Collapse calculator"}" aria-expanded="${!minimized}">${minimized ? "+" : "−"}</button>
       </div>
     </div>
     <output class="calculator-display" aria-live="polite">${escapeHtml(form.data.calculatorDraft || "0")}</output>
@@ -6496,6 +6491,7 @@ function createForm(assignedPerson = "account_holder") {
   activeFormId = form.id;
   activeView = "editor";
   render();
+  window.scrollTo({ top: 0, behavior: "instant" });
   showToast("New worksheet created");
 }
 
@@ -7282,11 +7278,13 @@ document.addEventListener("click", async (event) => {
   if (calculatorMinimize) {
     const form = appState.forms[calculatorMinimize.dataset.toggleCalculatorMinimize];
     if (!form) return;
-    if (!form.data.calculatorMinimized) {
+    const wasExpanded = calculatorExpandedFormId === form.id;
+    if (wasExpanded) {
       saveCalculatorGeometry(calculatorMinimize.closest("[data-draggable-calculator]"));
     }
-    form.data.calculatorMinimized = !form.data.calculatorMinimized;
-    if (form.data.calculatorMinimized) form.data.calculatorHistoryOpen = false;
+    calculatorExpandedFormId = wasExpanded ? null : form.id;
+    form.data.calculatorMinimized = wasExpanded;
+    form.data.calculatorHistoryOpen = false;
     saveState();
     renderEditor();
     return;
@@ -7907,6 +7905,7 @@ document.addEventListener("click", async (event) => {
     activeFormId = openButton.dataset.openForm;
     activeView = "editor";
     render();
+    window.scrollTo({ top: 0, behavior: "instant" });
     if (form) {
       const emailResult = await sendWorksheetOpenedEmail(form);
       const emailStatus = emailDeliveryMessage(emailResult, notificationEmailsForForm(form));
