@@ -480,7 +480,7 @@ function ensureAccountModel(account) {
     if (!bill.dueDay && bill.dueDate) bill.dueDay = String(Number(bill.dueDate.slice(-2)));
     bill.scheduleEnabled = recurringScheduleEnabledFromBill(bill);
     bill.dueDay ||= "";
-    bill.nextDueDate ||= "";
+    bill.nextDueDate ||= bill.scheduleEnabled ? bill.dueDate || "" : "";
     bill.paidDueDate ||= "";
     if (bill.scheduleEnabled) bill.monthlyAmount ||= bill.amount || "";
     else {
@@ -802,9 +802,13 @@ function normalizeStateModels(state) {
     const owner = state.accounts?.[form.ownerEmail];
     if (form.status === "draft" && owner) {
       billGroups.forEach(([key]) => {
-        form.data.bills[key] = syncWorksheetBillsWithProfile(
-          form.data.bills[key], owner.financialInventory.recurringBills.filter((bill) => bill.category === key),
+        const rows = form.data.bills[key];
+        const paidBills = owner.financialInventory.recurringBills.filter((bill) =>
+          bill.category === key && fixedPaymentSchedule(bill) && bill.nextDueDate &&
+          rows.some((row) => row.profileBillId === bill.id && row.dueDate < bill.nextDueDate &&
+            recurringBillIsPaidForDueDate(bill, row.dueDate, row.periodAmount)),
         );
+        if (paidBills.length) form.data.bills[key] = syncWorksheetBillsWithProfile(rows, paidBills);
       });
     }
     if (
@@ -953,16 +957,17 @@ function paymentPeriodSummary(bill, dueDate, amount = bill.amount) {
   return { total, paid, remaining: currencyValue(Math.max(0, total - paid)) };
 }
 
-function advancePaidRecurringBill(bill) {
+function advancePaidRecurringBill(bill, currentAmount = bill.amount || bill.paymentAmount || bill.monthlyAmount) {
   if (!fixedPaymentSchedule(bill)) return;
   let dueDate = bill.nextDueDate || bill.paidDueDate;
-  // Advance only through fully paid periods, never past an unpaid or partial month.
-  while (dueDate && paymentPeriodSummary(bill, dueDate, bill.monthlyAmount).remaining === 0) {
+  // The current installment can differ from the standard monthly amount.
+  while (dueDate && recurringBillIsPaidForDueDate(bill, dueDate, currentAmount)) {
     const nextDueDate = nextPaymentPeriod(dueDate, bill.dueDay);
     if (!nextDueDate || nextDueDate <= dueDate) break;
     if (!bill.paidDueDate || bill.paidDueDate < dueDate) bill.paidDueDate = dueDate;
     bill.nextDueDate = nextDueDate;
     bill.amount = String(bill.monthlyAmount);
+    currentAmount = bill.monthlyAmount;
     dueDate = nextDueDate;
   }
 }
@@ -971,14 +976,15 @@ function recordPeriodPayment(bill, dueDate, amount, sourceId, total = bill.amoun
   if (!dueDate || currencyValue(amount) <= 0) return;
   bill.paymentHistory ||= [];
   if (bill.paymentHistory.some((payment) => payment.sourceId === sourceId)) return;
+  const fixed = fixedPaymentSchedule(bill);
   const before = paymentPeriodSummary(bill, dueDate, total);
   const paid = Math.min(before.remaining, Math.max(0, currencyValue(amount)));
   if (!paid) return;
   bill.paymentHistory.push({ sourceId, dueDate, amount: paid.toFixed(2), paidAt: new Date().toISOString() });
   bill.nextDueDate ||= dueDate;
   if (paymentPeriodSummary(bill, dueDate, total).remaining === 0) {
-    bill.paidDueDate = dueDate;
-    advancePaidRecurringBill(bill);
+    if (!fixed || !bill.paidDueDate || bill.paidDueDate <= dueDate) bill.paidDueDate = dueDate;
+    advancePaidRecurringBill(bill, dueDate === bill.nextDueDate ? total : undefined);
   }
 }
 
@@ -1020,8 +1026,10 @@ function recurringBillNextDueDate(bill) {
   return bill.dueDay ? nextMonthlyDueDate(bill.dueDay) : "";
 }
 
-function recurringBillIsPaidForDueDate(bill, dueDate = recurringBillNextDueDate(bill)) {
-  return Boolean(dueDate && bill?.paidDueDate === dueDate);
+function recurringBillIsPaidForDueDate(bill, dueDate = recurringBillNextDueDate(bill), periodAmount) {
+  if (!bill || !dueDate) return false;
+  if (bill.paidDueDate === dueDate) return true;
+  return currencyValue(periodAmount) > 0 && paymentPeriodSummary(bill, dueDate, periodAmount).remaining === 0;
 }
 
 function recurringBillDisplayDueDate(bill) {
@@ -1055,7 +1063,7 @@ function worksheetBillsFromUpcomingProfile(profileBills = []) {
 
 function syncWorksheetBillsWithProfile(existingBills = [], profileBills = []) {
   const savedById = new Map(profileBills.filter((bill) => bill.id).map((bill) => [bill.id, bill]));
-  const savedByName = new Map(profileBills.map((bill) => [String(bill.name).trim().toLowerCase(), bill]));
+  const savedByName = new Map(profileBills.map((bill) => [String(bill.name || "").trim().toLowerCase(), bill]));
   const profileRows = profileBills
     .filter(isUpcomingRecurringBill)
     .map((bill) => recurringBillToWorksheetBill(bill));
@@ -1065,19 +1073,19 @@ function syncWorksheetBillsWithProfile(existingBills = [], profileBills = []) {
   );
   const usedProfileIds = new Set();
   const usedNames = new Set();
+  const emptyRows = [];
   const synced = existingBills
     .map((bill) => {
       const isEmpty = !bill.name && !bill.amount && !bill.dueDate && !bill.memberSuggestion && !bill.coachDecision;
-      if (isEmpty) return null;
+      if (isEmpty) {
+        emptyRows.push(bill);
+        return null;
+      }
       const nameKey = String(bill.name || "").trim().toLowerCase();
-      const profileBill = profileById.get(bill.profileBillId) || profileByName.get(nameKey);
+      const profileBill = bill.profileBillId ? profileById.get(bill.profileBillId) : profileByName.get(nameKey);
       if (!profileBill) {
-        const saved = savedById.get(bill.profileBillId) || savedByName.get(nameKey);
-        const period = saved && bill.dueDate
-          ? paymentPeriodSummary(saved, bill.dueDate, bill.periodAmount ?? saved.amount) : null;
-        if (period?.total > 0 && period.remaining === 0) {
-          return null;
-        }
+        const saved = bill.profileBillId ? savedById.get(bill.profileBillId) : savedByName.get(nameKey);
+        if (bill.dueDate && recurringBillIsPaidForDueDate(saved, bill.dueDate, bill.periodAmount)) return null;
         if (nameKey) usedNames.add(nameKey);
         return clone(bill);
       }
@@ -1105,9 +1113,11 @@ function syncWorksheetBillsWithProfile(existingBills = [], profileBills = []) {
       return;
     }
     synced.push(profileBill);
+    emptyRows.shift();
     if (profileBill.profileBillId) usedProfileIds.add(profileBill.profileBillId);
     usedNames.add(nameKey);
   });
+  synced.push(...emptyRows);
   while (synced.length < 3) synced.push(blankBill());
   return synced;
 }
@@ -3067,8 +3077,10 @@ function markUpcomingBillPaid(account, targetType, targetId, dueDate) {
   if (targetType === "recurringBills") {
     const bill = account.financialInventory.recurringBills.find((item) => item.id === targetId);
     if (!bill) return null;
-    const paymentDate = dueDate || recurringBillNextDueDate(bill);
-    recordPeriodPayment(bill, paymentDate, paymentPeriodSummary(bill, paymentDate).remaining, `manual:${paymentDate}`);
+    const paymentDate = recurringBillNextDueDate(bill);
+    if (!paymentDate || (dueDate && dueDate !== paymentDate)) return null;
+    const payment = paymentPeriodSummary(bill, paymentDate);
+    recordPeriodPayment(bill, paymentDate, payment.remaining, `manual:${paymentDate}`);
     if (!fixedPaymentSchedule(bill)) {
       bill.paidDueDate = paymentDate;
       bill.nextDueDate = "";
@@ -3103,7 +3115,8 @@ function markUpcomingBillPaid(account, targetType, targetId, dueDate) {
   if (targetType === "mortgage") {
     const mortgage = account.financialInventory.mortgage;
     const payment = mortgageWorksheetPayment(mortgage);
-    const paymentDate = dueDate || payment.nextDueDate;
+    const paymentDate = payment.nextDueDate;
+    if (!paymentDate || (dueDate && dueDate !== paymentDate)) return null;
     recordPeriodPayment(mortgage, paymentDate, payment.paymentAmount, `manual:${paymentDate}`, payment.periodAmount);
     mortgage.lastPaidDueDate = paymentDate;
     mortgage.lastPaidAt = paidAt;
@@ -7661,7 +7674,7 @@ document.addEventListener("click", async (event) => {
       saveFinancialProfileMutation(account);
       await productionBackend.saveNow?.(appState);
       renderUpcomingBills();
-      showToast(`${paidName} marked paid and removed from upcoming bills.`);
+      showToast(`${paidName} marked paid.`);
     } catch (error) {
       markUpcomingPaid.disabled = false;
       showToast(error.message || "Could not mark this bill paid.");

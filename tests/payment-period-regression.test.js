@@ -130,6 +130,35 @@ test('saved partial payments retain their month while fully paid history advance
   assert.equal(restored.paymentHistory.length, 2);
 });
 
+test('the saved current installment takes precedence over the usual monthly amount', () => {
+  const b = bill({ amount: '1500' });
+  ctx.recordPeriodPayment(b, b.nextDueDate, 1200, 'partial');
+  const restored = ctx.normalizeRestoredRecurringBill(b);
+  assert.equal(restored.nextDueDate, '2026-10-01');
+  assert.equal(ctx.paymentPeriodSummary(restored, restored.nextDueDate).remaining, 300);
+  ctx.recordPeriodPayment(restored, restored.nextDueDate, 300, 'balance');
+  assert.equal(restored.nextDueDate, '2026-11-01');
+  assert.equal(restored.amount, '1200');
+});
+
+test('a stale mortgage payment button cannot apply a new month’s balance to the old month', () => {
+  const mortgage = bill({ paymentAmount: '1200', nextDueDate: '2026-11-01', paidDueDate: '2026-10-01' });
+  const account = { financialInventory: { mortgage } };
+  assert.equal(ctx.markUpcomingBillPaid(account, 'mortgage', 'mortgage-payment', '2026-09-01'), null);
+  assert.equal(mortgage.nextDueDate, '2026-11-01');
+  assert.equal(mortgage.paidDueDate, '2026-10-01');
+  assert.equal(mortgage.paymentHistory, undefined);
+});
+
+test('settling an older balance preserves a newer paid period', () => {
+  const b = bill({ paidDueDate: '2026-11-01', paymentHistory: [
+    { sourceId: 'early-payment', dueDate: '2026-11-01', amount: '850.00' },
+  ] });
+  ctx.recordPeriodPayment(b, '2026-10-01', 1200, 'overdue');
+  assert.equal(b.nextDueDate, '2026-12-01');
+  assert.equal(b.paidDueDate, '2026-11-01');
+});
+
 test('a fixed last-day bill rolls through February only after full payment', () => {
   const b = bill({ dueDay: 'last', nextDueDate: '2028-01-31' });
   ctx.recordPeriodPayment(b, '2028-01-31', 500, 'first');
@@ -169,4 +198,13 @@ test('draft payments are preserved when no saved bill total or payment proves th
   assert.equal(next.id, 'draft-row');
   assert.equal(next.amount, '200');
   assert.equal(next.dueDate, '2026-10-01');
+});
+
+test('syncing an already updated draft preserves its blank rows', () => {
+  const b = bill({ nextDueDate: '2026-11-01', paidDueDate: '2026-10-01' });
+  const oldRow = ctx.recurringBillToWorksheetBill(bill());
+  const rows = [oldRow, { id: 'blank-1' }, { id: 'blank-2' }, { id: 'blank-3' }];
+  const synced = ctx.syncWorksheetBillsWithProfile(rows, [b]);
+  assert.equal(JSON.stringify(synced), JSON.stringify(rows.slice(1)));
+  assert.equal(JSON.stringify(ctx.syncWorksheetBillsWithProfile(synced, [b])), JSON.stringify(synced));
 });
