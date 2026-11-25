@@ -3250,7 +3250,7 @@ function navigateToSearchedBill(button) {
 }
 
 function financialProfileSections(account, includePaystubs) {
-  requestAnimationFrame(updateSectionNavigationLayout);
+  requestAnimationFrame(refreshSectionNavigation);
   return `
     ${billSearchMarkup(account)}
     <nav class="profile-jump-nav" aria-label="Financial profile sections">
@@ -5251,6 +5251,50 @@ function emptyState(symbol, title, description, action) {
 }
 
 
+function syncSectionNavigation() {
+  document.querySelectorAll(".profile-jump-nav").forEach((nav) => {
+    const container = nav.closest(".content");
+    if (!container) return;
+    const navBounds = nav.getBoundingClientRect();
+    if (!navBounds.height) return;
+    const edge = navBounds.bottom;
+    const sections = [...nav.querySelectorAll('a[href^="#"]')].flatMap((link) => {
+      const section = document.getElementById(link.hash.slice(1));
+      return section && container.contains(section)
+        ? [{ link, section, bounds: section.getBoundingClientRect() }] : [];
+    });
+    const scroller = document.scrollingElement;
+    const atPageEnd = scroller.scrollTop > 0
+      && scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2;
+    const active = (atPageEnd && sections.findLast(({ bounds }) => bounds.top < window.innerHeight))
+      || sections.findLast(({ bounds }) => bounds.top <= edge + 24)
+      || sections[0];
+    for (const { link, section, bounds } of sections) {
+      const overlap = Math.min(bounds.height, Math.max(0, Math.ceil(edge - bounds.top)));
+      const clip = overlap && bounds.height ? (overlap >= bounds.height ? "calc(100% + 8px)" : `${overlap}px`) : "";
+      if (section.style.getPropertyValue("--section-clip-top") !== clip) {
+        if (clip) section.style.setProperty("--section-clip-top", clip);
+        else section.style.removeProperty("--section-clip-top");
+      }
+      if (link !== active?.link) link.removeAttribute("aria-current");
+    }
+    if (!active || active.link.hasAttribute("aria-current")) return;
+    active.link.setAttribute("aria-current", "location");
+    const bounds = active.link.getBoundingClientRect();
+    if (bounds.left < navBounds.left) nav.scrollLeft += bounds.left - navBounds.left - 8;
+    if (bounds.right > navBounds.right) nav.scrollLeft += bounds.right - navBounds.right + 8;
+  });
+}
+
+let sectionNavigationFrame = null;
+function scheduleSectionNavigationSync() {
+  if (sectionNavigationFrame !== null) return;
+  sectionNavigationFrame = requestAnimationFrame(() => {
+    sectionNavigationFrame = null;
+    syncSectionNavigation();
+  });
+}
+
 function updateSectionNavigationLayout() {
   const header = document.querySelector(".topbar");
   const headerPosition = header ? window.getComputedStyle(header).position : "";
@@ -5282,10 +5326,16 @@ function jumpToSection(link) {
   return true;
 }
 
-window.addEventListener("resize", updateSectionNavigationLayout);
+function refreshSectionNavigation() {
+  updateSectionNavigationLayout();
+  scheduleSectionNavigationSync();
+}
+
+window.addEventListener("resize", refreshSectionNavigation);
+window.addEventListener("scroll", scheduleSectionNavigationSync, { passive: true, capture: true });
 
 function worksheetJumpNav(form) {
-  requestAnimationFrame(updateSectionNavigationLayout);
+  requestAnimationFrame(refreshSectionNavigation);
   return `
     <nav class="profile-jump-nav worksheet-jump-nav" aria-label="Worksheet sections">
       <span>Jump to section</span>
