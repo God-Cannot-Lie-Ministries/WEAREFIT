@@ -404,6 +404,11 @@ function ensureFinancialInventory(account) {
   account.financialInventory.creditCards = removePartialNameDuplicates(account.financialInventory.creditCards, "account");
   account.financialInventory.debts = removePartialNameDuplicates(account.financialInventory.debts, "account");
   account.financialInventory.studentLoans = removePartialNameDuplicates(account.financialInventory.studentLoans, "account");
+  for (const type of ["recurringBills", "creditCards", "debts", "studentLoans"]) {
+    for (const item of account.financialInventory[type]) {
+      item.id ||= uid("bill");
+    }
+  }
 }
 
 function normalizedBillReminderDays(value, fallback = 5) {
@@ -2929,7 +2934,7 @@ function upcomingBillItems(account) {
     const amount = currencyValue(item.amount);
     if (!item.name || !item.dueDate || !amount || !isDateWithinNextMonth(item.dueDate)) return;
     items.push({
-      id: item.id || uid("upcoming"),
+      id: item.id,
       name: item.name,
       amount,
       dueDate: item.dueDate,
@@ -3090,24 +3095,24 @@ function markUpcomingBillPaid(account, targetType, targetId, dueDate) {
   }
   if (targetType === "creditCards") {
     const card = account.financialInventory.creditCards.find((item) => item.id === targetId);
-    if (!card) return null;
-    card.lastPaidDueDate = card.dueDate || dueDate;
+    if (!card?.dueDate || (dueDate && card.dueDate !== dueDate)) return null;
+    card.lastPaidDueDate = card.dueDate;
     card.dueDate = "";
     card.lastPaidAt = paidAt;
     return card.account || "Credit card";
   }
   if (targetType === "debts") {
     const debt = account.financialInventory.debts.find((item) => item.id === targetId);
-    if (!debt) return null;
-    debt.lastPaidDueDate = debt.dueDate || dueDate;
+    if (!debt?.dueDate || (dueDate && debt.dueDate !== dueDate)) return null;
+    debt.lastPaidDueDate = debt.dueDate;
     debt.dueDate = "";
     debt.lastPaidAt = paidAt;
     return debt.account || "Debt";
   }
   if (targetType === "studentLoans") {
     const loan = account.financialInventory.studentLoans.find((item) => item.id === targetId);
-    if (!loan) return null;
-    loan.lastPaidDueDate = loan.dueDate || dueDate;
+    if (!loan?.dueDate || (dueDate && loan.dueDate !== dueDate)) return null;
+    loan.lastPaidDueDate = loan.dueDate;
     loan.dueDate = "";
     loan.lastPaidAt = paidAt;
     return loan.account || "Student loan";
@@ -6991,6 +6996,7 @@ async function completeWorksheet(formId, coachNotes = "", actionSteps = "") {
     creditCards: form.data.creditCards
       .filter((card) => card.account)
       .map((card) => ({
+        id: card.id || uid("card"),
         account: card.account,
         dueDate: card.dueDate,
         totalBalance: String(remainingAfterPlannedPayment(card, form, "credit_card")),
@@ -7749,7 +7755,8 @@ document.addEventListener("click", async (event) => {
     const targetId = targetIdParts.join(":");
     const paidName = markUpcomingBillPaid(account, targetType, targetId, markUpcomingPaid.dataset.upcomingDueDate);
     if (!paidName) {
-      showToast("That upcoming bill could not be found.");
+      renderUpcomingBills();
+      showToast("This bill changed. Check the refreshed list before marking it paid.");
       return;
     }
     markUpcomingPaid.disabled = true;

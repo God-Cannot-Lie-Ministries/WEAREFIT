@@ -3,8 +3,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const source = fs.readFileSync(require('node:path').join(__dirname, '../app.js'), 'utf8');
-const names = ['currencyValue', 'dateValueFromLocal', 'nextMonthlyDueDate', 'fixedPaymentSchedule', 'nextPaymentPeriod', 'paymentPeriodSummary', 'advancePaidRecurringBill', 'recordPeriodPayment', 'mortgageWorksheetPayment', 'recurringBillNextDueDate', 'recurringBillToWorksheetBill', 'recurringBillIsPaidForDueDate', 'isUpcomingRecurringBill', 'isDateWithinNextDays', 'addDays', 'matchingProfileBills', 'syncWorksheetBillsWithProfile', 'markUpcomingBillPaid', 'normalizeRestoredRecurringBill', 'blankRecurringBill', 'recurringScheduleEnabledFromBill'];
-const ctx = vm.createContext({ todayValue: () => '2026-10-01', blankBill: () => ({ id: 'new-row' }), clone: (v) => structuredClone(v), uid: () => 'generated-id', ensureFinancialInventory: () => {}, WORKSHEET_BILL_LOOKAHEAD_DAYS: 15 });
+const names = ['currencyValue', 'dateValueFromLocal', 'nextMonthlyDueDate', 'fixedPaymentSchedule', 'nextPaymentPeriod', 'paymentPeriodSummary', 'advancePaidRecurringBill', 'recordPeriodPayment', 'mortgageWorksheetPayment', 'recurringBillNextDueDate', 'recurringBillToWorksheetBill', 'recurringBillIsPaidForDueDate', 'isUpcomingRecurringBill', 'isDateWithinNextDays', 'addDays', 'matchingProfileBills', 'syncWorksheetBillsWithProfile', 'markUpcomingBillPaid', 'normalizeRestoredRecurringBill', 'blankRecurringBill', 'recurringScheduleEnabledFromBill', 'ensureFinancialInventory', 'upcomingBillItems', 'isDateWithinNextMonth'];
+const ctx = vm.createContext({ todayValue: () => '2026-10-01', blankBill: () => ({ id: 'new-row' }), clone: (v) => structuredClone(v), uid: () => 'generated-id', removePartialNameDuplicates: (rows) => rows, billGroups: [], WORKSHEET_BILL_LOOKAHEAD_DAYS: 15 });
 for (const name of names) {
   const match = source.match(new RegExp(`^function ${name}\\([^]*?^}`, 'm'));
   assert.ok(match, `production function ${name}`);
@@ -207,4 +207,22 @@ test('syncing an already updated draft preserves its blank rows', () => {
   const synced = ctx.syncWorksheetBillsWithProfile(rows, [b]);
   assert.equal(JSON.stringify(synced), JSON.stringify(rows.slice(1)));
   assert.equal(JSON.stringify(ctx.syncWorksheetBillsWithProfile(synced, [b])), JSON.stringify(synced));
+});
+
+test('upcoming credit cards without saved IDs can be marked paid', () => {
+  const card = { account: 'Legacy card', dueDate: '2026-10-04', paymentDue: '25' };
+  const account = { financialInventory: { creditCards: [card] } };
+  const [upcoming] = ctx.upcomingBillItems(account);
+  assert.ok(card.id);
+  assert.equal(upcoming.id, card.id);
+  assert.equal(ctx.markUpcomingBillPaid(account, upcoming.targetType, upcoming.id, upcoming.dueDate), 'Legacy card');
+  assert.equal(card.lastPaidDueDate, '2026-10-04');
+  assert.equal(ctx.upcomingBillItems(account).length, 0);
+});
+
+test('a stale upcoming card cannot clear a newer due date', () => {
+  const card = { id: 'card', account: 'Card', dueDate: '2026-10-08', paymentDue: '25' };
+  const account = { financialInventory: { creditCards: [card] } };
+  assert.equal(ctx.markUpcomingBillPaid(account, 'creditCards', card.id, '2026-10-04'), null);
+  assert.equal(card.dueDate, '2026-10-08');
 });
