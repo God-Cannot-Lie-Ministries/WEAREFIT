@@ -4815,7 +4815,7 @@ function sessionReviewCard(session, viewer) {
   return `
     <article class="session-review-card">
       <div class="session-review-top">
-        <div><p class="document-label">Completed F.I.T. session</p><h3>${dateLabel(session.sessionDate.slice(0, 10))}</h3><p>${escapeHtml(session.coachName)} with ${escapeHtml(session.memberName)}</p></div>
+        <div><p class="document-label">Completed F.I.T. session</p><h3>${dateLabel(session.sessionDate.slice(0, 10))}</h3><p>${session.coachName ? `${escapeHtml(session.coachName)} with ` : ""}${escapeHtml(session.memberName)}</p></div>
         <div class="button-row"><button class="btn btn-secondary btn-small" type="button" data-print-form="${session.formId}">Open summary PDF</button><span class="badge green">${session.archivedAt ? "Archived" : "Review ready"}</span></div>
       </div>
       <section class="ai-review">
@@ -4824,7 +4824,7 @@ function sessionReviewCard(session, viewer) {
       </section>
       <div class="session-review-grid">
         ${sessionDetail("Coach feedback notes", session.coachNotes || "N/A")}
-        ${sessionDetail("Action steps before next session", session.actionSteps || "Continue following the approved worksheet.")}
+        ${sessionDetail("Action steps before next session", session.actionSteps || "Continue following the completed worksheet.")}
         ${sessionListDetail("Bills to Pay This Check", session.billsToPayThisCheck || session.billsPaid)}
         ${sessionListDetail("Future Bills / Waiting for Next Check", session.futureBills || session.billsLeft)}
         ${sessionListDetail("Rollovers", session.allocations)}
@@ -4906,11 +4906,11 @@ function createSessionReview(form, coach, coachNotes, actionSteps) {
   const member = appState.accounts[form.ownerEmail];
   const paid = Object.values(form.data.bills)
     .flat()
-    .filter((bill) => bill.name && bill.coachDecision === "this_check")
+    .filter((bill) => bill.name && shouldPayThisCheck(bill))
     .map((bill) => `${bill.name} (${money(bill.amount)})`);
   const left = Object.values(form.data.bills)
     .flat()
-    .filter((bill) => bill.name && bill.coachDecision !== "this_check")
+    .filter((bill) => bill.name && !shouldPayThisCheck(bill))
     .map((bill) => `${bill.name} (${money(bill.amount)})`);
   const calc = calculate(form);
   const allocations = (form.data.allocations || [])
@@ -4922,7 +4922,7 @@ function createSessionReview(form, coach, coachNotes, actionSteps) {
   const normalizedCoachNotes = coachNotes || "N/A";
   const normalizedActionSteps = actionSteps || "N/A";
   const memberNotes = form.data.notes || "N/A";
-  const aiSummary = `${form.assignedName || member.name} completed a F.I.T. paycheck-planning session with ${coach.name}. Total income for this check was ${money(calc.totalIncome)}, including ${money(calc.additionalIncome)} in additional income. The rounded tithe was ${titheMoney(calc.tithe)}, planned before bills and rollovers. Bills to Pay This Check: ${paid.length ? paid.join("; ") : "none"}. Future Bills / Waiting for Next Check: ${left.length ? left.join("; ") : "none"}. Rollovers total ${money(calc.allocationTotal)}, leaving ${money(calc.available)} available. ${savingsWithdrawals.length ? `Savings withdrawals recorded: ${savingsWithdrawals.join("; ")}.` : "No savings withdrawals were recorded for this form."} Coach notes: ${normalizedCoachNotes}. Member notes: ${memberNotes}.`;
+  const aiSummary = `${form.assignedName || member.name} completed a F.I.T. paycheck-planning session${coach ? ` with ${coach.name}` : ""}. Total income for this check was ${money(calc.totalIncome)}, including ${money(calc.additionalIncome)} in additional income. The rounded tithe was ${titheMoney(calc.tithe)}, planned before bills and rollovers. Bills to Pay This Check: ${paid.length ? paid.join("; ") : "none"}. Future Bills / Waiting for Next Check: ${left.length ? left.join("; ") : "none"}. Rollovers total ${money(calc.allocationTotal)}, leaving ${money(calc.available)} available. ${savingsWithdrawals.length ? `Savings withdrawals recorded: ${savingsWithdrawals.join("; ")}.` : "No savings withdrawals were recorded for this form."} Coach notes: ${normalizedCoachNotes}. Member notes: ${memberNotes}.`;
   return {
     id: uid("session"),
     formId: form.id,
@@ -4930,8 +4930,8 @@ function createSessionReview(form, coach, coachNotes, actionSteps) {
     createdAt: new Date().toISOString(),
     archivedAt: null,
     archiveReason: "",
-    coachEmail: coach.email,
-    coachName: coach.name,
+    coachEmail: coach?.email || (member.coachRequestStatus === "approved" ? member.coachEmail : null),
+    coachName: coach?.name || "",
     memberEmail: member.email,
     memberName: member.name,
     assignedName: form.assignedName || member.name,
@@ -5105,13 +5105,13 @@ function memberFormCard(form) {
       </div>
       <div class="button-row">
         <button class="btn btn-primary btn-small" type="button" data-open-form="${form.id}">Open</button>
-        <button class="btn btn-secondary btn-small" type="button" data-save-form="${form.id}">Save</button>
-        ${currentAccount()?.coachEmail && currentAccount()?.coachRequestStatus === "approved" ? `<button class="btn btn-secondary btn-small" type="button" data-share-form="${form.id}"><span aria-hidden="true">↗</span> Send to coach</button>` : ""}
+        ${form.status === "approved" && !form.approvedBy ? "" : `<button class="btn btn-secondary btn-small" type="button" data-save-form="${form.id}">Save</button>`}
+        ${form.status !== "approved" && currentAccount()?.coachEmail && currentAccount()?.coachRequestStatus === "approved" ? `<button class="btn btn-secondary btn-small" type="button" data-share-form="${form.id}"><span aria-hidden="true">↗</span> Send to coach</button>` : ""}
         <button class="btn btn-secondary btn-small" type="button" data-print-form="${form.id}">Print PDF</button>
         ${
           form.archivedAt
             ? `<span class="badge">Archived</span>`
-            : `<button class="btn btn-secondary btn-small" type="button" ${form.status === "approved" ? "" : 'disabled title="Available after coach approval"'} data-archive-form="${form.id}">Archive</button>`
+            : `<button class="btn btn-secondary btn-small" type="button" ${form.status === "approved" ? "" : 'disabled title="Available after finalizing the worksheet"'} data-archive-form="${form.id}">Archive</button>`
         }
         <button class="icon-btn danger" type="button" title="Delete form" aria-label="Delete form" data-delete-form="${form.id}">×</button>
       </div>
@@ -5137,13 +5137,13 @@ function coachFormCard(form) {
         <div><span>Tithe</span><strong>${titheMoney(calc.tithe)}</strong></div>
       </div>
       <div class="button-row">
-        <button class="btn btn-primary btn-small" type="button" data-open-form="${form.id}">${form.status === "approved" ? "View approved form" : "Review form"}</button>
+        <button class="btn btn-primary btn-small" type="button" data-open-form="${form.id}">${form.status === "approved" ? "View completed form" : "Review form"}</button>
         ${
           form.archivedAt
             ? `<span class="badge">Archived</span>`
             : `<button class="btn btn-secondary btn-small" type="button" ${form.status === "approved" ? "" : 'disabled title="Available after approval"'} data-archive-form="${form.id}">Archive</button>`
         }
-        <span class="autosave">${form.status === "approved" ? "Approved" : "Sent"} ${updatedLabel(form.approvedAt || form.submittedAt || form.updatedAt)}</span>
+        <span class="autosave">${form.status === "approved" ? (form.approvedBy ? "Approved" : "Finalized") : "Sent"} ${updatedLabel(form.approvedAt || form.submittedAt || form.updatedAt)}</span>
       </div>
     </article>
   `;
@@ -5151,7 +5151,7 @@ function coachFormCard(form) {
 
 function formStatusBadge(form) {
   if (form.archivedAt) return `<span class="badge">Archived</span>`;
-  if (form.status === "approved") return `<span class="badge green">Approved</span>`;
+  if (form.status === "approved") return `<span class="badge green">${form.approvedBy ? "Approved" : "Finalized"}</span>`;
   if (form.status === "submitted") return `<span class="badge">Awaiting review</span>`;
   return `<span class="badge">Draft</span>`;
 }
@@ -5365,7 +5365,7 @@ function renderEditor() {
 
   const assignedCoach = account.role === "coach" && appState.accounts[form.ownerEmail]?.coachEmail === account.email;
   const isCoachReview = assignedCoach && form.status !== "approved";
-  const readOnly = form.ownerEmail !== account.email && !assignedCoach;
+  const readOnly = form.status === "approved" && !form.approvedBy;
   const authorized =
     (account.role === "user" && form.ownerEmail === account.email) ||
     assignedCoach;
@@ -5387,8 +5387,9 @@ function renderEditor() {
        <button class="btn btn-secondary" type="button" data-print-form="${form.id}">Print PDF</button>
        <button class="btn btn-secondary" type="button" data-view="dashboard">Back to coach workspace</button>`
     : `
-      ${account.coachEmail && account.coachRequestStatus === "approved" ? `<button class="btn btn-gold" type="button" data-share-form="${form.id}"><span aria-hidden="true">↗</span> Send to coach</button>` : ""}
-      <button class="btn btn-primary" type="button" data-save-form="${form.id}">Save form</button>
+      ${!readOnly && form.status !== "approved" && account.coachEmail && account.coachRequestStatus === "approved" ? `<button class="btn btn-gold" type="button" data-share-form="${form.id}"><span aria-hidden="true">↗</span> Send to coach</button>` : ""}
+      ${readOnly ? "" : `<button class="btn btn-primary" type="button" data-save-form="${form.id}">Save form</button>`}
+      ${form.status === "approved" ? "" : `<button class="btn btn-gold" type="button" data-finalize-form="${form.id}">Finalize worksheet</button>`}
       <button class="btn btn-secondary" type="button" data-print-form="${form.id}">Print PDF</button>
       <button class="btn btn-primary" type="button" data-view="dashboard">Done</button>
     `;
@@ -5396,8 +5397,8 @@ function renderEditor() {
   const content = `
     <div class="content worksheet-content">
       ${
-        readOnly
-          ? `<div class="readonly-banner"><strong>${isCoachReview ? "Coach review required" : "Approved document"}</strong><span>${isCoachReview ? "Choose bill timing, then complete the session with coach notes and action steps." : `This form belongs to ${escapeHtml(form.ownerName)}.`}</span></div>`
+        readOnly || isCoachReview
+          ? `<div class="readonly-banner"><strong>${isCoachReview ? "Coach review" : "Finalized worksheet"}</strong><span>${isCoachReview ? "Choose bill timing, then complete the session with coach notes and action steps." : "Payments and balances have been recorded."}</span></div>`
           : ""
       }
       <div class="worksheet-tools">
@@ -5428,7 +5429,7 @@ function renderEditor() {
   app.innerHTML = shell(content, {
     title: readOnly ? form.title : "Edit worksheet",
     subtitle: readOnly
-      ? `${form.assignedName || form.ownerName} · ${form.status === "approved" ? "Approved document" : "Ready for coach review"}`
+      ? `${form.assignedName || form.ownerName} · ${form.status === "approved" ? (form.approvedBy ? "Approved document" : "Finalized worksheet") : "Ready for coach review"}`
       : `Autosaved · Last updated ${updatedLabel(form.updatedAt)}`,
     actions,
   });
@@ -6920,11 +6921,19 @@ function showProfileWithdrawalModal(index) {
   document.body.appendChild(modal);
 }
 
-async function approveForm(formId, coachNotes = "", actionSteps = "") {
-  const coach = currentAccount();
+async function completeWorksheet(formId, coachNotes = "", actionSteps = "") {
+  const actor = currentAccount();
   const form = appState.forms[formId];
-  if (!form || form.status === "approved" || coach.role !== "coach" || appState.accounts[form.ownerEmail]?.coachEmail !== coach.email) return;
+  if (!actor || !form || form.status === "approved") return;
   const member = appState.accounts[form.ownerEmail];
+  if (!member) return;
+  const coach = actor.role === "coach" && member.coachEmail === actor.email ? actor : null;
+  if (!coach && (actor.role !== "user" || actor.email !== form.ownerEmail)) return;
+  const calc = calculate(form);
+  if (calc.available < 0) {
+    showOverBudgetDialog(calc);
+    return;
+  }
   const paymentRows = Object.values(form.data.bills).flat();
   const paymentsByPeriod = new Map();
   for (const row of paymentRows) {
@@ -6939,11 +6948,10 @@ async function approveForm(formId, coachNotes = "", actionSteps = "") {
     const totalPayment = currencyValue((paymentsByPeriod.get(periodKey) || 0) + currencyValue(row.amount));
     paymentsByPeriod.set(periodKey, totalPayment);
     if (totalPayment > paymentPeriodSummary(saved, row.dueDate, row.periodAmount ?? saved.amount).remaining) {
-      showToast(`${row.name}: this payment exceeds the unpaid balance. Update the worksheet before approval.`);
+      showToast(`${row.name}: this payment exceeds the unpaid balance. Update the worksheet before finalizing.`);
       return;
     }
   }
-  const calc = calculate(form);
   if (form.data.housingPaymentType === "mortgage" && calc.mortgageContribution > 0 && !form.data.mortgage.nextDueDate) {
     showToast("Enter a mortgage due date so this payment can be tracked.");
     return;
@@ -6951,12 +6959,13 @@ async function approveForm(formId, coachNotes = "", actionSteps = "") {
   if (form.data.housingPaymentType === "mortgage" && calc.mortgageContribution > paymentPeriodSummary(
     member.financialInventory.mortgage, form.data.mortgage.nextDueDate,
     form.data.mortgage.periodAmount ?? member.financialInventory.mortgage.paymentAmount).remaining) {
-    showToast("The mortgage payment exceeds the unpaid amount for this period. Update the worksheet before approval.");
+    showToast("The mortgage payment exceeds the unpaid amount for this period. Update the worksheet before finalizing.");
     return;
   }
   form.status = "approved";
   form.approvedAt = new Date().toISOString();
-  form.approvedBy = coach.email;
+  form.approvedBy = coach?.email || null;
+  form.updatedAt = form.approvedAt;
   const mortgagePaymentRemaining = currencyValue(Math.max(
     0,
     (Number(form.data.mortgage.paymentAmount) || 0) - calc.mortgageContribution,
@@ -7068,14 +7077,19 @@ async function approveForm(formId, coachNotes = "", actionSteps = "") {
   const sessionReview = createSessionReview(form, coach, coachNotes, actionSteps);
   appState.sessions.push(sessionReview);
   autoArchivePreviousSessionReviews(appState);
-  saveState();
-  await productionBackend.saveNow?.(appState);
-  const emailResult = await sendSessionCompletedEmail(form, sessionReview);
-  const emailStatus = emailDeliveryMessage(emailResult, notificationEmailsForForm(form));
+  if (!saveState()) return;
   activeFormId = null;
   activeView = "dashboard";
   render();
-  showToast(`Session completed. Review generated and balances carried forward.${emailStatus}`);
+  try {
+    await productionBackend.saveNow?.(appState);
+  } catch {
+    showToast("Worksheet finalized on this device. Sync will retry.");
+    return;
+  }
+  const emailResult = await sendSessionCompletedEmail(form, sessionReview);
+  const emailStatus = emailDeliveryMessage(emailResult, notificationEmailsForForm(form));
+  showToast(`Worksheet finalized. Payments recorded and balances carried forward.${emailStatus}`);
 }
 
 function showToast(message) {
@@ -8032,6 +8046,20 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
+  const finalizeButton = event.target.closest("[data-finalize-form]");
+  if (finalizeButton) {
+    if (!window.confirm("Finalize this worksheet and carry its balances forward?")) return;
+    finalizeButton.disabled = true;
+    try {
+      await completeWorksheet(finalizeButton.dataset.finalizeForm);
+    } catch (error) {
+      showToast(error.message || "The worksheet could not be finalized.");
+    } finally {
+      finalizeButton.disabled = false;
+    }
+    return;
+  }
+
   const shareButton = event.target.closest("[data-share-form]");
   if (shareButton) {
     showShareModal(shareButton.dataset.shareForm);
@@ -8110,7 +8138,7 @@ document.addEventListener("click", async (event) => {
       return;
     }
     if (form.status !== "approved") {
-      showToast("Archive is available after the session is approved.");
+      showToast("Finalize the worksheet before archiving.");
       return;
     }
     if (form.archivedAt) {
@@ -8552,7 +8580,7 @@ document.addEventListener("submit", async (event) => {
     event.preventDefault();
     const modal = event.target.closest(".modal-backdrop");
     const data = new FormData(event.target);
-    await approveForm(
+    await completeWorksheet(
       modal.dataset.formId,
       data.get("coachNotes").trim(),
       data.get("actionSteps").trim(),
@@ -8581,7 +8609,7 @@ document.addEventListener("submit", async (event) => {
     });
     saveState();
     renderSessions();
-    showToast("Your response was shared with your coach");
+    showToast(session.coachEmail ? "Your response was shared with your coach" : "Your response was saved");
     return;
   }
 
@@ -8591,6 +8619,7 @@ document.addEventListener("submit", async (event) => {
     const form = appState.forms[modal.dataset.formId];
     const email = normalizeEmail(new FormData(event.target).get("email"));
     const account = currentAccount();
+    if (!form || form.ownerEmail !== account.email || form.status === "approved") return;
     if (email !== account.coachEmail || account.coachRequestStatus !== "approved") {
       showToast("Connect with an approved coach before sharing this worksheet.");
       return;
