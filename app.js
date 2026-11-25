@@ -1974,7 +1974,7 @@ function plannedContribution(row, form, type) {
 }
 
 function remainingAfterPlannedPayment(row, form, type) {
-  return currencyValue(Math.max(0, (Number(row.totalBalance ?? row.totalOwed) || 0) - plannedContribution(row, form, type)));
+  return currencyValue(Math.max(0, currencyValue(row.totalBalance ?? row.totalOwed) - plannedContribution(row, form, type)));
 }
 
 function applySavingsRollovers(member, form) {
@@ -2464,20 +2464,6 @@ function notifyFormMilestones(form) {
         "savings_goal",
       ) || created;
   }
-  form.data.creditCards.forEach((card) => {
-    const totalBalance = Number(card.totalBalance) || 0;
-    const remaining = currencyValue(totalBalance - (Number(card.contribution) || 0));
-    if (card.account && totalBalance > 0 && remaining <= 0) {
-      created =
-        addMilestoneNotifications(
-          member,
-          `${form.id}:card-paid:${card.id}:${currencyValue(totalBalance)}`,
-          "Credit card paid off",
-          `${form.assignedName || member.name} paid off ${card.account}.`,
-          "card_paid",
-        ) || created;
-    }
-  });
   return created;
 }
 
@@ -2495,19 +2481,23 @@ function notifyProfileMilestones(member) {
         "savings_goal",
       ) || created;
   }
-  member.financialInventory.creditCards.forEach((card) => {
-    if (card.account && card.totalBalance !== "" && Number(card.totalBalance) <= 0) {
-      created =
-        addMilestoneNotifications(
-          member,
-          `profile-card-paid:${card.id}`,
-          "Credit card paid off",
-          `${member.name} paid off ${card.account}.`,
-          "card_paid",
-        ) || created;
-    }
-  });
+  for (const card of member.financialInventory.creditCards) {
+    created = notifyCreditCardPayoff(member, card) || created;
+  }
   return created;
+}
+
+function notifyCreditCardPayoff(member, card) {
+  const savedBalance = String(card.totalBalance ?? "").trim().replaceAll(",", "");
+  const balance = Number(savedBalance);
+  if (!card.account || !savedBalance || !Number.isFinite(balance) || balance > 0) return false;
+  return addMilestoneNotifications(
+    member,
+    `profile-card-paid:${card.id}`,
+    "Credit card paid off",
+    `${member.name} paid off ${card.account}.`,
+    "card_paid",
+  );
 }
 
 function render() {
@@ -6975,6 +6965,7 @@ async function completeWorksheet(formId, coachNotes = "", actionSteps = "") {
     0,
     (Number(form.data.mortgage.paymentAmount) || 0) - calc.mortgageContribution,
   ));
+  const worksheetCards = form.data.creditCards.filter((card) => card.account);
   member.carryForward = {
     bills: Object.fromEntries(
       billGroups.map(([key]) => [
@@ -6993,23 +6984,21 @@ async function completeWorksheet(formId, coachNotes = "", actionSteps = "") {
       mustPayBy: form.data.mortgage.mustPayBy,
       remainingBefore: String(mortgagePaymentRemaining),
     },
-    creditCards: form.data.creditCards
-      .filter((card) => card.account)
-      .map((card) => ({
-        id: card.id || uid("card"),
-        account: card.account,
-        dueDate: card.dueDate,
-        totalBalance: String(remainingAfterPlannedPayment(card, form, "credit_card")),
-        lastStatementBalance: card.lastStatementBalance || "",
-        paymentDue: card.paymentDue || "",
-        allowance: card.allowance || "",
-        apr: card.apr,
-        promoType: card.promoType || "none",
-        purchasePromoRate: card.purchasePromoRate || "",
-        purchasePromoExpiration: card.purchasePromoExpiration || "",
-        balanceTransferPromoRate: card.balanceTransferPromoRate || "",
-        balanceTransferPromoExpiration: card.balanceTransferPromoExpiration || "",
-      })),
+    creditCards: worksheetCards.map((card) => ({
+      id: card.id || uid("card"),
+      account: card.account,
+      dueDate: card.dueDate,
+      totalBalance: String(remainingAfterPlannedPayment(card, form, "credit_card")),
+      lastStatementBalance: card.lastStatementBalance || "",
+      paymentDue: card.paymentDue || "",
+      allowance: card.allowance || "",
+      apr: card.apr,
+      promoType: card.promoType || "none",
+      purchasePromoRate: card.purchasePromoRate || "",
+      purchasePromoExpiration: card.purchasePromoExpiration || "",
+      balanceTransferPromoRate: card.balanceTransferPromoRate || "",
+      balanceTransferPromoExpiration: card.balanceTransferPromoExpiration || "",
+    })),
     savings: {
       goal: form.data.savings.goal,
       current: calc.savingsAfter === 0 ? "0.00" : String(calc.savingsAfter || ""),
@@ -7069,7 +7058,10 @@ async function completeWorksheet(formId, coachNotes = "", actionSteps = "") {
       }),
   );
   member.financialInventory.recurringBills = mergeRecurringBills(existingRecurringBills, worksheetRecurringBills);
-  member.financialInventory.creditCards = clone(member.carryForward.creditCards || []);
+  member.financialInventory.creditCards = clone(member.carryForward.creditCards);
+  member.financialInventory.creditCards.forEach((card, index) => {
+    if (currencyValue(worksheetCards[index].totalBalance) > 0) notifyCreditCardPayoff(member, card);
+  });
   member.financialInventory.debts = clone(member.carryForward.debts || []);
   member.financialInventory.studentLoans = clone(member.carryForward.studentLoans || []);
   const savedMortgage = member.financialInventory.mortgage;
