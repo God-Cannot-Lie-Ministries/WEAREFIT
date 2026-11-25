@@ -12534,21 +12534,6 @@ html[data-theme="dark"] .badge { color: #f4f7fc !important; }
   .worksheet-content .final-budget-table tbody td:last-child { grid-column: 2; }
 }
 
-/* Keep the bill summary in view without containing the viewport-fixed calculator. */
-@media (min-width: 1181px) {
-  .worksheet-content .editor-aside {
-    position: sticky !important;
-    top: 92px;
-    align-self: start;
-    max-height: calc(100dvh - 112px);
-    overflow-y: auto;
-  }
-}
-@media print {
-  .worksheet-content .editor-aside { position: static !important; max-height: none; overflow: visible; }
-  .worksheet-content .fit-calculator { display: none !important; }
-}
-
 /* Section navigation stays reachable and uses the measured header and nav height. */
 .main:has(.profile-jump-nav),
 .content:has(.profile-jump-nav) {
@@ -12705,12 +12690,18 @@ html[data-theme="dark"] .badge { color: #f4f7fc !important; }
   overflow-wrap: anywhere;
   text-align: center;
 }
-@media (min-width: 1181px) {
+@media screen and (min-width: 1000px) {
   .worksheet-content > .editor-layout {
-    grid-template-columns: minmax(0, 1fr) 300px;
+    grid-template-columns: minmax(0, 1fr) clamp(240px, 24vw, 300px);
+  }
+  .worksheet-content .editor-aside {
+    position: sticky !important;
+    top: var(--section-jump-offset, 76px);
+    max-height: max(0px, calc(100dvh - var(--section-jump-offset, 76px) - 12px));
+    overflow-y: auto;
   }
 }
-@media (max-width: 1180px) {
+@media screen and (max-width: 999px) {
   .worksheet-content > .editor-layout { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 768px) {
@@ -12722,6 +12713,7 @@ html[data-theme="dark"] .badge { color: #f4f7fc !important; }
   .main:has(.worksheet-content),
   .main > .worksheet-content,
   .worksheet-content > .editor-layout { display: block; min-height: 0; }
+  .worksheet-content .fit-calculator,
   .worksheet-tools,
   .worksheet-content > .worksheet-jump-nav,
   .main:has(.worksheet-content) > .community-footer { display: none !important; }
