@@ -12503,6 +12503,35 @@ html[data-theme="dark"] .badge { color: #f4f7fc !important; }
 .worksheet-content .field > label { display: block; margin-bottom: 8px; line-height: 1.5; }
 .worksheet-content :is(.input, .table-input) { min-height: 44px; font-size: 16px; }
 .worksheet-content :is(.debt-card-list, .routing-list, .bill-sections) { gap: 24px; }
+/* Rollovers wrap within the worksheet column beside the sticky summary. */
+.worksheet-content #allocations .routing-list {
+  grid-template-columns: minmax(0, 1fr);
+}
+.worksheet-content #allocations .routing-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  width: 100%;
+  max-width: 100%;
+}
+.worksheet-content #allocations .routing-row > .field {
+  flex: 1 1 170px;
+  min-width: 0;
+}
+.worksheet-content #allocations .routing-row :is(.input, .table-input, .money-input-wrap) {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+.worksheet-content #allocations .routing-row .decision-label {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.worksheet-content #allocations .routing-remove {
+  position: static;
+  flex: none;
+  margin-inline-start: auto;
+}
 .worksheet-content .budget-remaining-strip {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
